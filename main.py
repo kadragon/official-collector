@@ -128,6 +128,9 @@ class Main:
                     "shared": shared
                 }
 
+            if approval.split('_')[0] != '담당':
+                self.collector.save_pc()
+
             self.collector.reception()
 
             if shared != 2:

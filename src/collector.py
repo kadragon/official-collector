@@ -48,21 +48,54 @@ class OfficialCollector:
     def get_official_title(self) -> str:
         return self.dlg.texts()[0]
 
+    def save_pc(self) -> None:
+        self.dlg['PC저장'].click()
+
+        time.sleep(0.5)
+
+        pane = self.dlg.child_window(
+            title="HSATTACHBAR_CONTROL", auto_id="4", control_type="Pane")
+
+        if pane.exists():
+            self.dlg['본문 + 붙임'].click()
+            self.dlg['확인'].click()
+
+        time.sleep(0.5)
+
+        keyboard.send_keys('{TAB}')
+        keyboard.send_keys('{DOWN 4}')
+        keyboard.send_keys('{ENTER}')
+        keyboard.send_keys('{TAB 8}')
+        keyboard.send_keys('{DOWN 1}')
+        keyboard.send_keys('{ENTER}')
+        keyboard.send_keys('%S')
+        time.sleep(0.5)
+        self.dlg['확인'].click()
+
 
 if __name__ == '__main__':
-    procs = findwindows.find_elements()
-    process_id = None
-    for p in procs:
-        if p.class_name == "XSViewBMSWndClass":
-            process_id = p.process_id
+    collector = OfficialCollector()
 
-    app = Application()
-    app.connect(process=process_id)
-    dlg = app.top_window()
-    # dlg.print_control_identifiers()
-    # print(dlg.texts())
-    for control in dlg.children():
-        print(control.window_text())
+    # collector.save_pc()
+
+    collector.dlg.print_control_identifiers()
+
+    # for control in collector.dlg:
+    #     print(control, "\n")
+
+    # procs = findwindows.find_elements()
+    # process_id = None
+    # for p in procs:
+    #     if p.class_name == "XSViewBMSWndClass":
+    #         process_id = p.process_id
+
+    # app = Application()
+    # app.connect(process=process_id)
+    # dlg = app.top_window()
+    # # dlg.print_control_identifiers()
+    # # print(dlg.texts())
+    # for control in dlg.children():
+    #     print(control.window_text())
 
     # if not dlg.child_window(title='결재정보', control_type='Window').exists():
     #     dlg['결재정보'].click()
