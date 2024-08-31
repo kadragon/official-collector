@@ -1,6 +1,6 @@
 import time
 from typing import Optional
-from pywinauto import Application, keyboard, findwindows
+from pywinauto import Application, keyboard, findwindows, mouse
 from pywinauto.timings import TimeoutError
 
 
@@ -17,8 +17,13 @@ class OfficialCollector:
                 self.dlg = self.app.top_window()
                 return
             except findwindows.ElementNotFoundError:
-                print("공문 처리기가 없습니다.\n공문 처리기가 실행되기를 기다리는 중입니다.")
-                time.sleep(wait_time)
+                try:
+                    self.app.connect(title_re="^전자결재")
+                    self.dlg = self.app.top_window()
+                    return
+                except findwindows.ElementNotFoundError:
+                    print("공문 처리기가 없습니다.\n공문 처리기가 실행되기를 기다리는 중입니다.")
+                    time.sleep(wait_time)
 
         raise TimeoutError("공문 처리기를 찾을 수 없습니다.")
 
@@ -72,13 +77,61 @@ class OfficialCollector:
         time.sleep(0.5)
         self.dlg['확인'].click()
 
+    def document_sort(self, document_group_name):
+        if not self.dlg.child_window(title='결재정보', control_type='Window').exists():
+            self.dlg['결재정보'].click()
+
+        time.sleep(0.5)
+
+        self.dlg.child_window(title='결재정보', control_type='Window').set_focus()
+
+        keyboard.send_keys('{TAB 3}')
+        keyboard.send_keys('{SPACE}')
+
+        time.sleep(2)
+
+        # '과제카드 선택' 다이얼로그를 찾습니다.
+        dialog = self.dlg.child_window(title="과제카드 선택", control_type="Window")
+        dialog_rect = dialog.rectangle()
+
+        mouse.click(coords=(dialog_rect.right - 20, dialog_rect.top + 50))
+
+        keyboard.send_keys('{TAB 2}')
+        keyboard.send_keys(document_group_name)
+        keyboard.send_keys('{ENTER}')
+
+        time.sleep(0.5)
+
+        keyboard.send_keys('{TAB}')
+        keyboard.send_keys('{SPACE}')
+
+        keyboard.send_keys('{TAB 3}')
+
+        keyboard.send_keys('{ENTER}')
+
+        time.sleep(0.5)
+
+        keyboard.send_keys('{ENTER}')
+
+        self.dlg['결재'].click()
+
+        keyboard.send_keys('{ENTER}')
+
+        time.sleep(0.5)
+
+        if not self.dlg.child_window(title='확인', control_type='Window').exists():
+            self.dlg['예(Y)'].click()
+
+        time.sleep(1)
+        # self.dlg.print_control_identifiers()
+
 
 if __name__ == '__main__':
     collector = OfficialCollector()
-
+    collector.dlg.print_control_identifiers()
     # collector.save_pc()
 
-    collector.dlg.print_control_identifiers()
+    # collector.document_sort('일반서무')
 
     # for control in collector.dlg:
     #     print(control, "\n")

@@ -13,6 +13,8 @@ class Main:
             "./data/sort_data.json")
         self.sorted_data: Dict[str, Any] = self._load_data(
             "./data/sorted_data.json")
+        self.docu_data: Dict[str, Any] = self._load_data(
+            "./data/docu_data.json")
         self.approval_name_list: List[str] = self._load_json('approval_names')
         self.share_name_list: List[str] = self._load_json('share_names')
 
@@ -59,6 +61,32 @@ class Main:
                 if check_str in title or re.match(check_str, title):
                     return user, shared
         return None
+
+    def _check_docu(self, title: str) -> str:
+        for card_name, docu_titles in self.docu_data.items():
+            for docu_title in docu_titles:
+                if docu_title in title or re.match(docu_title, title):
+                    return card_name
+
+        return None
+
+    def _select_card_name(self) -> str:
+        i = 0
+        card_list = list(self.docu_data.keys())
+        for card_name in card_list:
+            print(f'[{i:02d}], {card_name}')
+            i += 1
+
+        while True:
+            try:
+                idx = int(input("과제카드를 선택해주세요: "))
+                if 0 <= idx < len(self.card_list):
+                    break
+                print("유효하지 않은 번호입니다. 다시 선택해주세요.")
+            except ValueError:
+                print("숫자를 입력해주세요.")
+
+        return card_list[idx]
 
     def _check_end_collecting(self) -> bool:
         if self.collector.dlg.child_window(title='확인', control_type='Window').exists():
@@ -108,38 +136,50 @@ class Main:
                 break
 
             title = self.collector.get_official_title()
-            checked = self._check_sort(title)
 
-            if checked is not None:
-                approval, shared = checked
+            if title.startswith('접수'):
+                checked = self._check_sort(title)
+
+                if checked is not None:
+                    approval, shared = checked
+                else:
+                    approval, shared = self._get_user_input()
+
+                self.collector.approval(approval)
+                if shared != 2:
+                    self.collector.add_share(self.share_name_list[shared])
+
+                print(
+                    f"{title} -> {approval} / {self.share_name_list[shared]}")
+
+                if checked is None:
+                    self.sorted_data[title] = {
+                        "title": title,
+                        "approval": approval,
+                        "shared": shared
+                    }
+
+                if approval.split('_')[0] != '담당':
+                    self.collector.save_pc()
+
+                self.collector.reception()
+
+                if shared != 2:
+                    self.collector.dlg['확인2'].click()
+
+                time.sleep(0.5)
             else:
-                approval, shared = self._get_user_input()
+                """결재 완료된 공문에 대해서 과제 카드 부여"""
+                print(title)
+                card_name = self._check_docu(title)
 
-            self.collector.approval(approval)
-            if shared != 2:
-                self.collector.add_share(self.share_name_list[shared])
+                if card_name is None:
+                    card_name = self._select_card_name()
 
-            print(f"{title} -> {approval} / {self.share_name_list[shared]}")
-
-            if checked is None:
-                self.sorted_data[title] = {
-                    "title": title,
-                    "approval": approval,
-                    "shared": shared
-                }
-
-            if approval.split('_')[0] != '담당':
-                self.collector.save_pc()
-
-            self.collector.reception()
-
-            if shared != 2:
-                self.collector.dlg['확인2'].click()
-
-            time.sleep(0.5)
+                self.collector.document_sort(card_name)
 
         self._save_sorted_data()
-        print("접수가 완료되었습니다.")
+        print("완료되었습니다.")
 
 
 if __name__ == '__main__':
