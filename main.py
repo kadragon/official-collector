@@ -15,6 +15,8 @@ class Main:
             "./data/sorted_data.json")
         self.docu_data: Dict[str, Any] = self._load_data(
             "./data/docu_data.json")
+        self.docued_data: Dict[str, Any] = self._load_data(
+            "./data/docued_data.json")
         self.approval_name_list: List[str] = self._load_json('approval_names')
         self.share_name_list: List[str] = self._load_json('share_names')
 
@@ -43,12 +45,11 @@ class Main:
                 f"File {file_path} is not valid JSON. Creating an empty dictionary.")
             return {}
 
-    def _save_sorted_data(self, file_path: str = "./data/sorted_data.json") -> None:
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(self.sorted_data, f, indent=4, ensure_ascii=False)
-        except IOError as e:
-            print(f"Error saving data to file {file_path}: {e}")
+    def _save_data(self) -> None:
+        with open("./data/sorted_data.json", "w", encoding="utf-8") as f:
+            json.dump(self.sorted_data, f, indent=4, ensure_ascii=False)
+        with open("./data/docued_data.json", "w", encoding="utf-8") as f:
+            json.dump(self.docued_data, f, indent=4, ensure_ascii=False)
 
     def _check_sort(self, title: str) -> Optional[Tuple[str, int]]:
         for user, data in self.sort_data.items():
@@ -71,16 +72,18 @@ class Main:
         return None
 
     def _select_card_name(self) -> str:
+        self.cmd.activate()
+
         i = 0
         card_list = list(self.docu_data.keys())
         for card_name in card_list:
-            print(f'[{i:02d}], {card_name}')
+            print(f'[{i:02d}] {card_name}')
             i += 1
 
         while True:
             try:
                 idx = int(input("과제카드를 선택해주세요: "))
-                if 0 <= idx < len(self.card_list):
+                if 0 <= idx < len(card_list):
                     break
                 print("유효하지 않은 번호입니다. 다시 선택해주세요.")
             except ValueError:
@@ -145,6 +148,12 @@ class Main:
                 else:
                     approval, shared = self._get_user_input()
 
+                    self.sorted_data[title] = {
+                        "title": title,
+                        "approval": approval,
+                        "shared": shared
+                    }
+
                 self.collector.approval(approval)
                 if shared != 2:
                     self.collector.add_share(self.share_name_list[shared])
@@ -152,15 +161,8 @@ class Main:
                 print(
                     f"{title} -> {approval} / {self.share_name_list[shared]}")
 
-                if checked is None:
-                    self.sorted_data[title] = {
-                        "title": title,
-                        "approval": approval,
-                        "shared": shared
-                    }
-
-                if approval.split('_')[0] != '담당':
-                    self.collector.save_pc()
+                # if approval.split('_')[0] != '담당':
+                #     self.collector.save_pc()
 
                 self.collector.reception()
 
@@ -176,9 +178,14 @@ class Main:
                 if card_name is None:
                     card_name = self._select_card_name()
 
+                    self.docued_data[title] = {
+                        "title": title,
+                        "card_name": card_name
+                    }
+
                 self.collector.document_sort(card_name)
 
-        self._save_sorted_data()
+        self._save_data()
         print("완료되었습니다.")
 
 

@@ -117,12 +117,12 @@ class OfficialCollector:
 
         keyboard.send_keys('{ENTER}')
 
-        time.sleep(0.5)
-
         if not self.dlg.child_window(title='확인', control_type='Window').exists():
             self.dlg['예(Y)'].click()
 
-        time.sleep(1)
+        print('대기중')
+
+        time.sleep(2)
         # self.dlg.print_control_identifiers()
 
 
