@@ -92,10 +92,13 @@ class Main:
         return card_list[idx]
 
     def _check_end_collecting(self) -> bool:
-        if self.collector.dlg.child_window(title='확인', control_type='Window').exists():
-            self.collector.dlg['예(Y)'].click()
-            return True
-        return False
+        try:
+            if self.collector.dlg.child_window(title='확인', control_type='Window').exists():
+                self.collector.dlg['예(Y)'].click()
+                return True
+            return False
+        except:
+            return False
 
     def _get_user_input(self) -> Tuple[str, int]:
         self.cmd.activate()

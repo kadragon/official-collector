@@ -43,6 +43,7 @@ class OfficialCollector:
         keyboard.send_keys('{TAB 5}')
         keyboard.send_keys(approval_name)
         keyboard.send_keys('{DOWN}')
+
         self.dlg['확인'].click()
 
     def reception(self) -> None:
@@ -123,12 +124,25 @@ class OfficialCollector:
         print('대기중')
 
         time.sleep(2)
-        # self.dlg.print_control_identifiers()
 
 
 if __name__ == '__main__':
-    collector = OfficialCollector()
-    collector.dlg.print_control_identifiers()
+    app = Application(backend="uia")
+    app.connect(title_re="^기안")
+    dlg = app.top_window()
+
+    child = dlg.child_window(title="결재정보", control_type="Window")
+    child.print_control_identifiers()
+    approval_line = child.child_window(
+        title="결재선", control_type="TabItem")
+
+    approval_line.print_control_identifiers()    # 결재선 탭 클릭
+    approval_line.click_input()
+
+    print("결재선 탭이 클릭되었습니다.")
+
+    # collector = OfficialCollector()
+    # collector.dlg.print_control_identifiers()
     # collector.save_pc()
 
     # collector.document_sort('일반서무')
