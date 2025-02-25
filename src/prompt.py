@@ -49,10 +49,10 @@ If an existing classification is modified, return:
 ```json
 {
   "additions": [
-    { "title": "연구비 지침", "share": "공람없음", "approval": "담당_김수현" }
+    { "title": "연구비 지침", "share": "공람없음", "approval": "담당_홍길순" }
   ],
   "deletions": [
-    { "title": "연구비 사용 지침", "share": "팀장님", "approval": "담당_이상수" }
+    { "title": "연구비 사용 지침", "share": "팀장님", "approval": "담당_홍길동" }
   ]
 }
 ```
