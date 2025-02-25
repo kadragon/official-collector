@@ -1,3 +1,5 @@
+"""공문 자동 분류 및 처리를 위한 메인 모듈."""
+
 import time
 import re
 import logging
@@ -12,11 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 class Main:
+    """공문 자동 분류 및 처리를 위한 메인 클래스."""
+
     def __init__(self):
         self.sort_data: Dict[str, List] = load_json("./data/sort_data.json")
-        self.sorted_data: List[Dict] = []
+        self.sorted_data: Dict[str: List] = {"items": []}
         self.docu_data: Dict[str, Any] = load_json("./data/docu_data.json")
-        self.docued_data: Dict = {}
+        self.docued_data: Dict[str: List] = {"items": []}
         self.approval_name_list: List[str] = load_json('./data/base_data.json')['approval_names']
         self.share_name_list: List[str] = load_json('./data/base_data.json')['share_names']
 
@@ -66,7 +70,7 @@ class Main:
                         self.approval_name_list, self.share_name_list
                     )
 
-                    self.sorted_data.append({
+                    self.sorted_data['items'].append({
                         "title": title.replace("접수: ", ''),
                         "approval": approval,
                         "shared": shared
@@ -91,10 +95,10 @@ class Main:
                 if card_name is None:
                     card_name = self.dialog.choose_task_card(self.docu_data)
 
-                    self.docued_data[title] = {
+                    self.docued_data['items'].append({
                         "title": title,
                         "card_name": card_name
-                    }
+                    })
 
                 self.collector.document_sort(card_name)
 
@@ -109,5 +113,3 @@ class Main:
 if __name__ == '__main__':
     main = Main()
     main.run()
-    # main.update_sort_data()
-    # print()
