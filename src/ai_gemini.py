@@ -51,9 +51,7 @@ class AIManager:
                                 "approval": content.Schema(
                                     type=content.Type.STRING,
                                     description=(
-                                        "업무 담당자(팀장님_전결, 원장님_결재, 담당_윤인자, "
-                                        "담당_이종선, 담당_홍성민, 담당_황미연, 담당_우미인, "
-                                        "담당_김수현, 담당_이상수)"
+                                        "업무 담당자 구분(기존에 존재하는 담당자 구분만 사용)"
                                     )
                                 )
                             },
