@@ -10,6 +10,7 @@ import shutil
 from typing import Dict, Any
 from src.ai_gemini import AIManager
 
+
 def load_json(file_path: str) -> Dict[str, Any]:
     """
     JSON 파일을 읽어서 딕셔너리로 반환합니다.
@@ -46,7 +47,7 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
         os.remove(old_backup)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = f"./data/sort_data_{timestamp}.json"
+    backup_path = f"./backup/sort_data_{timestamp}.json"
 
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
@@ -55,17 +56,29 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
 
     if 'additions' in response:
         for addition in response['additions']:
-            sort_data['items'].append(addition)
+            title = addition['title']
+            share = addition['share']
+            approval = addition['approval']
+
+            sort_data[approval].append({
+                "title": title,
+                "share": share
+            })
             print(f'추가: {addition}')
 
     if 'deletions' in response:
         for deletion in response['deletions']:
-            sort_data['items'] = [
-                item for item in sort_data['items'] if item['title'] != deletion['title']]
+            title = addition['title']
+            approval = addition['approval']
+
+            sort_data[approval] = [
+                item for item in sort_data[approval] if item['title'] != deletion['title']]
+
             print(f'삭제: {deletion}')
 
     with open(src_path, "w", encoding="utf-8") as f:
         json.dump(sort_data, f, indent=4, ensure_ascii=False)
+
 
 def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -> None:
     """
@@ -76,29 +89,27 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
     """
     ai = AIManager()
 
-    backup_pattern = './data/docu_data_*.json'
-    for old_backup in glob.glob(backup_pattern):
-        os.remove(old_backup)
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = f"./data/docu_data_{timestamp}.json"
+    backup_path = f"./backup/docu_data_{timestamp}.json"
 
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
 
     response = ai.resort(docu_data, docued_data, 'docu')
 
-    print(response)
-
     if 'additions' in response:
         for addition in response['additions']:
-            document_name, title = addition
+            document_name = addition['document_name']
+            title = addition['title']
+            print(f'{document_name} / {title}')
+
             docu_data[document_name].append(title)
             print(f'추가: {addition}')
 
     if 'deletions' in response:
         for deletion in response['deletions']:
-            document_name, title = deletion
+            document_name = deletion['document_name']
+            title = deletion['title']
             docu_data[document_name] = [
                 item for item in docu_data[document_name] if item != title]
             print(f'삭제: {deletion}')

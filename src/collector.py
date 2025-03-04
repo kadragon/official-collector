@@ -81,7 +81,8 @@ class OfficialCollector:
             approval_name (str): 결재선 이름.
         """
         if self.dlg:
-            info_window = self.dlg.child_window(title='결재정보', control_type='Window')
+            info_window = self.dlg.child_window(
+                title='결재정보', control_type='Window')
             if not info_window.exists():
                 self.dlg['결재정보'].click()
 
@@ -153,7 +154,8 @@ class OfficialCollector:
             document_group_name (str): 선택할 문서 그룹 이름.
         """
         if self.dlg:
-            info_window = self.dlg.child_window(title='결재정보', control_type='Window')
+            info_window = self.dlg.child_window(
+                title='결재정보', control_type='Window')
             if not info_window.exists():
                 self.dlg['결재정보'].click()
 
@@ -162,10 +164,11 @@ class OfficialCollector:
 
             keyboard.send_keys('{TAB 3}')
             keyboard.send_keys('{SPACE}')
-            time.sleep(2)
+            time.sleep(1)
 
             # '과제카드 선택' 다이얼로그 찾기
-            dialog = self.dlg.child_window(title="과제카드 선택", control_type="Window")
+            dialog = self.dlg.child_window(
+                title="과제카드 선택", control_type="Window")
             dialog_rect = dialog.rectangle()
             mouse.click(coords=(dialog_rect.right - 20, dialog_rect.top + 50))
 
@@ -184,7 +187,8 @@ class OfficialCollector:
             self.dlg['결재'].click()
             keyboard.send_keys('{ENTER}')
 
-            confirm_window = self.dlg.child_window(title='확인', control_type='Window')
+            confirm_window = self.dlg.child_window(
+                title='확인', control_type='Window')
             if not confirm_window.exists():
                 self.dlg['예(Y)'].click()
 
@@ -207,6 +211,11 @@ class OfficialCollector:
             return False
         except (AttributeError, RuntimeError):  # 구체적인 예외 타입 지정
             return False
+        except (findwindows.ElementNotFoundError) as e:
+            return True
+        except Exception as e:
+            return True
+
 
 if __name__ == '__main__':
     officialCollector = OfficialCollector()

@@ -66,11 +66,17 @@ class AIManager:
                             items=content.Schema(
                                 type=content.Type.OBJECT,
                                 enum=[],
-                                required=["title"],
+                                required=["title", "approval"],
                                 properties={
                                     "title": content.Schema(
                                         type=content.Type.STRING,
                                         description="업무명 (기존 분류체계에 존재하는 업무명)"
+                                    ),
+                                    "approval": content.Schema(
+                                        type=content.Type.STRING,
+                                        description=(
+                                            "업무 담당자 구분(기존에 존재하는 담당자 구분만 사용)"
+                                        )
                                     )
                                 },
                             ),
