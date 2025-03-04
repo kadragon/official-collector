@@ -208,6 +208,6 @@ class OfficialCollector:
         except (AttributeError, RuntimeError):  # 구체적인 예외 타입 지정
             return False
 
-# if __name__ == '__main__':
-    # officialCollector = OfficialCollector()
-    # print_control_identifiers()
+if __name__ == '__main__':
+    officialCollector = OfficialCollector()
+    officialCollector.dlg.print_control_identifiers()

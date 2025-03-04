@@ -51,7 +51,7 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
 
-    response = ai.resort(sort_data, sorted_data)
+    response = ai.resort(sort_data, sorted_data, 'sort')
 
     if 'additions' in response:
         for addition in response['additions']:
@@ -66,3 +66,42 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
 
     with open(src_path, "w", encoding="utf-8") as f:
         json.dump(sort_data, f, indent=4, ensure_ascii=False)
+
+def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -> None:
+    """
+    문서 분류 데이터를 업데이트하고 백업을 생성합니다.
+
+    Args:
+        src_path (str): 정렬 데이터 파일 경로. 기본값은 './data/docu_data.json'
+    """
+    ai = AIManager()
+
+    backup_pattern = './data/docu_data_*.json'
+    for old_backup in glob.glob(backup_pattern):
+        os.remove(old_backup)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    backup_path = f"./data/docu_data_{timestamp}.json"
+
+    if os.path.exists(src_path):
+        shutil.copy(src_path, backup_path)
+
+    response = ai.resort(docu_data, docued_data, 'docu')
+
+    print(response)
+
+    if 'additions' in response:
+        for addition in response['additions']:
+            document_name, title = addition
+            docu_data[document_name].append(title)
+            print(f'추가: {addition}')
+
+    if 'deletions' in response:
+        for deletion in response['deletions']:
+            document_name, title = deletion
+            docu_data[document_name] = [
+                item for item in docu_data[document_name] if item != title]
+            print(f'삭제: {deletion}')
+
+    with open(src_path, "w", encoding="utf-8") as f:
+        json.dump(docu_data, f, indent=4, ensure_ascii=False)
