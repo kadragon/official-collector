@@ -8,8 +8,10 @@ import time
 import logging
 from typing import Optional
 
+import pyperclip
 from pywinauto import Application, keyboard, mouse, findwindows
 from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -89,7 +91,8 @@ class OfficialCollector:
             self.dlg['결재선'].select()
             time.sleep(0.5)
             keyboard.send_keys('{TAB 5}')
-            keyboard.send_keys(approval_name)
+            pyperclip.copy(approval_name)
+            keyboard.send_keys('^v')
             keyboard.send_keys('{DOWN}')
             self.dlg['확인'].click()
         else:
@@ -173,7 +176,8 @@ class OfficialCollector:
             mouse.click(coords=(dialog_rect.right - 20, dialog_rect.top + 50))
 
             keyboard.send_keys('{TAB 2}')
-            keyboard.send_keys(document_group_name)
+            pyperclip.copy(document_group_name)
+            keyboard.send_keys('^v')
             keyboard.send_keys('{ENTER}')
             time.sleep(0.5)
 
