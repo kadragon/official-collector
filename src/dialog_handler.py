@@ -90,10 +90,9 @@ class DialogHandler:
                 print("숫자를 입력해주세요.")
 
     def check_valid_sort(self, title: str, sort_info) -> bool:
+        self.cmd.activate()
         print(f'{title} -> {sort_info}')
         confirm = input("분류 하시겠습니까?( Enter / n)")
-
-        self.cmd.activate()
 
         if confirm.lower() == 'n':
             return False
