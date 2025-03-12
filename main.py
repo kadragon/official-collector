@@ -34,7 +34,6 @@ class Main:
         for approval in self.sort_data.keys():
 
             for item in self.sort_data[approval]:
-                print(item)
                 if re.match(item['title'], title) or item['title'] in title:
                     logger.info(
                         '%s으로 %s가 매칭 되었습니다.',
