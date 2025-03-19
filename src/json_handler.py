@@ -54,6 +54,16 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
 
     response = ai.resort(sort_data, sorted_data, 'sort')
 
+    if 'deletions' in response:
+        for deletion in response['deletions']:
+            title = addition['title']
+            approval = addition['approval']
+
+            sort_data[approval] = [
+                item for item in sort_data[approval] if item['title'] != deletion['title']]
+
+            print(f'삭제: {deletion}')
+
     if 'additions' in response:
         for addition in response['additions']:
             title = addition['title']
@@ -65,16 +75,6 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
                 "share": share
             })
             print(f'추가: {addition}')
-
-    if 'deletions' in response:
-        for deletion in response['deletions']:
-            title = addition['title']
-            approval = addition['approval']
-
-            sort_data[approval] = [
-                item for item in sort_data[approval] if item['title'] != deletion['title']]
-
-            print(f'삭제: {deletion}')
 
     with open(src_path, "w", encoding="utf-8") as f:
         json.dump(sort_data, f, indent=4, ensure_ascii=False)
@@ -97,22 +97,23 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
 
     response = ai.resort(docu_data, docued_data, 'docu')
 
-    if 'additions' in response:
-        for addition in response['additions']:
-            document_name = addition['document_name']
-            title = addition['title']
-            print(f'{document_name} / {title}')
-
-            docu_data[document_name].append(title)
-            print(f'추가: {addition}')
-
     if 'deletions' in response:
         for deletion in response['deletions']:
-            document_name = deletion['document_name']
-            title = deletion['title']
-            docu_data[document_name] = [
-                item for item in docu_data[document_name] if item != title]
-            print(f'삭제: {deletion}')
+            if deletion['document_name'] in docued_data.keys():
+                document_name = deletion['document_name']
+                title = deletion['title']
+                docu_data[document_name] = [
+                    item for item in docu_data[document_name] if item != title]
+                print(f'삭제: {deletion}')
+
+    if 'additions' in response:
+        for addition in response['additions']:
+            if addition['document_name'] in docued_data.keys():
+                document_name = addition['document_name']
+                title = addition['title']
+
+                docu_data[document_name].append(title)
+                print(f'추가: {addition}')
 
     with open(src_path, "w", encoding="utf-8") as f:
         json.dump(docu_data, f, indent=4, ensure_ascii=False)

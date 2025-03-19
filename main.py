@@ -46,8 +46,8 @@ class Main:
 
     def _check_docu(self, title: str) -> str:
         """결재 완료된 공문에 대해서 과제 카드 매칭 확인"""
-        for card_name, docu_titles in self.docu_data.items():
-            for docu_title in docu_titles:
+        for docu_key in self.docu_data.keys():
+            for docu_title in self.docu_data[docu_key]:
                 if docu_title in title or re.match(docu_title, title):
                     logger.info(
                         '[%s]으로 [%s]가 매칭 되었습니다.',
@@ -55,7 +55,7 @@ class Main:
                         title
                     )
 
-                    return card_name
+                    return docu_key
 
         return None
 
