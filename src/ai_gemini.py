@@ -5,7 +5,7 @@ Google의 Gemini AI 모델을 사용하여 문서 분류 및 정렬을 처리하
 import json
 import google.generativeai as genai
 from google.ai.generativelanguage_v1beta.types import content
-from src.prompt import RESORTING_PROMPT
+from src.prompt import RESORTING_PROMPT, CARD_PROMPT
 from src.config import GOOGLE_API_KEY, GEMINI_MODELS
 
 
@@ -152,3 +152,45 @@ class AIManager:
 
         response = model.generate_content(user_prompt)
         return json.loads(response.text)
+
+    def card_picker(self, docu_data: dict, title: str) -> str:
+        """
+        Gemini AI 모델을 사용해 과제 카드 분류를 추천 받는다
+        """
+
+        generation_config = {
+            "temperature": 0.1,
+            "response_schema": content.Schema(
+                type=content.Type.OBJECT,
+                enum=[],
+                properties={
+                    "recommendations": content.Schema(
+                        type=content.Type.ARRAY,
+                        items=content.Schema(
+                            type=content.Type.STRING
+                        ),
+                    ),
+                }
+            ),
+            "response_mime_type": "application/json",
+        }
+
+        model = genai.GenerativeModel(
+            model_name=GEMINI_MODELS['flash'],
+            generation_config=generation_config,
+            system_instruction=CARD_PROMPT
+        )
+
+        user_prompt = (
+            "## 과제카드 목록 및 분류 기준\n"
+            "```json\n"
+            f"{json.dumps(docu_data, ensure_ascii=False, indent=2)}\n"
+            "```\n\n"
+            "## 공문 제목\n"
+            "`"
+            f"{title}"
+            "`"
+        )
+
+        response = model.generate_content(user_prompt)
+        return json.loads(response.text)['recommendations']
