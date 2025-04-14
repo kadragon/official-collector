@@ -15,6 +15,8 @@ class AIManager:
     def __init__(self) -> None:
         """AIManager 초기화: Google API 키를 설정한다."""
         genai.configure(api_key=GOOGLE_API_KEY)
+        self.model_flash = None
+        self.card_chat = None
 
     def resort(self, sort_data: dict, sorted_data: dict, mode: str) -> dict:
         """
@@ -147,50 +149,77 @@ class AIManager:
             "## manual sort data\n"
             "```json\n"
             f"{json.dumps(sorted_data, ensure_ascii=False, indent=2)}\n"
-            "```"
+            "```\n\n"
+            "Based on the provided data and the system instructions, generate the required JSON object containing additions and deletions."
+            "**Output ONLY the raw JSON object, without any markdown formatting (```json) or other text.**"
         )
 
         response = model.generate_content(user_prompt)
-        return json.loads(response.text)
+
+        raw_text = response.text
+
+        # 마크다운 코드 블록 제거 시도
+        if raw_text.strip().startswith("```json"):
+            # 첫 줄(```json)과 마지막 줄(```) 제거
+            lines = raw_text.strip().splitlines()
+            if len(lines) > 1 and lines[-1].strip() == "```":
+                json_text = "\n".join(lines[1:-1])
+            else:  # 혹시 모를 다른 형식 대비
+                json_text = raw_text.strip()[7:].rstrip('`')
+        else:
+            json_text = raw_text  # 마크다운이 없으면 그대로 사용
+
+        try:
+            # 후처리된 텍스트를 JSON으로 파싱
+            parsed_response = json.loads(json_text)
+            return parsed_response
+        except json.JSONDecodeError as e:
+            print(
+                f"Failed to parse JSON after attempting to clean markdown: {e}")
+            print(f"Original text: {raw_text}")
+            print(f"Cleaned text: {json_text}")
+            # 오류 발생 시 빈 딕셔너리나 다른 적절한 값 반환 고려
+            return {}
+        except Exception as e:  # 예상치 못한 다른 오류 처리
+            print(
+                f"An unexpected error occurred during response processing: {e}")
+            print(f"Original text: {raw_text}")
+            return {}
 
     def card_picker(self, docu_data: dict, title: str) -> str:
         """
         Gemini AI 모델을 사용해 과제 카드 분류를 추천 받는다
         """
 
-        generation_config = {
-            "temperature": 0.1,
-            "response_schema": content.Schema(
-                type=content.Type.OBJECT,
-                enum=[],
-                properties={
-                    "recommendations": content.Schema(
-                        type=content.Type.ARRAY,
-                        items=content.Schema(
-                            type=content.Type.STRING
+        if self.card_chat is None:
+            generation_config = {
+                "temperature": 0.1,
+                "response_schema": content.Schema(
+                    type=content.Type.OBJECT,
+                    enum=[],
+                    properties={
+                        "recommendations": content.Schema(
+                            type=content.Type.ARRAY,
+                            items=content.Schema(
+                                type=content.Type.STRING
+                            ),
                         ),
-                    ),
-                }
-            ),
-            "response_mime_type": "application/json",
-        }
+                    }
+                ),
+                "response_mime_type": "application/json",
+            }
 
-        model = genai.GenerativeModel(
-            model_name=GEMINI_MODELS['flash'],
-            generation_config=generation_config,
-            system_instruction=CARD_PROMPT
-        )
+            self.model_flash = genai.GenerativeModel(
+                model_name=GEMINI_MODELS['flash'], generation_config=generation_config)
+            self.card_chat = self.model_flash.start_chat(history=[])
+            self.card_chat.send_message(CARD_PROMPT)
+            self.card_chat.send_message(
+                f"## BASE DATA\n\n{json.dumps(docu_data, ensure_ascii=False, indent=2)}\n\n 이 기준을 참고해서 이후 공문 제목을 분석해줘")
 
         user_prompt = (
-            "## 과제카드 목록 및 분류 기준\n"
-            "```json\n"
-            f"{json.dumps(docu_data, ensure_ascii=False, indent=2)}\n"
-            "```\n\n"
-            "## 공문 제목\n"
-            "`"
-            f"{title}"
-            "`"
+            f"## 공문 제목\n\n`{title}`"
         )
 
-        response = model.generate_content(user_prompt)
+        response = self.card_chat.send_message(user_prompt)
+
         return json.loads(response.text)['recommendations']
