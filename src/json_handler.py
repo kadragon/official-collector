@@ -52,18 +52,21 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
 
-    response = ai.resort(sort_data, sorted_data, 'sort')
-
     try:
+        response = ai.resort(sort_data, sorted_data, 'sort')
+
         if 'deletions' in response:
             for deletion in response['deletions']:
-                title = addition['title']
-                approval = addition['approval']
+                title = deletion['title']
+                approval = deletion['approval']
 
-                sort_data[approval] = [
-                    item for item in sort_data[approval] if item['title'] != deletion['title']]
-
-                print(f'삭제: {deletion}')
+                if approval in sort_data:
+                    sort_data[approval] = [
+                        item for item in sort_data[approval] if item['title'] != title]
+                    print(f'삭제: {deletion}')
+                else:
+                    print(
+                        f"경고: 삭제하려는 approval 키 '{approval}'가 sort_data에 존재하지 않습니다.")
 
         if 'additions' in response:
             for addition in response['additions']:
@@ -71,13 +74,26 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
                 share = addition['share']
                 approval = addition['approval']
 
-                sort_data[approval].append({
-                    "title": title,
-                    "share": share
-                })
-                print(f'추가: {addition}')
-    except:
-        print(response)
+                if approval not in sort_data:
+                    sort_data[approval] = []  # 새로운 approval 키 생성
+
+                # 중복 title 확인
+                if not any(item['title'] == title for item in sort_data[approval]):
+                    sort_data[approval].append({
+                        "title": title,
+                        "share": share
+                    })
+                    print(f'추가: {addition}')
+                else:
+                    print(f"경고: 이미 존재하는 title '{title}'을 추가하려 했습니다.")
+
+    except KeyError as e:
+        print(f"KeyError 발생: {e}")
+        print(f"sort_data: {sort_data}")
+        print(f"response: {response}")
+    except Exception as e:
+        print(f"예상치 못한 오류 발생: {e}")
+        print(f"response: {response}")
 
     with open(src_path, "w", encoding="utf-8") as f:
         json.dump(sort_data, f, indent=4, ensure_ascii=False)
@@ -103,7 +119,7 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
     try:
         if 'deletions' in response:
             for deletion in response['deletions']:
-                if deletion['document_name'] in docued_data.keys():
+                if deletion['document_name'] in docu_data.keys():
                     document_name = deletion['document_name']
                     title = deletion['title']
                     docu_data[document_name] = [
@@ -112,7 +128,7 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
 
         if 'additions' in response:
             for addition in response['additions']:
-                if addition['document_name'] in docued_data.keys():
+                if addition['document_name'] in docu_data.keys():
                     document_name = addition['document_name']
                     title = addition['title']
 
