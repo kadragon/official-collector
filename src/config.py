@@ -10,5 +10,5 @@ GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 # Gemini 모델 설정
 GEMINI_MODELS = {
     'flash': 'gemini-2.0-flash',
-    'pro': 'gemini-2.5-pro-exp'
+    'pro': 'gemini-2.0-pro-exp'
 }
