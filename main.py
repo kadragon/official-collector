@@ -49,12 +49,6 @@ class Main:
         for docu_key in self.docu_data.keys():
             for docu_title in self.docu_data[docu_key]:
                 if docu_title in title or re.match(docu_title, title):
-                    logger.info(
-                        '[%s]으로 [%s]가 매칭 되었습니다.',
-                        docu_title,
-                        title
-                    )
-
                     return docu_key
 
         return None
@@ -101,8 +95,10 @@ class Main:
                 if shared != '공람없음':
                     self.collector.dlg['확인2'].click()
 
-                time.sleep(0.5)
+                time.sleep(1)
             else:
+                if title.startswith('전자결재:'):
+                    title = title.split("]")[-1].strip()
                 card_name = self._check_docu(title)
 
                 if card_name is not None and not self.dialog.check_valid_sort(title, card_name):
@@ -122,6 +118,8 @@ class Main:
                     })
 
                 self.collector.document_sort(card_name)
+
+                time.sleep(1)
 
         if len(self.sorted_data['items']) > 0:
             print("분류 기준을 갱신합니다.")
