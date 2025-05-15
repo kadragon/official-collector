@@ -4,6 +4,7 @@
 
 from typing import Dict, Tuple, List
 from src.cmd_control import CmdControl
+from src.ai_gemini import AIManager
 
 
 class DialogHandler:
@@ -12,7 +13,8 @@ class DialogHandler:
     def __init__(self) -> None:
         """초기화 및 CMD 창 활성화."""
         self.cmd = CmdControl()
-        
+        self.ai = AIManager()
+
     def choose_task_card(self, card_data: Dict[str, str]) -> str:
         """
         사용자가 과제카드를 선택하도록 유도하는 함수.
@@ -27,10 +29,13 @@ class DialogHandler:
 
         card_list = list(card_data.keys())
 
-        for idx, card_name in enumerate(card_list):
+        sorted_card_list = sorted(card_list)
+
+        for idx, card_name in enumerate(sorted_card_list):
             print(f"[{idx:02d}] {card_name}")
 
-        return self._get_valid_input("번호를 선택하세요: ", card_list)
+        print()
+        return self._get_valid_input("번호를 선택하세요: ", sorted_card_list)
 
     def select_approval_and_share(self, approval_list: List[str], share_list: List[str]) -> Tuple[str, str]:
         """
@@ -51,14 +56,15 @@ class DialogHandler:
             print(f"[{idx}] {name}")
 
         selected_approval = self._get_valid_input("번호를 선택하세요: ", approval_list)
-        
+
         # 기본 공람 대상자 (공람 없음)
-        selected_share = "공람 없음"
+        selected_share = "공람없음"
 
         # 담당자가 특정 범위 내에 있으면 공람 대상자도 선택
         if approval_list.index(selected_approval) < 2:
             print("\n[공람자 선택]")
-            print(" / ".join(f"[{idx}] {name}" for idx, name in enumerate(share_list)))
+            print(" / ".join(f"[{idx}] {name}" for idx,
+                  name in enumerate(share_list)))
 
             selected_share = self._get_valid_input("번호를 선택하세요: ", share_list)
 
@@ -84,3 +90,32 @@ class DialogHandler:
                 print("유효하지 않은 번호입니다. 다시 선택해주세요.")
             except ValueError:
                 print("숫자를 입력해주세요.")
+
+    def check_valid_sort(self, title: str, sort_info) -> bool:
+        self.cmd.activate()
+        print(f'{title} -> {sort_info}')
+        confirm = input("분류 하시겠습니까?( Enter / n)")
+
+        if confirm.lower() == 'n':
+            return False
+
+        return True
+
+    def check_card_sort(self, title: str, docu_data: Dict) -> str:
+        self.cmd.activate()
+
+        print(f"AI 분석 시작: {title}")
+
+        recommend = self.ai.card_picker(docu_data, title)
+
+        for idx, recommend_card_name in enumerate(recommend):
+            print(f"[{idx + 1:02d}] {recommend_card_name}")
+
+        print()
+
+        confirm = input("분류 하시겠습니까?( 1 / 2 / 3 / 취소(0))")
+
+        if confirm == '0':
+            return ''
+
+        return recommend[int(confirm) - 1]

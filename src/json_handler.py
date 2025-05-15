@@ -10,6 +10,7 @@ import shutil
 from typing import Dict, Any
 from src.ai_gemini import AIManager
 
+
 def load_json(file_path: str) -> Dict[str, Any]:
     """
     JSON 파일을 읽어서 딕셔너리로 반환합니다.
@@ -46,26 +47,57 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
         os.remove(old_backup)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = f"./data/sort_data_{timestamp}.json"
+    backup_path = f"./backup/sort_data_{timestamp}.json"
 
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
 
-    response = ai.resort(sort_data, sorted_data, 'sort')
+    try:
+        response = ai.resort(sort_data, sorted_data, 'sort')
 
-    if 'additions' in response:
-        for addition in response['additions']:
-            sort_data['items'].append(addition)
-            print(f'추가: {addition}')
+        if 'deletions' in response:
+            for deletion in response['deletions']:
+                title = deletion['title']
+                approval = deletion['approval']
 
-    if 'deletions' in response:
-        for deletion in response['deletions']:
-            sort_data['items'] = [
-                item for item in sort_data['items'] if item['title'] != deletion['title']]
-            print(f'삭제: {deletion}')
+                if approval in sort_data:
+                    sort_data[approval] = [
+                        item for item in sort_data[approval] if item['title'] != title]
+                    print(f'삭제: {deletion}')
+                else:
+                    print(
+                        f"경고: 삭제하려는 approval 키 '{approval}'가 sort_data에 존재하지 않습니다.")
+
+        if 'additions' in response:
+            for addition in response['additions']:
+                title = addition['title']
+                share = addition['share']
+                approval = addition['approval']
+
+                if approval not in sort_data:
+                    sort_data[approval] = []  # 새로운 approval 키 생성
+
+                # 중복 title 확인
+                if not any(item['title'] == title for item in sort_data[approval]):
+                    sort_data[approval].append({
+                        "title": title,
+                        "share": share
+                    })
+                    print(f'추가: {addition}')
+                else:
+                    print(f"경고: 이미 존재하는 title '{title}'을 추가하려 했습니다.")
+
+    except KeyError as e:
+        print(f"KeyError 발생: {e}")
+        print(f"sort_data: {sort_data}")
+        print(f"response: {response}")
+    except Exception as e:
+        print(f"예상치 못한 오류 발생: {e}")
+        print(f"response: {response}")
 
     with open(src_path, "w", encoding="utf-8") as f:
         json.dump(sort_data, f, indent=4, ensure_ascii=False)
+
 
 def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -> None:
     """
@@ -76,32 +108,34 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
     """
     ai = AIManager()
 
-    backup_pattern = './data/docu_data_*.json'
-    for old_backup in glob.glob(backup_pattern):
-        os.remove(old_backup)
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = f"./data/docu_data_{timestamp}.json"
+    backup_path = f"./backup/docu_data_{timestamp}.json"
 
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
 
     response = ai.resort(docu_data, docued_data, 'docu')
 
-    print(response)
+    try:
+        if 'deletions' in response:
+            for deletion in response['deletions']:
+                if deletion['document_name'] in docu_data.keys():
+                    document_name = deletion['document_name']
+                    title = deletion['title']
+                    docu_data[document_name] = [
+                        item for item in docu_data[document_name] if item != title]
+                    print(f'삭제: {deletion}')
 
-    if 'additions' in response:
-        for addition in response['additions']:
-            document_name, title = addition
-            docu_data[document_name].append(title)
-            print(f'추가: {addition}')
+        if 'additions' in response:
+            for addition in response['additions']:
+                if addition['document_name'] in docu_data.keys():
+                    document_name = addition['document_name']
+                    title = addition['title']
 
-    if 'deletions' in response:
-        for deletion in response['deletions']:
-            document_name, title = deletion
-            docu_data[document_name] = [
-                item for item in docu_data[document_name] if item != title]
-            print(f'삭제: {deletion}')
+                    docu_data[document_name].append(title)
+                    print(f'추가: {addition}')
+    except:
+        print(response)
 
     with open(src_path, "w", encoding="utf-8") as f:
         json.dump(docu_data, f, indent=4, ensure_ascii=False)
