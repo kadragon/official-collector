@@ -2,6 +2,7 @@
 데이터 저장용으로 사용하고 있는 json 파일을 제어합니다.
 """
 
+import logging
 import os
 import glob
 import json
@@ -9,6 +10,9 @@ from datetime import datetime
 import shutil
 from typing import Dict, Any
 from src.ai_gemini import AIManager
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def load_json(file_path: str) -> Dict[str, Any]:
@@ -88,12 +92,12 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
                     print(f"경고: 이미 존재하는 title '{title}'을 추가하려 했습니다.")
 
     except KeyError as e:
-        print(f"KeyError 발생: {e}")
-        print(f"sort_data: {sort_data}")
-        print(f"response: {response}")
+        logger.error(f"KeyError 발생: {e}")
+        logger.debug(f"sort_data: {sort_data}")
+        logger.debug(f"response: {response}")
     except Exception as e:
-        print(f"예상치 못한 오류 발생: {e}")
-        print(f"response: {response}")
+        logger.error(f"예상치 못한 오류 발생: {e}")
+        logger.debug(f"response: {response}")
 
     with open(src_path, "w", encoding="utf-8") as f:
         json.dump(sort_data, f, indent=4, ensure_ascii=False)
@@ -134,7 +138,8 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
 
                     docu_data[document_name].append(title)
                     print(f'추가: {addition}')
-    except:
+    except Exception as e:
+        print(f"Error processing document data response: {e}")
         print(response)
 
     with open(src_path, "w", encoding="utf-8") as f:

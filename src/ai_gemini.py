@@ -3,10 +3,15 @@ Google의 Gemini AI 모델을 사용하여 문서 분류 및 정렬을 처리하
 """
 
 import json
+import logging
 import google.generativeai as genai
 from google.ai.generativelanguage_v1beta.types import content
 from src.prompt import RESORTING_PROMPT, CARD_PROMPT
 from src.config import GOOGLE_API_KEY, GEMINI_MODELS
+from typing import List
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class AIManager:
@@ -174,10 +179,10 @@ class AIManager:
             parsed_response = json.loads(json_text)
             return parsed_response
         except json.JSONDecodeError as e:
-            print(
+            logger.error(
                 f"Failed to parse JSON after attempting to clean markdown: {e}")
-            print(f"Original text: {raw_text}")
-            print(f"Cleaned text: {json_text}")
+            logger.error(f"Original text: {raw_text}")
+            logger.error(f"Cleaned text: {json_text}")
             # 오류 발생 시 빈 딕셔너리나 다른 적절한 값 반환 고려
             return {}
         except Exception as e:  # 예상치 못한 다른 오류 처리
@@ -186,7 +191,7 @@ class AIManager:
             print(f"Original text: {raw_text}")
             return {}
 
-    def card_picker(self, docu_data: dict, title: str) -> str:
+    def card_picker(self, docu_data: dict, title: str) -> List[str]:
         """
         Gemini AI 모델을 사용해 과제 카드 분류를 추천 받는다
         """
