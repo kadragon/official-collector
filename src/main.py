@@ -5,9 +5,9 @@ import re
 import logging
 from typing import List, Tuple, Optional, Dict, Any
 
-from src.collector import OfficialCollector
-from src.json_handler import load_json, update_sort_data, update_docu_data
-from src.dialog_handler import DialogHandler
+from core.collector import OfficialCollector
+from core.json_handler import load_json, update_sort_data, update_docu_data
+from core.dialog_handler import DialogHandler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

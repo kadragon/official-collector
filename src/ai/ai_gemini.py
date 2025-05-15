@@ -6,8 +6,8 @@ import json
 import logging
 import google.generativeai as genai
 from google.ai.generativelanguage_v1beta.types import content
-from src.prompt import RESORTING_PROMPT, CARD_PROMPT
-from src.config import GOOGLE_API_KEY, GEMINI_MODELS
+from utils.prompt import RESORTING_PROMPT, CARD_PROMPT
+from config.config import GOOGLE_API_KEY, GEMINI_MODELS
 from typing import List
 
 logging.basicConfig(level=logging.INFO)

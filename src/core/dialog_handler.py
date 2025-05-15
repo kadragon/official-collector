@@ -3,8 +3,8 @@
 """
 
 from typing import Dict, Tuple, List
-from src.cmd_control import CmdControl
-from src.ai_gemini import AIManager
+from core.cmd_control import CmdControl
+from ai.ai_gemini import AIManager
 
 
 class DialogHandler:
