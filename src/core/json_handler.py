@@ -10,9 +10,25 @@ from datetime import datetime
 import shutil
 from typing import Dict, Any
 from ai.ai_gemini import AIManager
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# src/core/json_handler.py 파일의 상단에서
+# PROJECT_ROOT는 프로젝트 루트 경로를 지정
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# 백업 폴더 경로를 프로젝트 루트 하위로 지정
+BACKUP_DIR = PROJECT_ROOT / "data" / "backup"
+BACKUP_DIR.mkdir(parents=True, exist_ok=True)  # 폴더가 없는 경우 자동 생성
+
+# 백업 파일 경로 지정
+
+
+def save_backup(timestamp):
+    backup_path = BACKUP_DIR / f"sort_data_{timestamp}.json"
+    print(f"Backup will be saved to: {backup_path}")
 
 
 def load_json(file_path: str) -> Dict[str, Any]:
@@ -51,7 +67,7 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
         os.remove(old_backup)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = f"./data/backup/sort_data_{timestamp}.json"
+    backup_path = BACKUP_DIR / f"sort_data_{timestamp}.json"
 
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
@@ -113,7 +129,7 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
     ai = AIManager()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = f"./data/backup/docu_data_{timestamp}.json"
+    backup_path = BACKUP_DIR / f"docu_data_{timestamp}.json"
 
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
