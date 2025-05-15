@@ -98,7 +98,13 @@ class Main:
                 time.sleep(1)
             else:
                 if title.startswith('전자결재:'):
-                    title = title.split("]")[-1].strip()
+                    # 정규 표현식을 사용하여 두 번째 ']' 뒤의 문자열 추출 시도
+                    match = re.search(r'(?:[^\]]*\]){2}(.*)', title)
+                    if match:
+                        title = match.group(1).strip()
+                    else:
+                        # 패턴이 맞지 않으면 기존 방식(마지막 ']' 뒤) 사용
+                        title = title.split("]")[-1].strip()
                 card_name = self._check_docu(title)
 
                 if card_name is not None and not self.dialog.check_valid_sort(title, card_name):
@@ -110,7 +116,7 @@ class Main:
 
                     if card_name == '':
                         card_name = self.dialog.choose_task_card(
-                            self.docu_data, title)
+                            self.docu_data)
 
                     self.docued_data['items'].append({
                         "title": title,
@@ -119,7 +125,7 @@ class Main:
 
                 self.collector.document_sort(card_name)
 
-                time.sleep(1)
+                time.sleep(2)
 
         if len(self.sorted_data['items']) > 0:
             print("분류 기준을 갱신합니다.")

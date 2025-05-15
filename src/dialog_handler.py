@@ -104,6 +104,8 @@ class DialogHandler:
     def check_card_sort(self, title: str, docu_data: Dict) -> str:
         self.cmd.activate()
 
+        print(f"AI 분석 시작: {title}")
+
         recommend = self.ai.card_picker(docu_data, title)
 
         for idx, recommend_card_name in enumerate(recommend):
