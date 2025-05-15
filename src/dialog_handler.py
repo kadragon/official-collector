@@ -114,8 +114,15 @@ class DialogHandler:
         print()
 
         confirm = input("분류 하시겠습니까?( 1 / 2 / 3 / 취소(0))")
-
         if confirm == '0':
             return ''
-
-        return recommend[int(confirm) - 1]
+        try:
+            selected_index = int(confirm) - 1
+            if 0 <= selected_index < len(recommend):
+                return recommend[selected_index]
+            else:
+                print("잘못된 번호입니다. 추천 목록에서 선택해주세요.")
+                return ''  # 또는 다른 오류 처리
+        except ValueError:
+            print("숫자로 입력해주세요.")
+            return ''  # 또는 다른 오류 처리

@@ -18,9 +18,9 @@ class Main:
 
     def __init__(self):
         self.sort_data: Dict[str, List] = load_json("./data/sort_data.json")
-        self.sorted_data: Dict[str: List] = {"items": []}
+        self.sorted_data: Dict[str, List[Dict[str, Any]]] = {"items": []}
         self.docu_data: Dict[str, Any] = load_json("./data/docu_data.json")
-        self.docued_data: Dict[str: List] = {"items": []}
+        self.docued_data: Dict[str, List[Dict[str, Any]]] = {"items": []}
         self.approval_name_list: List[str] = load_json(
             './data/base_data.json')['approval_names']
         self.share_name_list: List[str] = load_json(
