@@ -4,7 +4,7 @@
 
 from typing import Dict, Tuple, List
 from core.cmd_control import CmdControl
-from ai.ai_gemini import AIManager
+from ai.ai_openai import card_picker
 
 
 class DialogHandler:
@@ -13,7 +13,7 @@ class DialogHandler:
     def __init__(self) -> None:
         """초기화 및 CMD 창 활성화."""
         self.cmd = CmdControl()
-        self.ai = AIManager()
+        self.ai = None
 
     def choose_task_card(self, card_data: Dict[str, str]) -> str:
         """
@@ -101,19 +101,19 @@ class DialogHandler:
 
         return True
 
-    def check_card_sort(self, title: str, docu_data: Dict) -> str:
+    def check_card_sort(self, title: str) -> str:
         self.cmd.activate()
 
         print(f"AI 분석 시작: {title}")
 
-        recommend = self.ai.card_picker(docu_data, title)
+        recommend = card_picker(title)
 
         for idx, recommend_card_name in enumerate(recommend):
             print(f"[{idx + 1:02d}] {recommend_card_name}")
 
         print()
 
-        confirm = input("분류 하시겠습니까?( 1 / 2 / 3 / 취소(0))")
+        confirm = input("분류 하시겠습니까?( 1 ~ 5 / 취소(0))")
         if confirm == '0':
             return ''
         try:

@@ -111,8 +111,7 @@ class Main:
                     card_name = None
 
                 if card_name is None:
-                    card_name = self.dialog.check_card_sort(
-                        title, self.docu_data)
+                    card_name = self.dialog.check_card_sort(title)
 
                     if card_name == '':
                         card_name = self.dialog.choose_task_card(
