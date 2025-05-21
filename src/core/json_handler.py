@@ -9,8 +9,11 @@ import json
 from datetime import datetime
 import shutil
 from typing import Dict, Any
-from ai.ai_openai import sorter
+# from ai.ai_openai import sorter # Removed old import
 from pathlib import Path
+
+from src.config.config import PREFERRED_LLM_MODEL # Added import
+from src.ai.llm_handler import LLMHandler # Added import
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,63 +63,108 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
     Args:
         src_path (str): 정렬 데이터 파일 경로. 기본값은 './data/sort_data.json'
     """
-    # ai = OpenAIChatAssistant("sort")
+    backup_pattern = "./data/sort_data_*.json" # This path might need adjustment if src_path is not default
+    # Adjust backup_pattern if src_path is different from default
+    if src_path != './data/sort_data.json':
+        src_p = Path(src_path)
+        backup_pattern = str(src_p.parent / f"{src_p.stem}_*.json")
 
-    backup_pattern = "./data/sort_data_*.json"
     for old_backup in glob.glob(backup_pattern):
-        os.remove(old_backup)
+        try:
+            os.remove(old_backup)
+        except OSError as e:
+            logger.warning(f"Could not remove old backup {old_backup}: {e}")
+
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = BACKUP_DIR / f"sort_data_{timestamp}.json"
+    # Ensure backup_path uses the same directory and base name as src_path
+    src_path_obj = Path(src_path)
+    dynamic_backup_dir = src_path_obj.parent / "backup" # Store backups in a subfolder of data source
+    dynamic_backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = dynamic_backup_dir / f"{src_path_obj.stem}_{timestamp}.json"
+
 
     if os.path.exists(src_path):
-        shutil.copy(src_path, backup_path)
+        try:
+            shutil.copy(src_path, backup_path)
+            logger.info(f"Backup of {src_path} created at {backup_path}")
+        except Exception as e:
+            logger.error(f"Failed to create backup for {src_path}: {e}")
 
+
+    handler = LLMHandler() # Instantiated LLMHandler
+    response = None # Initialize response to None for robust error handling
     try:
-        response = sorter(sort_data, sorted_data, "sort")
+        print(f"Updating sort data using {PREFERRED_LLM_MODEL} model...")
+        response = handler.resort_langchain(
+            model_type=PREFERRED_LLM_MODEL,
+            sort_data=sort_data,
+            sorted_data=sorted_data,
+            mode="sort"
+        )
+
+        if response is None:
+            logger.error("LLMHandler returned None. No updates will be applied to sort_data.")
+            # Optionally, restore from backup or skip writing file if response is critical
+            return # Exit if no response
 
         if 'deletions' in response:
             for deletion in response['deletions']:
-                title = deletion['title']
-                approval = deletion['approval']
+                title = deletion.get('title')
+                approval = deletion.get('approval')
+
+                if not title or not approval:
+                    logger.warning(f"Skipping deletion with missing title or approval: {deletion}")
+                    continue
 
                 if approval in sort_data:
+                    original_len = len(sort_data[approval])
                     sort_data[approval] = [
-                        item for item in sort_data[approval] if item['title'] != title]
-                    print(f'삭제: {deletion}')
+                        item for item in sort_data[approval] if item.get('title') != title]
+                    if len(sort_data[approval]) < original_len:
+                        print(f'삭제 (sort): {deletion}')
+                    else:
+                        logger.info(f"Deletion for title '{title}' in approval '{approval}' not found or already removed.")
                 else:
-                    print(
-                        f"경고: 삭제하려는 approval 키 '{approval}'가 sort_data에 존재하지 않습니다.")
+                    logger.warning(
+                        f"경고: 삭제하려는 approval 키 '{approval}'가 sort_data에 존재하지 않습니다. Deletion: {deletion}")
 
         if 'additions' in response:
             for addition in response['additions']:
-                title = addition['title']
-                share = addition['share']
-                approval = addition['approval']
+                title = addition.get('title')
+                share = addition.get('share')
+                approval = addition.get('approval')
+
+                if not title or not share or not approval:
+                    logger.warning(f"Skipping addition with missing title, share, or approval: {addition}")
+                    continue
 
                 if approval not in sort_data:
-                    sort_data[approval] = []  # 새로운 approval 키 생성
+                    sort_data[approval] = []
 
-                # 중복 title 확인
-                if not any(item['title'] == title for item in sort_data[approval]):
+                if not any(item.get('title') == title for item in sort_data[approval]):
                     sort_data[approval].append({
                         "title": title,
                         "share": share
                     })
-                    print(f'추가: {addition}')
+                    print(f'추가 (sort): {addition}')
                 else:
-                    print(f"경고: 이미 존재하는 title '{title}'을 추가하려 했습니다.")
-
+                    logger.info(f"경고: 이미 존재하는 title '{title}'을(를) approval '{approval}'에 추가하려 했습니다. Addition: {addition}")
+    
     except KeyError as e:
-        logger.error(f"KeyError 발생: {e}")
-        logger.debug(f"sort_data: {sort_data}")
-        logger.debug(f"response: {response}")
+        logger.error(f"KeyError 발생 in update_sort_data: {e}. This might indicate unexpected response structure.")
+        logger.debug(f"sort_data before error: {sort_data}")
+        logger.debug(f"LLM response: {response}")
     except Exception as e:
-        logger.error(f"예상치 못한 오류 발생: {e}")
-        logger.debug(f"response: {response}")
+        logger.error(f"예상치 못한 오류 발생 in update_sort_data: {e}")
+        logger.debug(f"LLM response: {response}")
 
-    with open(src_path, "w", encoding="utf-8") as f:
-        json.dump(sort_data, f, indent=4, ensure_ascii=False)
+    try:
+        with open(src_path, "w", encoding="utf-8") as f:
+            json.dump(sort_data, f, indent=4, ensure_ascii=False)
+        logger.info(f"Successfully updated {src_path}")
+    except Exception as e:
+        logger.error(f"Failed to write updated sort_data to {src_path}: {e}")
 
 
 def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -> None:
@@ -126,36 +174,88 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
     Args:
         src_path (str): 정렬 데이터 파일 경로. 기본값은 './data/docu_data.json'
     """
+    # Adjust backup_path logic similar to update_sort_data
+    src_path_obj = Path(src_path)
+    dynamic_backup_dir = src_path_obj.parent / "backup" # Store backups in a subfolder of data source
+    dynamic_backup_dir.mkdir(parents=True, exist_ok=True)
+    
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = BACKUP_DIR / f"docu_data_{timestamp}.json"
+    backup_path = dynamic_backup_dir / f"{src_path_obj.stem}_{timestamp}.json"
 
     if os.path.exists(src_path):
-        shutil.copy(src_path, backup_path)
+        try:
+            shutil.copy(src_path, backup_path)
+            logger.info(f"Backup of {src_path} created at {backup_path}")
+        except Exception as e:
+            logger.error(f"Failed to create backup for {src_path}: {e}")
 
-    response = sorter(docu_data, docued_data, "docu")
+    handler = LLMHandler() # Instantiated LLMHandler
+    response = None # Initialize for robust error handling
 
     try:
+        print(f"Updating document data using {PREFERRED_LLM_MODEL} model...")
+        response = handler.resort_langchain(
+            model_type=PREFERRED_LLM_MODEL,
+            sort_data=docu_data, # Mapped docu_data to sort_data parameter
+            sorted_data=docued_data, # Mapped docued_data to sorted_data parameter
+            mode="docu"
+        )
+
+        if response is None:
+            logger.error("LLMHandler returned None. No updates will be applied to docu_data.")
+            return # Exit if no response
+
         if 'deletions' in response:
             for deletion in response['deletions']:
-                if deletion['document_name'] in docu_data.keys():
-                    document_name = deletion['document_name']
-                    title = deletion['title']
+                document_name = deletion.get('document_name')
+                title = deletion.get('title')
+
+                if not document_name or not title:
+                    logger.warning(f"Skipping deletion with missing document_name or title: {deletion}")
+                    continue
+                
+                if document_name in docu_data:
+                    original_len = len(docu_data[document_name])
                     docu_data[document_name] = [
-                        item for item in docu_data[document_name] if item != title]
-                    print(f'삭제: {deletion}')
+                        item for item in docu_data[document_name] if item != title] # Assuming items are strings
+                    if len(docu_data[document_name]) < original_len:
+                        print(f'삭제 (docu): {deletion}')
+                    else:
+                        logger.info(f"Deletion for title '{title}' in document_name '{document_name}' not found or already removed.")
+                else:
+                    logger.warning(f"Document category '{document_name}' not found in docu_data for deletion: {deletion}")
+
 
         if 'additions' in response:
             for addition in response['additions']:
-                if addition['document_name'] in docu_data.keys():
-                    document_name = addition['document_name']
-                    title = addition['title']
+                document_name = addition.get('document_name')
+                title = addition.get('title')
 
+                if not document_name or not title:
+                    logger.warning(f"Skipping addition with missing document_name or title: {addition}")
+                    continue
+
+                if document_name not in docu_data:
+                    logger.warning(f"Document category '{document_name}' not found in docu_data for addition. Creating it. Addition: {addition}")
+                    docu_data[document_name] = []
+                
+                if title not in docu_data[document_name]: # Check for duplicates
                     docu_data[document_name].append(title)
-                    print(f'추가: {addition}')
-
+                    print(f'추가 (docu): {addition}')
+                else:
+                    logger.info(f"Title '{title}' already exists in document_name '{document_name}'. Addition: {addition}")
+    
+    except KeyError as e:
+        logger.error(f"KeyError 발생 in update_docu_data: {e}. This might indicate unexpected response structure.")
+        logger.debug(f"docu_data before error: {docu_data}")
+        logger.debug(f"LLM response: {response}")
     except Exception as e:
-        print(f"Error processing document data response: {e}")
-        print(response)
+        logger.error(f"예상치 못한 오류 발생 in update_docu_data: {e}")
+        logger.debug(f"LLM response: {response}")
 
-    with open(src_path, "w", encoding="utf-8") as f:
-        json.dump(docu_data, f, indent=4, ensure_ascii=False)
+    try:
+        with open(src_path, "w", encoding="utf-8") as f:
+            json.dump(docu_data, f, indent=4, ensure_ascii=False)
+        logger.info(f"Successfully updated {src_path}")
+    except Exception as e:
+        logger.error(f"Failed to write updated docu_data to {src_path}: {e}")

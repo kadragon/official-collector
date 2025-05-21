@@ -13,3 +13,6 @@ GEMINI_MODELS = {
     'flash': 'gemini-2.0-flash',
     'pro': 'gemini-2.0-pro-exp'
 }
+
+# Specifies the default LLM to use: 'openai' or 'gemini'
+PREFERRED_LLM_MODEL = "openai"

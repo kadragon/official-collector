@@ -1,328 +1,177 @@
+"""
+OpenAI's GPT models (via LLMHandler) to process document classification and sorting.
+"""
 
-import json
 import logging
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional
 
-from openai import OpenAI
+# import json # No longer needed for json.loads if LLMHandler returns dict/list
+# from openai import OpenAI # No longer needed
+# from config.config import OPENAI_API_KEY # No longer needed here
 
-from config.config import OPENAI_API_KEY
+from src.ai.llm_handler import LLMHandler
 
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+# client = OpenAI(api_key=OPENAI_API_KEY) # Removed, LLMHandler handles client
 
+# Define PROJECT_ROOT for path resolution
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DOCU_DATA_PATH = PROJECT_ROOT / "data" / "card_list.txt"
 
-# 전역 변수 선언 (최초 1회만 파일 읽음)
-def load_card_prompt():
-    system_template = """
-   You are a highly skilled classification assistant specializing in document processing.
-   Your task is to analyze the provided **official document title** and return the **top 5 most relevant task cards** from the predefined list below.
-
-   ### ⚡️ Instructions:
-   - Semantic Analysis: Assess semantic similarity.
-   - Selection Limit: Exactly 5 task cards.
-   - Ranking: Most relevant first.
-   - Strict Selection: Do not invent new cards.
-   - Output: Strict JSON schema.
-
-   ### Data Cards:
-   {data}
-   """
-
-    PROJECT_ROOT = Path(__file__).resolve().parents[2]
-    DOCU_DATA_PATH = PROJECT_ROOT / "data" / "card_list.txt"
-
-    with open(DOCU_DATA_PATH, "r", encoding="utf-8") as f:
-        docu_data = "".join(
-            f"- {line.strip()}\n" for line in f if line.strip())
-    return system_template.format(data=docu_data)
-
-
-# 최초 1회만 실행
-CARD_PROMPT = load_card_prompt()
-
-
-def card_picker(title):
+def get_card_list_content() -> Optional[str]:
+    """
+    Reads the content of data/card_list.txt.
+    This replaces the formatting part of the original load_card_prompt.
+    """
+    if not DOCU_DATA_PATH.is_file():
+        logger.error(f"Card list file not found at {DOCU_DATA_PATH}")
+        return None
     try:
-        response = client.responses.create(
-            model="gpt-4.1-mini",
-            input=[
-                {
-                    "role": "system",
-                    "content": [{
-                        "type": "input_text", "text": CARD_PROMPT
-                    }]
-                },
-                {
-                    "role": "user",
-                    "content": [{
-                            "type": "input_text", "text": title
-                    }]
-                }
-            ],
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "recommendations",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "recommendations": {
-                                "type": "array",
-                                "description": "A list of 5 recommendation items.",
-                                "items": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "required": [
-                            "recommendations"
-                        ],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            reasoning={},
-            tools=[],
-            temperature=0.1,
-            max_output_tokens=2048,
-            top_p=1,
-            store=True
-        )
-
-        usage_token(response=response)
-
-        if response.output_text:
-            parsed_response = json.loads(response.output_text)
-            return parsed_response['recommendations']
-        else:
-            logger.error("OpenAI response text is empty.")
-            return []  # Or raise an exception
+        with open(DOCU_DATA_PATH, "r", encoding="utf-8") as f:
+            # LLMHandler's card_picker_langchain expects a string of card names
+            # The original formatting was "- card_name\n".
+            # The new llm_handler.py card_picker_langchain's prompt template is:
+            # "### Data Cards:\n{data}"
+            # So, we should provide the {data} part.
+            # Let's stick to the same format as before for consistency.
+            docu_data_content = "".join(
+                f"- {line.strip()}\n" for line in f if line.strip()
+            )
+        return docu_data_content
     except Exception as e:
-        logger.error(f"An unexpected error occurred in card_picker: {e}")
+        logger.error(f"Error reading card list file {DOCU_DATA_PATH}: {e}")
+        return None
+
+# CARD_PROMPT = load_card_prompt() # Removed, prompt construction is in LLMHandler
+
+def card_picker(title: str) -> List[str]:
+    """
+    Uses LLMHandler to get task card recommendations for a document title.
+    """
+    try:
+        handler = LLMHandler()
+        card_list_content = get_card_list_content()
+        if card_list_content is None:
+            return [] # Error already logged by get_card_list_content
+
+        recommendations = handler.card_picker_langchain(
+            model_type='openai',
+            title=title,
+            docu_data_content=card_list_content
+        )
+        
+        # usage_token(response=response) # Commented out as usage_token is removed
+
+        if recommendations is None:
+            logger.error("card_picker: LLMHandler returned None.")
+            return []
+        return recommendations # Expected to be List[str]
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in card_picker: {e}", exc_info=True)
         return []
 
+# def sort_prompt() -> str: # Removed, prompt construction is in LLMHandler
+#     ...
 
-def sort_prompt() -> str:
-    system_template = """
-    role: Expert document classification and policy update assistant
-    objective: Classify official documents based on their titles and update the existing classification system accordingly.
-    instructions:
-        - Document Title Processing:
-            - Extract the core meaning from the document title.
-            - Ignore unnecessary elements, such as:
-                - Dates (e.g., "2025년").
-                - Grammatical markers (e.g., 조사).
-            - Use regular expressions where applicable for improved accuracy.
-        - Classification:
-            - Classify the document using the existing classification system.
-            - If the existing system lacks an appropriate category:
-                - Use the user-added classification record to determine a suitable category.
-        - Policy Update:
-            - If a new classification is required:
-                - Add it under **Additions**, maintaining the existing classification framework.
-            - If an existing classification needs modification:
-                - List the outdated category under **Deletions**.
-                - Add the new category under **Additions**.
-        - Consolidation of Similar Categories:
-            - Identify and merge overlapping or similar categories.
-            - Use keyword similarity or pattern matching (e.g., regular expressions).
-            - List the old categories under **Deletions**.
-            - Add the consolidated category under **Additions**, maintaining the framework.
-    output_format:
-        - JSON object without any surrounding text, explanations, or markdown formatting.
-        - Strictly follow the response schema:
-        {
-            "Classification": {
-            "Existing": ["..."],
-            "Additions": ["..."],
-            "Deletions": ["..."]
-            }
-        }
-    constraints:
-        - Maintain accuracy, consistency, and efficiency in classification.
-        - Ensure all classification updates adhere to the existing classification framework.
+# def select_format(type): # Removed, schema construction is in LLMHandler
+#     ...
 
+def sorter(sort_data: Dict, sorted_data: Dict, type: str) -> Optional[Dict]:
     """
+    Uses LLMHandler to perform document classification and sorting.
+    'type' argument is passed as 'mode' to LLMHandler.
+    """
+    try:
+        handler = LLMHandler()
+        result = handler.resort_langchain(
+            model_type='openai',
+            sort_data=sort_data,
+            sorted_data=sorted_data,
+            mode=type # Original argument name is 'type'
+        )
+        
+        # usage_token(response=response) # Commented out
 
-    return system_template
-
-
-def select_format(type):
-    if type == 'docu':
-        return {
-            "type": "json_schema",
-            "name": "response_schema",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "additions": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "required": ["title", "document_name"],
-                            "properties": {
-                                "document_name": {
-                                    "type": "string",
-                                    "description": "업무 분류 카드명"
-                                },
-                                "title": {
-                                    "type": "string",
-                                    "description": "업무명 (정규 표현식 사용 가능, 숫자 및 불필요한 조사 제거)"
-                                }
-                            },
-                            "additionalProperties": False
-                        }
-                    },
-                    "deletions": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "required": ["document_name", "title"],
-                            "properties": {
-                                "document_name": {
-                                    "type": "string",
-                                    "description": "업무 분류 카드명"
-                                },
-                                "title": {
-                                    "type": "string",
-                                    "description": "기존 업무명"
-                                }
-                            },
-                            "additionalProperties": False
-                        }
-                    }
-                },
-                "required": ["additions", "deletions"],
-                "additionalProperties": False
-            }
-        }
-    elif type == 'sort':
-        return {
-            "type": "json_schema",
-            "name": "response_schema",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "additions": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "required": ["title", "share", "approval"],
-                            "properties": {
-                                "title": {
-                                    "type": "string",
-                                    "description": "업무명 (정규 표현식 사용 가능, 숫자 및 불필요한 조사 제거)"
-                                },
-                                "share": {
-                                    "type": "string",
-                                    "description": "공람대상자(원장님제외, 원장님포함, 공람없음, 일반직, 조교, 팀장님, 원장님만)"
-                                },
-                                "approval": {
-                                    "type": "string",
-                                    "description": "업무 담당자 구분(기존에 존재하는 담당자 구분만 사용)"
-                                }
-                            },
-                            "additionalProperties": False
-                        }
-                    },
-                    "deletions": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "required": ["title", "approval"],
-                            "properties": {
-                                "title": {
-                                    "type": "string",
-                                    "description": "업무명 (기존 분류체계에 존재하는 업무명)"
-                                },
-                                "approval": {
-                                    "type": "string",
-                                    "description": "업무 담당자 구분(기존에 존재하는 담당자 구분만 사용)"
-                                }
-                            },
-                            "additionalProperties": False
-                        }
-                    }
-                },
-                "required": ["additions", "deletions"],
-                "additionalProperties": False
-            }
-        }
+        if result is None:
+            logger.error("sorter: LLMHandler returned None.")
+            # Original sorter would attempt json.loads on the response,
+            # if LLMHandler returns None, we should probably return an empty dict or None
+            # based on how calling code handles it. The original code would error out
+            # if response.output_text was None. Returning {} to match ai_gemini's error handling.
+            return {} 
+        return result # Expected to be Dict
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in sorter: {e}", exc_info=True)
+        return {}
 
 
-def sorter(sort_data: Dict, sorted_data: Dict, type: str) -> Dict:
-    system_prompt = sort_prompt()
+# def usage_token(response): # Commented out as per instructions
+#     # Pydantic 모델의 .usage 속성으로 사용량 가져오기
+#     usage = response.usage or {}
 
-    user_prompt = (
-        "## sort_data\n"
-        "```json\n"
-        f"{json.dumps(sort_data, ensure_ascii=False, indent=2)}\n"
-        "```\n\n"
-        "## manual sort data\n"
-        "```json\n"
-        f"{json.dumps(sorted_data, ensure_ascii=False, indent=2)}\n"
-        "```\n\n"
-        "Based on the provided data and the system instructions, generate the required JSON object containing additions and deletions."
-        "**Output ONLY the raw JSON object, without any markdown formatting (```json) or other text.**"
-    )
+#     # Pydantic 모델 → dict 변환 (nested Pydantic 모델인 경우)
+#     if not isinstance(usage, dict):
+#         usage = usage.dict()
 
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=[
-            {
-                "role": "system",
-                "content": [{
-                    "type": "input_text", "text": system_prompt
-                }]
-            },
-            {
-                "role": "user",
-                "content": [{
-                        "type": "input_text", "text": user_prompt
-                }]
-            }
-        ],
-        text={
-            "format": select_format(type)
-        },
-        reasoning={},
-        tools=[],
-        temperature=0.1,
-        max_output_tokens=2048,
-        top_p=1,
-        store=True
-    )
+#     input_tokens = usage.get('input_tokens', 0)
+#     output_tokens = usage.get('output_tokens', 0)
+#     total_tokens = usage.get('total_tokens', 0)
+#     cached_tokens = usage.get('input_tokens_details',
+#                               {}).get('cached_tokens', 0)
 
-    usage_token(response=response)
+#     # 한 줄 로깅
+#     logger.info(
+#         f"Prompt Tokens: {input_tokens}, "
+#         f"Completion Tokens: {output_tokens}, "
+#         f"Total Tokens: {total_tokens}, "
+#         f"Cached Tokens: {cached_tokens}"
+#     )
 
-    return json.loads(response.output_text)
+# Example usage (for testing, if needed)
+if __name__ == '__main__':
+    logger.info("Starting AI OpenAI (via LLMHandler) example usage...")
 
+    # Note: LLMHandler relies on API keys being available via src.config.config
+    # which loads them from .env
 
-def usage_token(response):
-    # Pydantic 모델의 .usage 속성으로 사용량 가져오기
-    usage = response.usage or {}
+    # Ensure dummy card_list.txt exists for card_picker testing
+    if not DOCU_DATA_PATH.exists():
+        DOCU_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(DOCU_DATA_PATH, "w", encoding="utf-8") as f:
+            f.write("Sample Card OpenAI 1\n")
+            f.write("Another OpenAI Card Example\n")
+            f.write("Project Beta Task (OpenAI)\n")
+        logger.info(f"Created dummy {DOCU_DATA_PATH} for example.")
 
-    # Pydantic 모델 → dict 변환 (nested Pydantic 모델인 경우)
-    if not isinstance(usage, dict):
-        usage = usage.dict()
+    # print("\n--- Testing card_picker (OpenAI) ---")
+    # test_title_openai_card_picker = "기획처 2025년도 예산안 편성 지침 안내"
+    # recommended_cards_openai = card_picker(title=test_title_openai_card_picker)
+    # if recommended_cards_openai:
+    #     print(f"Recommended cards for '{test_title_openai_card_picker}': {recommended_cards_openai}")
+    # else:
+    #     print(f"No cards recommended or error for '{test_title_openai_card_picker}'.")
 
-    input_tokens = usage.get('input_tokens', 0)
-    output_tokens = usage.get('output_tokens', 0)
-    total_tokens = usage.get('total_tokens', 0)
-    cached_tokens = usage.get('input_tokens_details',
-                              {}).get('cached_tokens', 0)
-
-    # 한 줄 로깅
-    logger.info(
-        f"Prompt Tokens: {input_tokens}, "
-        f"Completion Tokens: {output_tokens}, "
-        f"Total Tokens: {total_tokens}, "
-        f"Cached Tokens: {cached_tokens}"
-    )
+    # print("\n--- Testing sorter (OpenAI, mode='sort') ---")
+    # test_sort_data_openai = {
+    #     "new_tasks": [
+    #         {"title": "월간 보고서 제출 요청 (7월)", "assigned_to": "김민지"},
+    #         {"title": "신규 직원 교육 프로그램 개발"}
+    #     ]
+    # }
+    # test_sorted_data_openai = {
+    #     "보고 업무": [{"title": "주간 업무 현황 보고", "share": "팀장", "approval": "부서장"}],
+    #     "인사 업무": []
+    # }
+    # resort_result_openai_sort = sorter(test_sort_data_openai, test_sorted_data_openai, "sort")
+    # if resort_result_openai_sort:
+    #     # Ensure json is imported if you uncomment this for direct execution and want to print
+    #     # import json
+    #     # print(f"Sorter result (OpenAI, sort): {json.dumps(resort_result_openai_sort, ensure_ascii=False, indent=2)}")
+    #     print(f"Sorter result (OpenAI, sort): {resort_result_openai_sort}") # Prints dict directly
+    # else:
+    #     print("Sorter (OpenAI, sort) failed or returned empty.")
+    
+    logger.info("AI OpenAI (via LLMHandler) example usage finished.")
