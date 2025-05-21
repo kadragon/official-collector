@@ -84,7 +84,7 @@ class Main:
                     })
 
                 self.collector.approval(approval)
-                if shared != '공람없음':
+                if shared is not None and shared != '공람없음':
                     shared_as_str = str(shared)
                     self.collector.add_share(shared_as_str)
 
