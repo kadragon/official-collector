@@ -44,7 +44,7 @@ class Main:
 
         return None
 
-    def _check_docu(self, title: str) -> str:
+    def _check_docu(self, title: str) -> str | None:
         """결재 완료된 공문에 대해서 과제 카드 매칭 확인"""
         for docu_key in self.docu_data.keys():
             for docu_title in self.docu_data[docu_key]:
@@ -111,8 +111,7 @@ class Main:
                     card_name = None
 
                 if card_name is None:
-                    card_name = self.dialog.check_card_sort(
-                        title, self.docu_data)
+                    card_name = self.dialog.check_card_sort(title)
 
                     if card_name == '':
                         card_name = self.dialog.choose_task_card(

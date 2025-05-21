@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 import shutil
 from typing import Dict, Any
-from ai.ai_gemini import AIManager
+from ai.ai_openai import sorter
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
@@ -60,7 +60,7 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
     Args:
         src_path (str): 정렬 데이터 파일 경로. 기본값은 './data/sort_data.json'
     """
-    ai = AIManager()
+    # ai = OpenAIChatAssistant("sort")
 
     backup_pattern = "./data/sort_data_*.json"
     for old_backup in glob.glob(backup_pattern):
@@ -73,7 +73,7 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
         shutil.copy(src_path, backup_path)
 
     try:
-        response = ai.resort(sort_data, sorted_data, 'sort')
+        response = sorter(sort_data, sorted_data, "sort")
 
         if 'deletions' in response:
             for deletion in response['deletions']:
@@ -126,15 +126,13 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
     Args:
         src_path (str): 정렬 데이터 파일 경로. 기본값은 './data/docu_data.json'
     """
-    ai = AIManager()
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     backup_path = BACKUP_DIR / f"docu_data_{timestamp}.json"
 
     if os.path.exists(src_path):
         shutil.copy(src_path, backup_path)
 
-    response = ai.resort(docu_data, docued_data, 'docu')
+    response = sorter(docu_data, docued_data, "docu")
 
     try:
         if 'deletions' in response:
@@ -154,6 +152,7 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
 
                     docu_data[document_name].append(title)
                     print(f'추가: {addition}')
+
     except Exception as e:
         print(f"Error processing document data response: {e}")
         print(response)
