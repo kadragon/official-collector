@@ -75,8 +75,6 @@ def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -
     try:
         response = sorter(sort_data, sorted_data, "sort")
 
-        print(response)
-
         if 'deletions' in response:
             for deletion in response['deletions']:
                 title = deletion['title']
@@ -135,8 +133,6 @@ def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -
         shutil.copy(src_path, backup_path)
 
     response = sorter(docu_data, docued_data, "docu")
-
-    print(response)
 
     try:
         if 'deletions' in response:

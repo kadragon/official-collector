@@ -1,6 +1,9 @@
 
 import json
 import logging
+from pathlib import Path
+from typing import Dict
+
 from openai import OpenAI
 
 from config.config import OPENAI_API_KEY
@@ -12,7 +15,8 @@ logger = logging.getLogger(__name__)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def card_prompt() -> str:
+# 전역 변수 선언 (최초 1회만 파일 읽음)
+def load_card_prompt():
     system_template = """
    You are a highly skilled classification assistant specializing in document processing.
    Your task is to analyze the provided **official document title** and return the **top 5 most relevant task cards** from the predefined list below.
@@ -27,64 +31,80 @@ def card_prompt() -> str:
    ### Data Cards:
    {data}
    """
-    file_path = './data/docu_data.json'
-    with open(file_path, "r", encoding="utf-8") as f:
-        docu_data = json.load(f)
+
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    DOCU_DATA_PATH = PROJECT_ROOT / "data" / "card_list.txt"
+
+    with open(DOCU_DATA_PATH, "r", encoding="utf-8") as f:
+        docu_data = "".join(
+            f"- {line.strip()}\n" for line in f if line.strip())
     return system_template.format(data=docu_data)
 
 
+# 최초 1회만 실행
+CARD_PROMPT = load_card_prompt()
+
+
 def card_picker(title):
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=[
-            {
-                "role": "system",
-                "content": [{
-                    "type": "input_text", "text": card_prompt()
-                }]
-            },
-            {
-                "role": "user",
-                "content": [{
-                        "type": "input_text", "text": title
-                }]
-            }
-        ],
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "recommendations",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "recommendations": {
-                            "type": "array",
-                            "description": "A list of 5 recommendation items.",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "required": [
-                        "recommendations"
-                    ],
-                    "additionalProperties": False
+    try:
+        response = client.responses.create(
+            model="gpt-4.1-mini",
+            input=[
+                {
+                    "role": "system",
+                    "content": [{
+                        "type": "input_text", "text": CARD_PROMPT
+                    }]
+                },
+                {
+                    "role": "user",
+                    "content": [{
+                            "type": "input_text", "text": title
+                    }]
                 }
-            }
-        },
-        reasoning={},
-        tools=[],
-        temperature=0.1,
-        max_output_tokens=2048,
-        top_p=1,
-        store=True
-    )
+            ],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "recommendations",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "recommendations": {
+                                "type": "array",
+                                "description": "A list of 5 recommendation items.",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "required": [
+                            "recommendations"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            reasoning={},
+            tools=[],
+            temperature=0.1,
+            max_output_tokens=2048,
+            top_p=1,
+            store=True
+        )
 
-    usage_token(response=response)
-    response = json.loads(response.output_text)
+        usage_token(response=response)
 
-    return response['recommendations']
+        if response.output_text:
+            parsed_response = json.loads(response.output_text)
+            return parsed_response['recommendations']
+        else:
+            logger.error("OpenAI response text is empty.")
+            return []  # Or raise an exception
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in card_picker: {e}")
+        return []
 
 
 def sort_prompt() -> str:
@@ -129,7 +149,7 @@ def sort_prompt() -> str:
 
     """
 
-    return system_template.format()
+    return system_template
 
 
 def select_format(type):
@@ -237,46 +257,8 @@ def select_format(type):
         }
 
 
-def sorter(sort_data, sorted_data, type):
-    system_prompt = """
-    role: Expert document classification and policy update assistant
-    objective: Classify official documents based on their titles and update the existing classification system accordingly.
-    instructions:
-        - Document Title Processing:
-            - Extract the core meaning from the document title.
-            - Ignore unnecessary elements, such as:
-                - Dates (e.g., "2025년").
-                - Grammatical markers (e.g., 조사).
-            - Use regular expressions where applicable for improved accuracy.
-        - Classification:
-            - Classify the document using the existing classification system.
-            - If the existing system lacks an appropriate category:
-                - Use the user-added classification record to determine a suitable category.
-        - Policy Update:
-            - If a new classification is required:
-                - Add it under **Additions**, maintaining the existing classification framework.
-            - If an existing classification needs modification:
-                - List the outdated category under **Deletions**.
-                - Add the new category under **Additions**.
-        - Consolidation of Similar Categories:
-            - Identify and merge overlapping or similar categories.
-            - Use keyword similarity or pattern matching (e.g., regular expressions).
-            - List the old categories under **Deletions**.
-            - Add the consolidated category under **Additions**, maintaining the framework.
-    output_format:
-        - JSON object without any surrounding text, explanations, or markdown formatting.
-        - Strictly follow the response schema:
-        {
-            "Classification": {
-            "Existing": ["..."],
-            "Additions": ["..."],
-            "Deletions": ["..."]
-            }
-        }
-    constraints:
-        - Maintain accuracy, consistency, and efficiency in classification.
-        - Ensure all classification updates adhere to the existing classification framework.
-    """
+def sorter(sort_data: Dict, sorted_data: Dict, type: str) -> Dict:
+    system_prompt = sort_prompt()
 
     user_prompt = (
         "## sort_data\n"
