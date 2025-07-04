@@ -2,28 +2,26 @@ import os
 import sys
 from pathlib import Path
 import uuid
+import hashlib
 
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
-from langchain.storage import FileSystemStore
+from langchain.storage import LocalFileStore
 from langchain.embeddings import CacheBackedEmbeddings
 from supabase.client import Client, create_client
-
-# config.config는 main.py에서 로드되므로 여기서는 직접 임포트하지 않음
-# 대신 필요한 환경 변수는 클래스 초기화 시 전달받거나 os.environ에서 직접 접근
 
 class SupabaseManager:
     def __init__(self, openai_api_key: str, supabase_url: str, supabase_key: str, table_name: str = "documents", query_name: str = "match_documents"):
         self.supabase: Client = create_client(supabase_url, supabase_key)
         
         # 캐시 설정
-        fs = FileSystemStore(root_path="./.cache/")
+        fs = LocalFileStore(root_path="./.cache/")
         underlying_embeddings = OpenAIEmbeddings(
             openai_api_key=openai_api_key, model="text-embedding-3-small"
         )
         self.embeddings = CacheBackedEmbeddings.from_bytes_store(
-            underlying_embeddings, fs, namespace=underlying_embeddings.model
+            underlying_embeddings, fs, key_encoder=lambda x: hashlib.sha256(x.encode('utf-8')).hexdigest()
         )
 
         self.vector_store = SupabaseVectorStore(

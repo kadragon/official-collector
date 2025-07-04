@@ -30,8 +30,17 @@ class DialogHandler:
 
         sorted_card_list = sorted(card_list)
 
-        for idx, card_name in enumerate(sorted_card_list):
-            print(f"[{idx:02d}] {card_name}")
+        num_columns = 3
+        col_width = 40  # Adjust this width as needed
+
+        for i in range(0, len(sorted_card_list), num_columns):
+            row_str = ""
+            for j in range(num_columns):
+                idx = i + j
+                if idx < len(sorted_card_list):
+                    item_str = f"[{idx:02d}] {sorted_card_list[idx]}"
+                    row_str += item_str.ljust(col_width)
+            print(row_str)
 
         print()
         return self._get_valid_input("번호를 선택하세요: ", sorted_card_list)
@@ -156,8 +165,7 @@ class DialogHandler:
         for idx, card_name in enumerate(recommendations):
             print(f"[{idx + 1:02d}] {card_name}")
         
-        print("[00] 목록에 없음 (직접 입력)")
-        print("[0] 추천 없음 (다음 단계로 이동)")
+        recommendations.append("[0] 추천 없음 (다음 단계로 이동)")
         print()
 
         while True:
