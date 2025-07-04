@@ -46,7 +46,7 @@ class Main:
         self.supabase_manager = SupabaseManager(
             openai_api_key=os.environ.get("OPENAI_API_KEY"),
             supabase_url=os.environ.get("SUPABASE_URL"),
-            supabase_key=os.environ.get("SUPABASE_KEY")
+            supabase_key=os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
         )
 
         # Load predefined card list from file
