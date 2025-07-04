@@ -24,6 +24,14 @@ class Main:
 
     def __init__(self):
 
+# Check for required environment variables
+        required_env_vars = ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]
+        missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
+        if missing_vars:
+            error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
+            logger.critical(error_msg)
+            raise ValueError(error_msg)
+
         self.sort_data: Dict[str, List] = load_json("./data/sort_data.json")
         self.sorted_data: Dict[str, List[Dict[str, Any]]] = {"items": []}
         self.approval_name_list: List[str] = load_json(
