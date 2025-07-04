@@ -2,9 +2,8 @@
 사용자의 입력이 필요한 부분에 대한 제어.
 """
 
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 from core.cmd_control import CmdControl
-from ai.ai_openai import card_picker
 
 
 class DialogHandler:
@@ -101,28 +100,78 @@ class DialogHandler:
 
         return True
 
-    def check_card_sort(self, title: str) -> str:
+    def confirm_recommendation(self, title: str, recommended_task_title: str) -> bool:
+        """
+        사용자에게 추천된 taskTitle을 확인할지 묻습니다.
+        """
         self.cmd.activate()
+        print(f"공문 제목: {title}")
+        print(f"추천 과제 카드: {recommended_task_title}")
+        confirm = input("이 추천을 사용하시겠습니까? (Y/n): ")
+        return confirm.lower() == 'y' or confirm == '' # Default to 'Y' if Enter is pressed
 
-        print(f"AI 분석 시작: {title}")
+    def get_manual_task_card(self, title: str) -> str:
+        """
+        사용자로부터 taskTitle을 수동으로 입력받습니다.
+        """
+        self.cmd.activate()
+        print(f"'{title}'에 대한 과제 카드를 찾거나 추천할 수 없습니다.")
+        manual_input = input("과제 카드 이름을 직접 입력해주세요 (취소하려면 Enter): ")
+        return manual_input.strip()
 
-        recommend = card_picker(title)
-
-        for idx, recommend_card_name in enumerate(recommend):
-            print(f"[{idx + 1:02d}] {recommend_card_name}")
-
+    def choose_from_predefined_list(self, title: str, card_list: List[str]) -> Optional[str]:
+        """
+        과제 카드를 추천할 수 없을 때, 미리 정의된 목록을 보여주고 사용자에게 선택하도록 합니다.
+        """
+        self.cmd.activate()
+        print(f"\n'{title}'에 대한 과제 카드를 찾거나 추천할 수 없습니다. 다음 목록에서 선택해주세요.")
+        
+        for idx, card_name in enumerate(card_list):
+            print(f"[{idx + 1:02d}] {card_name}")
+        
+        print("[00] 직접 입력")
         print()
 
-        confirm = input("분류 하시겠습니까?( 1 ~ 5 / 취소(0))")
-        if confirm == '0':
-            return ''
-        try:
-            selected_index = int(confirm) - 1
-            if 0 <= selected_index < len(recommend):
-                return recommend[selected_index]
-            else:
-                print("잘못된 번호입니다. 추천 목록에서 선택해주세요.")
-                return ''  # 또는 다른 오류 처리
-        except ValueError:
-            print("숫자로 입력해주세요.")
-            return ''  # 또는 다른 오류 처리
+        while True:
+            try:
+                selection = input("번호를 선택하거나 직접 입력하세요: ")
+                if selection == '00':
+                    return None # Indicates manual input is desired
+                
+                selected_index = int(selection) - 1
+                if 0 <= selected_index < len(card_list):
+                    return card_list[selected_index]
+                else:
+                    print("유효하지 않은 번호입니다. 다시 선택해주세요.")
+            except ValueError:
+                print("유효하지 않은 입력입니다. 번호를 입력하거나 '00'을 입력해주세요.")
+
+    def choose_from_recommendations(self, title: str, recommendations: List[str]) -> Optional[str]:
+        """
+        사용자에게 추천된 과제 카드 목록을 보여주고 선택하도록 합니다.
+        """
+        self.cmd.activate()
+        print(f"\n'{title}'에 대한 과제 카드 추천 목록입니다. 선택해주세요.")
+        
+        for idx, card_name in enumerate(recommendations):
+            print(f"[{idx + 1:02d}] {card_name}")
+        
+        print("[00] 목록에 없음 (직접 입력)")
+        print("[0] 추천 없음 (다음 단계로 이동)")
+        print()
+
+        while True:
+            try:
+                selection = input("번호를 선택하거나 '00' 또는 '0'을 입력하세요: ")
+                if selection == '00':
+                    return "MANUAL_INPUT" # Special signal for manual input
+                elif selection == '0':
+                    return None # No recommendation chosen, proceed to next step
+                
+                selected_index = int(selection) - 1
+                if 0 <= selected_index < len(recommendations):
+                    return recommendations[selected_index]
+                else:
+                    print("유효하지 않은 번호입니다. 다시 선택해주세요.")
+            except ValueError:
+                print("유효하지 않은 입력입니다. 번호를 입력하거나 '00' 또는 '0'을 입력해주세요.")
