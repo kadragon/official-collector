@@ -14,7 +14,7 @@ from pathlib import Path # Import Path
 
 from core.collector import OfficialCollector
 from core.json_handler import load_json, update_sort_data
-from core.dialog_handler import DialogHandler
+from core.dialog_handler import DialogHandler, SelectionStatus
 from ai.ai_supabase import SupabaseManager # Import SupabaseManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -147,22 +147,21 @@ class Main:
                     # If no exact match, try recommendations
                     recommendations = self.supabase_manager.recommend_cards(title, count=5)
                     if recommendations:
-                        chosen_recommendation = self.dialog.choose_from_recommendations(title, recommendations)
-                        if chosen_recommendation == "MANUAL_INPUT":
-                            card_name = None # Trigger manual input
-                        elif chosen_recommendation:
-                            card_name = chosen_recommendation
-                        else:
-                            card_name = None # User chose '추천 없음' or no recommendation was chosen
+                        status, value = self.dialog.choose_from_recommendations(title, recommendations)
+                        if status == SelectionStatus.SKIPPED:
+                            card_name = None  # User chose '추천 없음'
+                        elif status == SelectionStatus.SELECTED:
+                            card_name = value
+                        elif status == SelectionStatus.MANUAL_INPUT:
+                            card_name = None  # Trigger manual input
 
                 if card_name is None:
                     # If no recommendation was chosen or user opted for manual input from recommendations
                     # Offer predefined list
-                    selected_from_list = self.dialog.choose_from_predefined_list(title, self.predefined_card_list)
-                    if selected_from_list:
-                        card_name = selected_from_list
-                    else:
-                        # If user chose manual input from predefined list, or no list was provided
+                    status, value = self.dialog.choose_from_predefined_list(title, self.predefined_card_list)
+                    if status == SelectionStatus.SELECTED:
+                        card_name = value
+                    elif status == SelectionStatus.MANUAL_INPUT:
                         manual_card_name = self.dialog.get_manual_task_card(title)
                         if manual_card_name:
                             card_name = manual_card_name
