@@ -1,4 +1,4 @@
-
+import os
 import json
 import logging
 from pathlib import Path
@@ -6,105 +6,16 @@ from typing import Dict
 
 from openai import OpenAI
 
-from config.config import OPENAI_API_KEY
+# from config.config import OPENAI_API_KEY # Removed
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY')) # Use os.getenv directly
 
 
-# 전역 변수 선언 (최초 1회만 파일 읽음)
-def load_card_prompt():
-    system_template = """
-   You are a highly skilled classification assistant specializing in document processing.
-   Your task is to analyze the provided **official document title** and return the **top 5 most relevant task cards** from the predefined list below.
-
-   ### ⚡️ Instructions:
-   - Semantic Analysis: Assess semantic similarity.
-   - Selection Limit: Exactly 5 task cards.
-   - Ranking: Most relevant first.
-   - Strict Selection: Do not invent new cards.
-   - Output: Strict JSON schema.
-
-   ### Data Cards:
-   {data}
-   """
-
-    PROJECT_ROOT = Path(__file__).resolve().parents[2]
-    DOCU_DATA_PATH = PROJECT_ROOT / "data" / "card_list.txt"
-
-    with open(DOCU_DATA_PATH, "r", encoding="utf-8") as f:
-        docu_data = "".join(
-            f"- {line.strip()}\n" for line in f if line.strip())
-    return system_template.format(data=docu_data)
-
-
-# 최초 1회만 실행
-CARD_PROMPT = load_card_prompt()
-
-
-def card_picker(title):
-    try:
-        response = client.responses.create(
-            model="gpt-4.1-mini",
-            input=[
-                {
-                    "role": "system",
-                    "content": [{
-                        "type": "input_text", "text": CARD_PROMPT
-                    }]
-                },
-                {
-                    "role": "user",
-                    "content": [{
-                            "type": "input_text", "text": title
-                    }]
-                }
-            ],
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "recommendations",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "recommendations": {
-                                "type": "array",
-                                "description": "A list of 5 recommendation items.",
-                                "items": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "required": [
-                            "recommendations"
-                        ],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            reasoning={},
-            tools=[],
-            temperature=0.1,
-            max_output_tokens=2048,
-            top_p=1,
-            store=True
-        )
-
-        usage_token(response=response)
-
-        if response.output_text:
-            parsed_response = json.loads(response.output_text)
-            return parsed_response['recommendations']
-        else:
-            logger.error("OpenAI response text is empty.")
-            return []  # Or raise an exception
-    except Exception as e:
-        logger.error(f"An unexpected error occurred in card_picker: {e}")
-        return []
+# Removed card_picker and related functions as Supabase is now used for recommendations
 
 
 def sort_prompt() -> str:
@@ -124,7 +35,8 @@ def sort_prompt() -> str:
     - Pattern Classification:
         - Match processed title to regex-based classification patterns in the current system.
         - If no match is found:
-        - Apply fuzzy matching (title similarity ≥ 0.85).
+        - Apply fuzzy matching (title similarity 
+ 0.85).
         - Generate regex candidates from token clusters and compare to known patterns.
         - Propose candidate pattern(s) and target classification label.
         - Avoid duplicate or overly similar patterns by:

@@ -2,9 +2,16 @@
 사용자의 입력이 필요한 부분에 대한 제어.
 """
 
-from typing import Dict, Tuple, List
+from enum import Enum, auto
+from typing import Dict, Tuple, List, Optional
 from core.cmd_control import CmdControl
-from ai.ai_openai import card_picker
+
+
+class SelectionStatus(Enum):
+    """Dialog ahanlder의 선택 상태를 나타내는 Enum."""
+    SELECTED = auto()
+    SKIPPED = auto()
+    MANUAL_INPUT = auto()
 
 
 class DialogHandler:
@@ -31,8 +38,17 @@ class DialogHandler:
 
         sorted_card_list = sorted(card_list)
 
-        for idx, card_name in enumerate(sorted_card_list):
-            print(f"[{idx:02d}] {card_name}")
+        num_columns = 3
+        col_width = 40  # Adjust this width as needed
+
+        for i in range(0, len(sorted_card_list), num_columns):
+            row_str = ""
+            for j in range(num_columns):
+                idx = i + j
+                if idx < len(sorted_card_list):
+                    item_str = f"[{idx:02d}] {sorted_card_list[idx]}"
+                    row_str += item_str.ljust(col_width)
+            print(row_str)
 
         print()
         return self._get_valid_input("번호를 선택하세요: ", sorted_card_list)
@@ -101,28 +117,66 @@ class DialogHandler:
 
         return True
 
-    def check_card_sort(self, title: str) -> str:
+    def confirm_recommendation(self, title: str, recommended_task_title: str) -> bool:
+        """
+        사용자에게 추천된 taskTitle을 확인할지 묻습니다.
+        """
         self.cmd.activate()
+        print(f"공문 제목: {title}")
+        print(f"추천 과제 카드: {recommended_task_title}")
+        confirm = input("이 추천을 사용하시겠습니까? (Y/n): ")
+        return confirm.lower() == 'y' or confirm == '' # Default to 'Y' if Enter is pressed
 
-        print(f"AI 분석 시작: {title}")
+    def choose_from_predefined_list(self, title: str, card_list: List[str]) -> Tuple[SelectionStatus, Optional[str]]:
+        """
+        과제 카드를 추천할 수 없을 때, 미리 정의된 목록을 보여주고 사용자에게 선택하도록 합니다.
+        """
+        self.cmd.activate()
+        print(f"\n'{title}'에 대한 과제 카드를 찾거나 추천할 수 없을 때, 다음 목록에서 선택해주세요.")
 
-        recommend = card_picker(title)
+        for idx, card_name in enumerate(card_list):
+            print(f"[{idx + 1:02d}] {card_name}")
 
-        for idx, recommend_card_name in enumerate(recommend):
-            print(f"[{idx + 1:02d}] {recommend_card_name}")
-
+        print("[0] 직접 입력")
         print()
 
-        confirm = input("분류 하시겠습니까?( 1 ~ 5 / 취소(0))")
-        if confirm == '0':
-            return ''
-        try:
-            selected_index = int(confirm) - 1
-            if 0 <= selected_index < len(recommend):
-                return recommend[selected_index]
-            else:
-                print("잘못된 번호입니다. 추천 목록에서 선택해주세요.")
-                return ''  # 또는 다른 오류 처리
-        except ValueError:
-            print("숫자로 입력해주세요.")
-            return ''  # 또는 다른 오류 처리
+        while True:
+            try:
+                selection = input("번호를 선택하세요: ")
+                if selection == '0':
+                    return SelectionStatus.MANUAL_INPUT, None
+
+                selected_index = int(selection) - 1
+                if 0 <= selected_index < len(card_list):
+                    return SelectionStatus.SELECTED, card_list[selected_index]
+                else:
+                    print("유효하지 않은 번호입니다. 다시 선택해주세요.")
+            except ValueError:
+                print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
+
+    def choose_from_recommendations(self, title: str, recommendations: List[str]) -> Tuple[SelectionStatus, Optional[str]]:
+        """
+        사용자에게 추천된 과제 카드 목록을 보여주고 선택하도록 합니다.
+        """
+        self.cmd.activate()
+        print(f"\n'{title}'에 대한 과제 카드 추천 목록입니다. 선택해주세요.")
+
+        for idx, card_name in enumerate(recommendations):
+            print(f"[{idx + 1:02d}] {card_name}")
+
+        print("[0] 추천 없음 (다음 단계로 이동)")
+        print()
+
+        while True:
+            try:
+                selection = input("번호를 선택하세요: ")
+                if selection == "0":
+                    return SelectionStatus.SKIPPED, None  # No recommendation chosen, proceed to next step
+
+                selected_index = int(selection) - 1
+                if 0 <= selected_index < len(recommendations):
+                    return SelectionStatus.SELECTED, recommendations[selected_index]
+                else:
+                    print("유효하지 않은 번호입니다. 다시 선택해주세요.")
+            except ValueError:
+                print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
