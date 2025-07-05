@@ -1,7 +1,7 @@
 [project]
 name = "official-collector"
 version = "0.1.0"
-description = "Add your description here"
+description = "This project automates the classification and processing of official documents."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
