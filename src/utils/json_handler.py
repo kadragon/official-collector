@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 import shutil
 from typing import Dict, Any
-from ai.ai_openai import sorter
+from services.openai_service import sorter
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)

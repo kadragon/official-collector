@@ -78,13 +78,5 @@ To use this application, you need to set up a Supabase project and configure the
 To run the main application:
 
 ```bash
-python src/main.py
-```
-
-## Running Tests
-
-To run the Supabase integration tests (requires `SUPABASE_SERVICE_ROLE_KEY` to be set in `.env`):
-
-```bash
-python tests/test_ai_supabase.py
+uv run ./src/main.py
 ```

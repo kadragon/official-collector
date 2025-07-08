@@ -4,7 +4,7 @@
 
 from enum import Enum, auto
 from typing import Dict, Tuple, List, Optional
-from core.cmd_control import CmdControl
+from services.command_executor import CommandExecutor
 
 
 class SelectionStatus(Enum):
@@ -19,7 +19,7 @@ class DialogHandler:
 
     def __init__(self) -> None:
         """초기화 및 CMD 창 활성화."""
-        self.cmd = CmdControl()
+        self.cmd = CommandExecutor()
         self.ai = None
 
     def choose_task_card(self, card_data: Dict[str, str]) -> str:

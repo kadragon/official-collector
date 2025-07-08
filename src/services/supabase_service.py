@@ -11,7 +11,7 @@ from langchain.storage import LocalFileStore
 from langchain.embeddings import CacheBackedEmbeddings
 from supabase.client import Client, create_client
 
-class SupabaseManager:
+class SupabaseService:
     def __init__(self, openai_api_key: str, supabase_url: str, supabase_key: str, table_name: str = "documents", query_name: str = "match_documents"):
         self.supabase: Client = create_client(supabase_url, supabase_key)
         
