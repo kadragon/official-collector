@@ -52,9 +52,19 @@ class SupabaseManager:
             return metadata.get('taskTitle')
         return None
 
-    def recommend_cards(self, title: str, count: int = 5):
+    def recommend_cards(self, title: str, count: int = 10):
         """
-        입력된 제목과 유사한 과제 카드를 추천하고 taskTitle을 반환합니다.
+        입력된 제목과 유사한 과제 카드를 추천하고, 연관도 순으로 중복을 제거한 taskTitle을 반환합니다.
         """
-        similar_cards = self.vector_store.similarity_search(query=title, k=count)
-        return [card.metadata.get('taskTitle', card.page_content) for card in similar_cards]
+        similar_cards_with_scores = self.vector_store.similarity_search_with_score(query=title, k=count)
+        
+        recommended_task_titles = []
+        seen_task_titles = set()
+        
+        for card, score in similar_cards_with_scores:
+            task_title = card.metadata.get('taskTitle', card.page_content)
+            if task_title not in seen_task_titles:
+                recommended_task_titles.append(task_title)
+                seen_task_titles.add(task_title)
+        
+        return recommended_task_titles
