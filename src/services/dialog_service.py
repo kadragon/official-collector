@@ -1,3 +1,4 @@
+
 """
 사용자의 입력이 필요한 부분에 대한 제어.
 """
@@ -66,28 +67,29 @@ class DialogHandler:
         """
         self.cmd.activate()
 
-        # 담당자 선택
-        print("\n[담당자 선택]")
-        for idx, name in enumerate(approval_list):
-            print(f"[{idx}] {name}")
+        if len(approval_list) == 1:
+            selected_approval = approval_list[0]
+        else:
+            # 담당자 선택
+            print("\n[담당자 선택]")
+            for idx, name in enumerate(approval_list):
+                print(f"[{idx}] {name}")
 
-        selected_approval = self._get_valid_input("번호를 선택하세요: ", approval_list)
+            selected_approval = self._get_valid_input("번호를 선택하세요: ", approval_list)
 
         # 기본 공람 대상자 (공람 없음)
         selected_share = "공람없음"
 
-        # 담당자가 특정 범위 내에 있으면 공람 대상자도 선택
-        if approval_list.index(selected_approval) < 2:
-            print("\n[공람자 선택]")
-            print(" / ".join(f"[{idx}] {name}" for idx,
-                  name in enumerate(share_list)))
+        # 공람 대상자 선택은 항상 진행
+        print("\n[공람자 선택]")
+        print(" / ".join(f"[{idx}] {name}" for idx,
+              name in enumerate(share_list)))
 
-            selected_share = self._get_valid_input("번호를 선택하세요: ", share_list)
+        selected_share = self._get_valid_input("번호를 선택하세요: ", share_list)
 
         return selected_approval, selected_share
 
-    @staticmethod
-    def _get_valid_input(prompt: str, options: List[str]) -> str:
+    def _get_valid_input(self, prompt: str, options: List[str]) -> str:
         """
         사용자에게 유효한 입력을 받을 때까지 반복 요청합니다.
 
@@ -98,6 +100,7 @@ class DialogHandler:
         Returns:
             str: 사용자가 선택한 옵션.
         """
+        self.cmd.activate()
         while True:
             try:
                 selection = int(input(prompt))
@@ -106,16 +109,6 @@ class DialogHandler:
                 print("유효하지 않은 번호입니다. 다시 선택해주세요.")
             except ValueError:
                 print("숫자를 입력해주세요.")
-
-    def check_valid_sort(self, title: str, sort_info) -> bool:
-        self.cmd.activate()
-        print(f'{title} -> {sort_info}')
-        confirm = input("분류 하시겠습니까?( Enter / n)")
-
-        if confirm.lower() == 'n':
-            return False
-
-        return True
 
     def confirm_recommendation(self, title: str, recommended_task_title: str) -> bool:
         """
@@ -132,7 +125,7 @@ class DialogHandler:
         과제 카드를 추천할 수 없을 때, 미리 정의된 목록을 보여주고 사용자에게 선택하도록 합니다.
         """
         self.cmd.activate()
-        print(f"\n'{title}'에 대한 과제 카드를 찾거나 추천할 수 없을 때, 다음 목록에서 선택해주세요.")
+        print(f"\n다음 목록에서 선택해주세요.")
 
         for idx, card_name in enumerate(card_list):
             print(f"[{idx + 1:02d}] {card_name}")
@@ -180,3 +173,11 @@ class DialogHandler:
                     print("유효하지 않은 번호입니다. 다시 선택해주세요.")
             except ValueError:
                 print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
+
+    def get_manual_task_card(self, title: str) -> Optional[str]:
+        """
+        사용자로부터 직접 과제 카드 이름을 입력받습니다.
+        """
+        self.cmd.activate()
+        print(f"\n'{title}'에 대한 과제 카드를 직접 입력해주세요.")
+        return input("과제 카드 이름: ")

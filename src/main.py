@@ -8,7 +8,7 @@ from pathlib import Path
 
 from config import config
 from services.official_collector import OfficialCollector
-from utils.json_handler import load_json, update_sort_data
+from utils.json_handler import load_json
 from services.dialog_service import DialogHandler
 from services.supabase_service import SupabaseService
 from services.reception_service import ReceptionService
@@ -21,39 +21,49 @@ class Main:
     """공문 자동 분류 및 처리를 위한 메인 클래스."""
 
     def __init__(self):
-        self.sort_data: Dict[str, List] = load_json("./data/sort_data.json")
-        self.sorted_data: Dict[str, List[Dict[str, Any]]] = {"items": []}
-        self.approval_name_list: List[str] = load_json('./data/base_data.json')['approval_names']
-        self.share_name_list: List[str] = load_json('./data/base_data.json')['share_names']
+        base_data = self._load_base_data()
+        self.approval_name_list: List[str] = base_data["reception_list"]
+        self.share_name_list: List[str] = base_data["share_list"]
 
         self.collector = OfficialCollector()
         self.dialog = DialogHandler()
 
-        self.supabase_service = SupabaseService(
+        # Reception을 위한 Supabase 서비스
+        reception_supabase_service = SupabaseService(
             openai_api_key=config.openai_api_key,
             supabase_url=config.supabase_url,
-            supabase_key=config.supabase_key
+            supabase_key=config.supabase_key,
+            table_name="reception_documents",
+            query_name="match_reception_documents"
         )
 
-        self.predefined_card_list: List[str] = self._load_predefined_card_list()
+        # Task Card를 위한 Supabase 서비스
+        task_card_supabase_service = SupabaseService(
+            openai_api_key=config.openai_api_key,
+            supabase_url=config.supabase_url,
+            supabase_key=config.supabase_key,
+            table_name="documents",
+            query_name="match_documents"
+        )
+
+        self.predefined_card_list: List[str] = base_data["card_list"]
 
         self.reception_service = ReceptionService(
-            self.sort_data, self.dialog, self.approval_name_list, self.share_name_list
+            reception_supabase_service, self.dialog, self.approval_name_list, self.share_name_list
         )
         self.task_card_service = TaskCardService(
-            self.supabase_service, self.dialog, self.predefined_card_list
+            task_card_supabase_service, self.dialog, self.predefined_card_list
         )
 
-    def _load_predefined_card_list(self) -> List[str]:
-        """data/card_list.txt 파일에서 미리 정의된 과제 카드 목록을 읽어옵니다."""
+    def _load_base_data(self) -> Dict[str, List[str]]:
+        """data/base_data.json 파일에서 기본 데이터를 읽어옵니다."""
         PROJECT_ROOT = Path(__file__).resolve().parents[1]
-        card_list_path = PROJECT_ROOT / "data" / "card_list.txt"
+        file_path = PROJECT_ROOT / "data" / "base_data.json"
         try:
-            with open(card_list_path, "r", encoding="utf-8") as f:
-                return [line.strip() for line in f if line.strip()]
+            return load_json(str(file_path))
         except FileNotFoundError:
-            logger.error(f"Error: card_list.txt not found at {card_list_path}")
-            return []
+            logger.error(f"Error: base_data.json not found at {file_path}")
+            return {"card_list": [], "reception_list": [], "share_list": []}
 
     def run(self) -> None:
         """ 메인 로직 """
@@ -67,11 +77,6 @@ class Main:
                 approval, shared = self.reception_service.handle_reception(title)
 
                 if approval:
-                    self.sorted_data['items'].append({
-                        "title": title.replace("접수: ", ''),
-                        "approval": approval,
-                        "shared": shared
-                    })
                     self.collector.approval(approval)
                     if shared is not None and shared != '공람없음':
                         self.collector.add_share(str(shared))
@@ -98,10 +103,6 @@ class Main:
                     logger.warning(f"Skipping document sort for title: {title} due to no valid task card.")
 
                 time.sleep(2)
-
-        if len(self.sorted_data['items']) > 0:
-            print("분류 기준을 갱신합니다.")
-            update_sort_data(self.sort_data, self.sorted_data)
 
         print("완료되었습니다.")
 
