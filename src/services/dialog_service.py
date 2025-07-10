@@ -100,7 +100,6 @@ class DialogHandler:
         Returns:
             str: 사용자가 선택한 옵션.
         """
-        self.cmd.activate()
         while True:
             try:
                 selection = int(input(prompt))

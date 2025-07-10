@@ -2,34 +2,11 @@
 데이터 저장용으로 사용하고 있는 json 파일을 제어합니다.
 """
 
-import logging
-import os
-import glob
 import json
-from datetime import datetime
-import shutil
+import logging
 from typing import Dict, Any
-from services.openai_service import sorter
-from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# src/core/json_handler.py 파일의 상단에서
-# PROJECT_ROOT는 프로젝트 루트 경로를 지정
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-
-# 백업 폴더 경로를 프로젝트 루트 하위로 지정
-BACKUP_DIR = PROJECT_ROOT / "data" / "backup"
-BACKUP_DIR.mkdir(parents=True, exist_ok=True)  # 폴더가 없는 경우 자동 생성
-
-# 백업 파일 경로 지정
-
-
-def save_backup(timestamp):
-    backup_path = BACKUP_DIR / f"sort_data_{timestamp}.json"
-    print(f"Backup will be saved to: {backup_path}")
-
 
 def load_json(file_path: str) -> Dict[str, Any]:
     """
@@ -53,109 +30,12 @@ def load_json(file_path: str) -> Dict[str, Any]:
         return {}
 
 
-def update_sort_data(sort_data, sorted_data, src_path='./data/sort_data.json') -> None:
+def save_json(file_path: str, data: Dict[str, Any]):
     """
-    정렬 데이터를 업데이트하고 백업을 생성합니다.
-
-    Args:
-        src_path (str): 정렬 데이터 파일 경로. 기본값은 './data/sort_data.json'
+    지정된 경로에 데이터를 JSON 형식으로 저장합니다.
     """
-    # ai = OpenAIChatAssistant("sort")
-
-    backup_pattern = "./data/sort_data_*.json"
-    for old_backup in glob.glob(backup_pattern):
-        os.remove(old_backup)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = BACKUP_DIR / f"sort_data_{timestamp}.json"
-
-    if os.path.exists(src_path):
-        shutil.copy(src_path, backup_path)
-
     try:
-        response = sorter(sort_data, sorted_data, "sort")
-
-        if 'deletions' in response:
-            for deletion in response['deletions']:
-                title = deletion['title']
-                approval = deletion['approval']
-
-                if approval in sort_data:
-                    sort_data[approval] = [
-                        item for item in sort_data[approval] if item['title'] != title]
-                    print(f'삭제: {deletion}')
-                else:
-                    print(
-                        f"경고: 삭제하려는 approval 키 '{approval}'가 sort_data에 존재하지 않습니다.")
-
-        if 'additions' in response:
-            for addition in response['additions']:
-                title = addition['title']
-                share = addition['share']
-                approval = addition['approval']
-
-                if approval not in sort_data:
-                    sort_data[approval] = []  # 새로운 approval 키 생성
-
-                # 중복 title 확인
-                if not any(item['title'] == title for item in sort_data[approval]):
-                    sort_data[approval].append({
-                        "title": title,
-                        "share": share
-                    })
-                    print(f'추가: {addition}')
-                else:
-                    print(f"경고: 이미 존재하는 title '{title}'을 추가하려 했습니다.")
-
-    except KeyError as e:
-        logger.error(f"KeyError 발생: {e}")
-        logger.debug(f"sort_data: {sort_data}")
-        logger.debug(f"response: {response}")
-    except Exception as e:
-        logger.error(f"예상치 못한 오류 발생: {e}")
-        logger.debug(f"response: {response}")
-
-    with open(src_path, "w", encoding="utf-8") as f:
-        json.dump(sort_data, f, indent=4, ensure_ascii=False)
-
-
-def update_docu_data(docu_data, docued_data, src_path='./data/docu_data.json') -> None:
-    """
-    문서 분류 데이터를 업데이트하고 백업을 생성합니다.
-
-    Args:
-        src_path (str): 정렬 데이터 파일 경로. 기본값은 './data/docu_data.json'
-    """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_path = BACKUP_DIR / f"docu_data_{timestamp}.json"
-
-    if os.path.exists(src_path):
-        shutil.copy(src_path, backup_path)
-
-    response = sorter(docu_data, docued_data, "docu")
-
-    try:
-        if 'deletions' in response:
-            for deletion in response['deletions']:
-                if deletion['document_name'] in docu_data.keys():
-                    document_name = deletion['document_name']
-                    title = deletion['title']
-                    docu_data[document_name] = [
-                        item for item in docu_data[document_name] if item != title]
-                    print(f'삭제: {deletion}')
-
-        if 'additions' in response:
-            for addition in response['additions']:
-                if addition['document_name'] in docu_data.keys():
-                    document_name = addition['document_name']
-                    title = addition['title']
-
-                    docu_data[document_name].append(title)
-                    print(f'추가: {addition}')
-
-    except Exception as e:
-        print(f"Error processing document data response: {e}")
-        print(response)
-
-    with open(src_path, "w", encoding="utf-8") as f:
-        json.dump(docu_data, f, indent=4, ensure_ascii=False)
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except IOError as e:
+        logger.error(f"Error saving JSON to {file_path}: {e}")
