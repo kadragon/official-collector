@@ -32,12 +32,14 @@ class ReceptionService:
             # If no exact match, try recommendations
             recommendations = self.supabase_service.recommend_reception(processed_title, count=3)
             if recommendations:
+                recommendation_options = [f"{rec['approval']} (공람: {rec['share']})" for rec in recommendations]
                 status, value = self.dialog.choose_from_recommendations(
-                    processed_title, 
-                    [f"{rec['approval']} (공람: {rec['share']})" for rec in recommendations]
+                    processed_title,
+                    recommendation_options
                 )
                 if status == SelectionStatus.SELECTED:
-                    selected_rec = recommendations[value]
+                    selected_index = recommendation_options.index(value)
+                    selected_rec = recommendations[selected_index]
                     approval, shared = selected_rec['approval'], selected_rec['share']
                 elif status == SelectionStatus.SKIPPED:
                     approval, shared = None, None # User chose '추천 없음'
