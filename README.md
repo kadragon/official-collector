@@ -24,6 +24,52 @@ To use this application, you need to set up a Supabase project and configure the
    );
    ```
 
+2.1. **Create `reception_documents` Table**
+Execute the following SQL query in your Supabase SQL Editor:
+
+```sql
+CREATE TABLE IF NOT EXISTS reception_documents (
+    id uuid PRIMARY KEY,
+    content text,
+    metadata jsonb,
+    embedding vector(1536)
+);
+```
+
+2.2. **Create `match_reception_documents` Function**
+Execute the following SQL query in your Supabase SQL Editor:
+
+```sql
+CREATE OR REPLACE FUNCTION public.match_reception_documents(
+    query_embedding vector(1536),
+    match_count int DEFAULT NULL,
+    filter jsonb DEFAULT '{}'
+) RETURNS TABLE (
+    id uuid,
+    content text,
+    metadata jsonb,
+    embedding vector(1536),
+    similarity float
+)
+LANGUAGE plpgsql
+AS $
+#variable_conflict use_column
+BEGIN
+    RETURN QUERY
+    SELECT
+        id,
+        content,
+        metadata,
+        embedding,
+        1 - (reception_documents.embedding <=> query_embedding) AS similarity
+    FROM reception_documents
+    WHERE filter IS NULL OR metadata @> filter
+    ORDER BY reception_documents.embedding <=> query_embedding
+    LIMIT match_count;
+END;
+$;
+```
+
 3. **Create `match_documents` Function**
    Execute the following SQL query in your Supabase SQL Editor:
 
@@ -78,13 +124,5 @@ To use this application, you need to set up a Supabase project and configure the
 To run the main application:
 
 ```bash
-python src/main.py
-```
-
-## Running Tests
-
-To run the Supabase integration tests (requires `SUPABASE_SERVICE_ROLE_KEY` to be set in `.env`):
-
-```bash
-python tests/test_ai_supabase.py
+uv run ./src/main.py
 ```

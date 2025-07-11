@@ -1,10 +1,11 @@
+
 """
 사용자의 입력이 필요한 부분에 대한 제어.
 """
 
 from enum import Enum, auto
 from typing import Dict, Tuple, List, Optional
-from core.cmd_control import CmdControl
+from services.command_executor import CommandExecutor
 
 
 class SelectionStatus(Enum):
@@ -19,39 +20,9 @@ class DialogHandler:
 
     def __init__(self) -> None:
         """초기화 및 CMD 창 활성화."""
-        self.cmd = CmdControl()
-        self.ai = None
+        self.cmd = CommandExecutor()
 
-    def choose_task_card(self, card_data: Dict[str, str]) -> str:
-        """
-        사용자가 과제카드를 선택하도록 유도하는 함수.
-
-        Args:
-            card_data (Dict[str, str]): 선택할 수 있는 과제카드 목록.
-
-        Returns:
-            str: 선택된 과제카드의 이름.
-        """
-        self.cmd.activate()
-
-        card_list = list(card_data.keys())
-
-        sorted_card_list = sorted(card_list)
-
-        num_columns = 3
-        col_width = 40  # Adjust this width as needed
-
-        for i in range(0, len(sorted_card_list), num_columns):
-            row_str = ""
-            for j in range(num_columns):
-                idx = i + j
-                if idx < len(sorted_card_list):
-                    item_str = f"[{idx:02d}] {sorted_card_list[idx]}"
-                    row_str += item_str.ljust(col_width)
-            print(row_str)
-
-        print()
-        return self._get_valid_input("번호를 선택하세요: ", sorted_card_list)
+    
 
     def select_approval_and_share(self, approval_list: List[str], share_list: List[str]) -> Tuple[str, str]:
         """
@@ -66,28 +37,29 @@ class DialogHandler:
         """
         self.cmd.activate()
 
-        # 담당자 선택
-        print("\n[담당자 선택]")
-        for idx, name in enumerate(approval_list):
-            print(f"[{idx}] {name}")
+        if len(approval_list) == 1:
+            selected_approval = approval_list[0]
+        else:
+            # 담당자 선택
+            print("\n[담당자 선택]")
+            for idx, name in enumerate(approval_list):
+                print(f"[{idx}] {name}")
 
-        selected_approval = self._get_valid_input("번호를 선택하세요: ", approval_list)
+            selected_approval = self._get_valid_input("번호를 선택하세요: ", approval_list)
 
         # 기본 공람 대상자 (공람 없음)
         selected_share = "공람없음"
 
-        # 담당자가 특정 범위 내에 있으면 공람 대상자도 선택
-        if approval_list.index(selected_approval) < 2:
-            print("\n[공람자 선택]")
-            print(" / ".join(f"[{idx}] {name}" for idx,
-                  name in enumerate(share_list)))
+        # 공람 대상자 선택은 항상 진행
+        print("\n[공람자 선택]")
+        print(" / ".join(f"[{idx}] {name}" for idx,
+              name in enumerate(share_list)))
 
-            selected_share = self._get_valid_input("번호를 선택하세요: ", share_list)
+        selected_share = self._get_valid_input("번호를 선택하세요: ", share_list)
 
         return selected_approval, selected_share
 
-    @staticmethod
-    def _get_valid_input(prompt: str, options: List[str]) -> str:
+    def _get_valid_input(self, prompt: str, options: List[str]) -> str:
         """
         사용자에게 유효한 입력을 받을 때까지 반복 요청합니다.
 
@@ -107,16 +79,6 @@ class DialogHandler:
             except ValueError:
                 print("숫자를 입력해주세요.")
 
-    def check_valid_sort(self, title: str, sort_info) -> bool:
-        self.cmd.activate()
-        print(f'{title} -> {sort_info}')
-        confirm = input("분류 하시겠습니까?( Enter / n)")
-
-        if confirm.lower() == 'n':
-            return False
-
-        return True
-
     def confirm_recommendation(self, title: str, recommended_task_title: str) -> bool:
         """
         사용자에게 추천된 taskTitle을 확인할지 묻습니다.
@@ -129,23 +91,46 @@ class DialogHandler:
 
     def choose_from_predefined_list(self, title: str, card_list: List[str]) -> Tuple[SelectionStatus, Optional[str]]:
         """
-        과제 카드를 추천할 수 없을 때, 미리 정의된 목록을 보여주고 사용자에게 선택하도록 합니다.
+        When task cards cannot be recommended, this method displays a predefined list for the user to choose from.
         """
         self.cmd.activate()
-        print(f"\n'{title}'에 대한 과제 카드를 찾거나 추천할 수 없을 때, 다음 목록에서 선택해주세요.")
+        print(f"\n다음 목록에서 선택해주세요.")
 
         for idx, card_name in enumerate(card_list):
             print(f"[{idx + 1:02d}] {card_name}")
 
-        print("[0] 직접 입력")
+        print("[0] 목록에 없음")
         print()
 
         while True:
             try:
                 selection = input("번호를 선택하세요: ")
                 if selection == '0':
-                    return SelectionStatus.MANUAL_INPUT, None
+                    return SelectionStatus.SKIPPED, None
 
+                selected_index = int(selection) - 1
+                if 0 <= selected_index < len(card_list):
+                    return SelectionStatus.SELECTED, card_list[selected_index]
+                else:
+                    print("유효하지 않은 번호입니다. 다시 선택해주세요.")
+            except ValueError:
+                print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
+
+    def choose_from_full_list(self, title: str, card_list: List[str]) -> Tuple[SelectionStatus, Optional[str]]:
+        """
+        Displays the full list of task cards for the user to choose from.
+        """
+        self.cmd.activate()
+        print(f"\n전체 목록에서 선택해주세요.")
+
+        for idx, card_name in enumerate(card_list):
+            print(f"[{idx + 1:02d}] {card_name}")
+
+        print()
+
+        while True:
+            try:
+                selection = input("번호를 선택하세요: ")
                 selected_index = int(selection) - 1
                 if 0 <= selected_index < len(card_list):
                     return SelectionStatus.SELECTED, card_list[selected_index]
@@ -180,3 +165,11 @@ class DialogHandler:
                     print("유효하지 않은 번호입니다. 다시 선택해주세요.")
             except ValueError:
                 print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
+
+    def get_manual_task_card(self, title: str) -> Optional[str]:
+        """
+        사용자로부터 직접 과제 카드 이름을 입력받습니다.
+        """
+        self.cmd.activate()
+        print(f"\n'{title}'에 대한 과제 카드를 직접 입력해주세요.")
+        return input("과제 카드 이름: ")

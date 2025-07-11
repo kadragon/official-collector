@@ -1,21 +1,19 @@
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
-import os
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
 import time
 import re
 import logging
-from typing import List, Tuple, Optional, Dict, Any
-from pathlib import Path # Import Path
+from typing import List, Dict, Any
+from pathlib import Path
 
-from core.collector import OfficialCollector
-from core.json_handler import load_json, update_sort_data
-from core.dialog_handler import DialogHandler, SelectionStatus
-from ai.ai_supabase import SupabaseManager # Import SupabaseManager
+from config import config
+from services.official_collector import OfficialCollector
+from utils.json_handler import load_json
+from services.dialog_service import DialogHandler
+from services.supabase_service import SupabaseService
+from services.reception_service import ReceptionService
+from services.task_card_service import TaskCardService
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -23,69 +21,49 @@ class Main:
     """공문 자동 분류 및 처리를 위한 메인 클래스."""
 
     def __init__(self):
-
-# Check for required environment variables
-        required_env_vars = ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]
-        missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
-        if missing_vars:
-            error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
-            logger.critical(error_msg)
-            raise ValueError(error_msg)
-
-        self.sort_data: Dict[str, List] = load_json("./data/sort_data.json")
-        self.sorted_data: Dict[str, List[Dict[str, Any]]] = {"items": []}
-        self.approval_name_list: List[str] = load_json(
-            './data/base_data.json')['approval_names']
-        self.share_name_list: List[str] = load_json(
-            './data/base_data.json')['share_names']
+        base_data = self._load_base_data()
+        self.approval_name_list: List[str] = base_data["reception_list"]
+        self.share_name_list: List[str] = base_data["share_list"]
 
         self.collector = OfficialCollector()
         self.dialog = DialogHandler()
 
-        # Initialize SupabaseManager
-        self.supabase_manager = SupabaseManager(
-            openai_api_key=os.environ.get("OPENAI_API_KEY"),
-            supabase_url=os.environ.get("SUPABASE_URL"),
-            supabase_key=os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        # Reception을 위한 Supabase 서비스
+        reception_supabase_service = SupabaseService(
+            openai_api_key=config.openai_api_key,
+            supabase_url=config.supabase_url,
+            supabase_key=config.supabase_key,
+            table_name="reception_documents",
+            query_name="match_reception_documents"
         )
 
-        # Load predefined card list from file
-        self.predefined_card_list: List[str] = self._load_predefined_card_list()
+        # Task Card를 위한 Supabase 서비스
+        task_card_supabase_service = SupabaseService(
+            openai_api_key=config.openai_api_key,
+            supabase_url=config.supabase_url,
+            supabase_key=config.supabase_key,
+            table_name="documents",
+            query_name="match_documents"
+        )
 
-    def _load_predefined_card_list(self) -> List[str]:
-        """data/card_list.txt 파일에서 미리 정의된 과제 카드 목록을 읽어옵니다."""
+        self.predefined_card_list: List[str] = base_data["card_list"]
+
+        self.reception_service = ReceptionService(
+            reception_supabase_service, self.dialog, self.approval_name_list, self.share_name_list
+        )
+        self.task_card_service = TaskCardService(
+            task_card_supabase_service, self.dialog, self.predefined_card_list
+        )
+
+    def _load_base_data(self) -> Dict[str, List[str]]:
+        """data/base_data.json 파일에서 기본 데이터를 읽어옵니다."""
         PROJECT_ROOT = Path(__file__).resolve().parents[1]
-        card_list_path = PROJECT_ROOT / "data" / "card_list.txt"
+        file_path = PROJECT_ROOT / "data" / "base_data.json"
         try:
-            with open(card_list_path, "r", encoding="utf-8") as f:
-                return [line.strip() for line in f if line.strip()]
+            return load_json(str(file_path))
         except FileNotFoundError:
-            logger.error(f"Error: card_list.txt not found at {card_list_path}")
-            return []
-
-    def _check_sort(self, title: str) -> Optional[Tuple[str, int]]:
-        """접수된 공문에 대해서 담당자 매칭 확인"""
-        for approval in self.sort_data.keys():
-
-            for item in self.sort_data[approval]:
-                if re.match(item['title'], title) or item['title'] in title:
-                    logger.info(
-                        '%s으로 %s가 매칭 되었습니다.',
-                        item['title'],
-                        title
-                    )
-                    return approval, item['share']
-
-        return None
-
-    def _check_docu(self, title: str) -> str | None:
-        """결재 완료된 공문에 대해서 과제 카드 매칭 확인"""
-        # 1. Exact match using Supabase
-        exact_match_task_title = self.supabase_manager.retrieve_card_by_title(title)
-        if exact_match_task_title:
-            return exact_match_task_title
-        
-        return None # No exact match
+            logger.error(f"Error: base_data.json not found at {file_path}")
+            return {"card_list": [], "reception_list": [], "share_list": []}
 
     def run(self) -> None:
         """ 메인 로직 """
@@ -93,98 +71,40 @@ class Main:
             if self.collector.check_end_collecting():
                 break
 
-            approval = shared = None
-
             title = self.collector.get_official_title()
 
             if title.startswith('접수'):
-                checked = self._check_sort(title.replace("접수: ", ''))
+                approval, shared = self.reception_service.handle_reception(title)
 
-                if checked is not None:
-                    approval, shared = checked
+                if approval:
+                    self.collector.approval(approval)
+                    if shared is not None and shared != '공람없음':
+                        self.collector.add_share(str(shared))
+                    
+                    print(f"{title} -> {approval} / {shared}")
+                    self.collector.reception()
 
-                    if not self.dialog.check_valid_sort(title, checked):
-                        approval = None
-
-                if approval is None:
-                    approval, shared = self.dialog.select_approval_and_share(
-                        self.approval_name_list, self.share_name_list
-                    )
-
-                    self.sorted_data['items'].append({
-                        "title": title.replace("접수: ", ''),
-                        "approval": approval,
-                        "shared": shared
-                    })
-
-                self.collector.approval(approval)
-                if shared is not None and shared != '공람없음':
-                    shared_as_str = str(shared)
-                    self.collector.add_share(shared_as_str)
-
-                print(
-                    f"{title} -> {approval} / {shared}")
-
-                self.collector.reception()
-
-                if shared != '공람없음':
-                    self.collector.dlg['확인2'].click()
-
-                time.sleep(1)
+                    if shared != '공람없음':
+                        self.collector.dlg['확인2'].click()
+                    time.sleep(1)
             else:
                 if title.startswith('전자결재:'):
-                    # 정규 표현식을 사용하여 두 번째 ']' 뒤의 문자열 추출 시도
                     match = re.search(r'(?:[^]]*]){2}(.*)', title)
                     if match:
                         title = match.group(1).strip()
                     else:
-                        # 패턴이 맞지 않으면 기존 방식(마지막 ']') 뒤) 사용
                         title = title.split("]")[-1].strip()
                 
-                card_name = self._check_docu(title)
+                card_name = self.task_card_service.match_task_card(title)
 
-                if card_name is None:
-                    # If no exact match, try recommendations
-                    recommendations = self.supabase_manager.recommend_cards(title, count=5)
-                    if recommendations:
-                        status, value = self.dialog.choose_from_recommendations(title, recommendations)
-                        if status == SelectionStatus.SKIPPED:
-                            card_name = None  # User chose '추천 없음'
-                        elif status == SelectionStatus.SELECTED:
-                            card_name = value
-                        elif status == SelectionStatus.MANUAL_INPUT:
-                            card_name = None  # Trigger manual input
-
-                if card_name is None:
-                    # If no recommendation was chosen or user opted for manual input from recommendations
-                    # Offer predefined list
-                    status, value = self.dialog.choose_from_predefined_list(title, self.predefined_card_list)
-                    if status == SelectionStatus.SELECTED:
-                        card_name = value
-                    elif status == SelectionStatus.MANUAL_INPUT:
-                        manual_card_name = self.dialog.get_manual_task_card(title)
-                        if manual_card_name:
-                            card_name = manual_card_name
-                        else:
-                            logger.warning(f"No task card provided for title: {title}")
-                            # Decide how to handle this case: skip, error, or loop back
-                            # For now, we'll just skip document_sort if card_name is still None
-
-                if card_name: # Only proceed if a card_name is determined
-                    # Ensure the mapping is stored in Supabase for future use
-                    self.supabase_manager.upsert_card_embedding(title, card_name)
+                if card_name:
                     self.collector.document_sort(card_name)
                 else:
                     logger.warning(f"Skipping document sort for title: {title} due to no valid task card.")
 
                 time.sleep(2)
 
-        if len(self.sorted_data['items']) > 0:
-            print("분류 기준을 갱신합니다.")
-            update_sort_data(self.sort_data, self.sorted_data)
-
         print("완료되었습니다.")
-
 
 if __name__ == '__main__':
     main = Main()

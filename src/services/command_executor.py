@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class CmdControl:
+class CommandExecutor:
     def __init__(self) -> None:
         self.app: Optional[Application] = None
         self.dlg: Optional[BaseWrapper] = None
