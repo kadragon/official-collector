@@ -8,6 +8,7 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 def load_json(file_path: str) -> Dict[str, Any]:
     """
     JSON 파일을 읽어서 딕셔너리로 반환합니다.

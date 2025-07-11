@@ -14,16 +14,16 @@
 
 This project follows a modular structure to ensure maintainability and scalability. Key directories and their roles are:
 
-*   **`src/`**: Contains all source code for the application.
-    *   **`config.py`**: Handles environment variable loading and application-wide configurations.
-    *   **`main.py`**: The main entry point of the application, orchestrating the overall flow.
-    *   **`services/`**: Contains all core business logic and service modules, including interactions with external APIs (e.g., Supabase) and internal components (e.g., RPA collector, dialogs).
-        *   `command_executor.py`: Executes system commands.
-        *   `dialog_service.py`: Manages user interactions and dialogs.
-        *   `official_collector.py`: Handles the collection of official documents.
-        *   `reception_service.py`: Processes incoming official documents.
-        *   `supabase_service.py`: Manages interactions with the Supabase backend.
-        *   `task_card_service.py`: Handles the matching and management of task cards.
-    *   **`utils/`**: Provides general utility functions that are not specific to any particular business logic.
-        *   `json_handler.py`: Utility for handling JSON data.
-        *   `prompt.py`: Manages prompts for AI interactions.
+- **`src/`**: Contains all source code for the application.
+  - **`config.py`**: Handles environment variable loading and application-wide configurations.
+  - **`main.py`**: The main entry point of the application, orchestrating the overall flow.
+  - **`services/`**: Contains all core business logic and service modules, including interactions with external APIs (e.g., Supabase) and internal components (e.g., RPA collector, dialogs).
+    - `command_executor.py`: Executes system commands.
+    - `dialog_service.py`: Manages user interactions and dialogs.
+    - `official_collector.py`: Handles the collection of official documents.
+    - `reception_service.py`: Processes incoming official documents.
+    - `supabase_service.py`: Manages interactions with the Supabase backend.
+    - `task_card_service.py`: Handles the matching and management of task cards.
+  - **`utils/`**: Provides general utility functions that are not specific to any particular business logic.
+    - `json_handler.py`: Utility for handling JSON data.
+    - `prompt.py`: Manages prompts for AI interactions.

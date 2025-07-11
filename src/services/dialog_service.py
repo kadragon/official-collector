@@ -21,38 +21,8 @@ class DialogHandler:
     def __init__(self) -> None:
         """초기화 및 CMD 창 활성화."""
         self.cmd = CommandExecutor()
-        self.ai = None
 
-    def choose_task_card(self, card_data: Dict[str, str]) -> str:
-        """
-        사용자가 과제카드를 선택하도록 유도하는 함수.
-
-        Args:
-            card_data (Dict[str, str]): 선택할 수 있는 과제카드 목록.
-
-        Returns:
-            str: 선택된 과제카드의 이름.
-        """
-        self.cmd.activate()
-
-        card_list = list(card_data.keys())
-
-        sorted_card_list = sorted(card_list)
-
-        num_columns = 3
-        col_width = 40  # Adjust this width as needed
-
-        for i in range(0, len(sorted_card_list), num_columns):
-            row_str = ""
-            for j in range(num_columns):
-                idx = i + j
-                if idx < len(sorted_card_list):
-                    item_str = f"[{idx:02d}] {sorted_card_list[idx]}"
-                    row_str += item_str.ljust(col_width)
-            print(row_str)
-
-        print()
-        return self._get_valid_input("번호를 선택하세요: ", sorted_card_list)
+    
 
     def select_approval_and_share(self, approval_list: List[str], share_list: List[str]) -> Tuple[str, str]:
         """
@@ -121,7 +91,7 @@ class DialogHandler:
 
     def choose_from_predefined_list(self, title: str, card_list: List[str]) -> Tuple[SelectionStatus, Optional[str]]:
         """
-        과제 카드를 추천할 수 없을 때, 미리 정의된 목록을 보여주고 사용자에게 선택하도록 합니다.
+        When task cards cannot be recommended, this method displays a predefined list for the user to choose from.
         """
         self.cmd.activate()
         print(f"\n다음 목록에서 선택해주세요.")
@@ -129,15 +99,38 @@ class DialogHandler:
         for idx, card_name in enumerate(card_list):
             print(f"[{idx + 1:02d}] {card_name}")
 
-        print("[0] 직접 입력")
+        print("[0] 목록에 없음")
         print()
 
         while True:
             try:
                 selection = input("번호를 선택하세요: ")
                 if selection == '0':
-                    return SelectionStatus.MANUAL_INPUT, None
+                    return SelectionStatus.SKIPPED, None
 
+                selected_index = int(selection) - 1
+                if 0 <= selected_index < len(card_list):
+                    return SelectionStatus.SELECTED, card_list[selected_index]
+                else:
+                    print("유효하지 않은 번호입니다. 다시 선택해주세요.")
+            except ValueError:
+                print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
+
+    def choose_from_full_list(self, title: str, card_list: List[str]) -> Tuple[SelectionStatus, Optional[str]]:
+        """
+        Displays the full list of task cards for the user to choose from.
+        """
+        self.cmd.activate()
+        print(f"\n전체 목록에서 선택해주세요.")
+
+        for idx, card_name in enumerate(card_list):
+            print(f"[{idx + 1:02d}] {card_name}")
+
+        print()
+
+        while True:
+            try:
+                selection = input("번호를 선택하세요: ")
                 selected_index = int(selection) - 1
                 if 0 <= selected_index < len(card_list):
                     return SelectionStatus.SELECTED, card_list[selected_index]

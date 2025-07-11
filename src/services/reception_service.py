@@ -20,17 +20,19 @@ class ReceptionService:
 
     def handle_reception(self, title: str) -> Tuple[Optional[str], Optional[Any]]:
         """
-        접수 공문을 처리하고, 담당자와 공람자를 반환합니다.
+        Handles the reception of official documents and returns the person in charge and the person to be shared with.
         """
-        processed_title = title.replace("접수: ", '')
-        
+        processed_title = title.replace("접수: ", '').strip()
+
         # 1. Exact match using Supabase
         approval, shared = self.supabase_service.retrieve_reception_by_title(processed_title)
-        is_exact_match = approval is not None
+        if approval:
+            return approval, shared
 
-        if not is_exact_match:
-            # If no exact match, try recommendations
+        # 2. If no exact match, try recommendations, but only if there's a title to search for
+        if processed_title:
             recommendations = self.supabase_service.recommend_reception(processed_title, count=3)
+            print(f"match_reception_documents 결과: {recommendations}")
             if recommendations:
                 recommendation_options = [f"{rec['approval']} (공람: {rec['share']})" for rec in recommendations]
                 status, value = self.dialog.choose_from_recommendations(
@@ -41,24 +43,15 @@ class ReceptionService:
                     selected_index = recommendation_options.index(value)
                     selected_rec = recommendations[selected_index]
                     approval, shared = selected_rec['approval'], selected_rec['share']
-                elif status == SelectionStatus.SKIPPED:
-                    approval, shared = None, None # User chose '추천 없음'
+                    self.supabase_service.upsert_reception_embedding(processed_title, approval, shared)
+                    return approval, shared
 
-        if approval is None:
-            # If no recommendation was chosen or user opted for manual input from recommendations
-            # Offer predefined list
-            status, value = self.dialog.choose_from_predefined_list(processed_title, self.approval_name_list)
-            if status == SelectionStatus.SELECTED:
-                approval = value
-                # 공람자 선택
-                _, shared = self.dialog.select_approval_and_share([approval], self.share_name_list)
-
-            elif status == SelectionStatus.MANUAL_INPUT:
-                approval, shared = self.dialog.select_approval_and_share(
-                    self.approval_name_list, self.share_name_list
-                )
-
-        if approval and not is_exact_match:
+        # 3. If no recommendation was chosen, offer full list
+        status, value = self.dialog.choose_from_full_list(processed_title, self.approval_name_list)
+        if status == SelectionStatus.SELECTED:
+            approval = value
+            # Select sharer
+            _, shared = self.dialog.select_approval_and_share([approval], self.share_name_list)
             self.supabase_service.upsert_reception_embedding(processed_title, approval, shared)
 
         return approval, shared
