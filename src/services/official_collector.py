@@ -5,11 +5,12 @@ pywinauto를 활용하여 전자결재 및 접수 창과 상호작용합니다.
 """
 
 import time
-from typing import Optional
+from typing import Optional, Callable
 
 import pyperclip
 from pywinauto import Application, keyboard, mouse, findwindows
 from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
+from pywinauto.findwindows import ElementNotFoundError
 from utils.error_handler import setup_logger, handle_connection_error
 
 logger = setup_logger(__name__)
@@ -28,6 +29,72 @@ class OfficialCollector:
         self.dlg: Optional[Application.window] = None
         self._connect_to_window()
 
+    def _wait_for_element(self, element_selector: Callable, timeout: float = 10.0, interval: float = 0.1) -> bool:
+        """
+        요소가 준비될 때까지 대기합니다.
+        
+        Args:
+            element_selector: 요소를 선택하는 함수
+            timeout: 최대 대기 시간 (초)
+            interval: 확인 간격 (초)
+            
+        Returns:
+            bool: 요소가 준비되면 True, 타임아웃되면 False
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                element = element_selector()
+                if element.exists() and element.is_enabled():
+                    return True
+            except Exception:
+                pass
+            time.sleep(interval)
+        return False
+
+    def _wait_for_window(self, title: str, timeout: float = 10.0):
+        """
+        특정 창이 나타날 때까지 대기합니다.
+        
+        Args:
+            title: 대기할 창의 제목
+            timeout: 최대 대기 시간 (초)
+            
+        Returns:
+            찾은 창 객체
+            
+        Raises:
+            PyWinAutoTimeoutError: 타임아웃된 경우
+        """
+        try:
+            window = self.dlg.child_window(title=title, control_type='Window')
+            window.wait('visible', timeout=timeout)
+            return window
+        except Exception:
+            raise PyWinAutoTimeoutError(f"창 '{title}'을(를) {timeout}초 내에 찾을 수 없습니다.")
+
+    def _wait_for_condition(self, condition: Callable[[], bool], timeout: float = 10.0, interval: float = 0.1) -> bool:
+        """
+        조건이 만족될 때까지 대기합니다.
+        
+        Args:
+            condition: 확인할 조건 함수
+            timeout: 최대 대기 시간 (초)
+            interval: 확인 간격 (초)
+            
+        Returns:
+            bool: 조건이 만족되면 True, 타임아웃되면 False
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                if condition():
+                    return True
+            except Exception:
+                pass
+            time.sleep(interval)
+        return False
+
     @handle_connection_error("공문 처리기 연결", logger)
     def _connect_to_window(self, max_attempts: int = 10, wait_time: int = 5) -> None:
         """
@@ -39,19 +106,20 @@ class OfficialCollector:
         Raises:
             PyWinAutoTimeoutError: 지정된 창을 찾지 못한 경우.
         """
-        try:
-            self.app.connect(title_re="^접수")
-            self.dlg = self.app.top_window()
-            logger.info("접수 창에 연결되었습니다.")
-            return
-        except findwindows.ElementNotFoundError:
+        window_titles = [("^접수", "접수"), ("^전자결재", "전자결재")]
+        
+        for title_pattern, display_name in window_titles:
             try:
-                self.app.connect(title_re="^전자결재")
+                self.app.connect(title_re=title_pattern)
                 self.dlg = self.app.top_window()
-                logger.info("전자결재 창에 연결되었습니다.")
+                # 창이 실제로 준비될 때까지 대기
+                self.dlg.wait('ready', timeout=10)
+                logger.info(f"{display_name} 창에 연결되었습니다.")
                 return
-            except findwindows.ElementNotFoundError:
-                raise PyWinAutoTimeoutError("공문 처리기를 찾을 수 없습니다.")
+            except (ElementNotFoundError, PyWinAutoTimeoutError):
+                continue
+                
+        raise PyWinAutoTimeoutError("공문 처리기를 찾을 수 없습니다.")
 
     def add_share(self, share_name: str) -> None:
         """
@@ -77,18 +145,29 @@ class OfficialCollector:
             approval_name (str): 결재선 이름.
         """
         if self.dlg:
-            info_window = self.dlg.child_window(
-                title='결재정보', control_type='Window')
-            if not info_window.exists():
-                self.dlg['결재정보'].click()
+            try:
+                # 결재정보 창 열기
+                info_window_spec = self.dlg.child_window(title='결재정보', control_type='Window')
+                if not info_window_spec.exists():
+                    self.dlg['결재정보'].click()
+                    info_window_spec.wait('visible', timeout=10)
 
-            self.dlg['결재선'].select()
-            time.sleep(0.5)
-            keyboard.send_keys('{TAB 5}')
-            pyperclip.copy(approval_name)
-            keyboard.send_keys('^v')
-            keyboard.send_keys('{DOWN}')
-            self.dlg['확인'].click()
+                # 결재선 선택
+                approval_selector = self.dlg['결재선']
+                approval_selector.select()
+                approval_selector.wait('enabled', timeout=5)
+                
+                keyboard.send_keys('{TAB 5}')
+                pyperclip.copy(approval_name)
+                keyboard.send_keys('^v{DOWN}')
+                
+                # 확인 버튼 클릭
+                confirm_btn = self.dlg['확인']
+                confirm_btn.wait('enabled', timeout=5)
+                confirm_btn.click()
+                
+            except (PyWinAutoTimeoutError, ElementNotFoundError) as e:
+                logger.error(f"결재선 설정 중 오류 발생: {e}")
         else:
             logger.error("대상 창이 연결되어 있지 않습니다.")
 
@@ -98,8 +177,11 @@ class OfficialCollector:
         """
         if self.dlg:
             self.dlg['접수'].click()
-            time.sleep(0.5)
-            self.dlg['확인2'].click()
+            
+            # 확인 버튼이 나타날 때까지 대기하고 클릭
+            confirm_btn = self.dlg['확인2']
+            confirm_btn.wait('enabled', timeout=10)
+            confirm_btn.click()
         else:
             logger.error("대상 창이 연결되어 있지 않습니다.")
 
@@ -122,15 +204,21 @@ class OfficialCollector:
         """
         if self.dlg:
             self.dlg['PC저장'].click()
-            time.sleep(0.5)
-            pane = self.dlg.child_window(
-                title="HSATTACHBAR_CONTROL", auto_id="4", control_type="Pane"
+            
+            # HSATTACHBAR_CONTROL 패널이 나타날 때까지 대기
+            pane_exists = self._wait_for_condition(
+                lambda: self.dlg.child_window(
+                    title="HSATTACHBAR_CONTROL", auto_id="4", control_type="Pane"
+                ).exists()
             )
-            if pane.exists():
-                self.dlg['본문 + 붙임'].click()
-                self.dlg['확인'].click()
+            
+            if pane_exists:
+                if self._wait_for_element(lambda: self.dlg['본문 + 붙임']):
+                    self.dlg['본문 + 붙임'].click()
+                    if self._wait_for_element(lambda: self.dlg['확인']):
+                        self.dlg['확인'].click()
 
-            time.sleep(0.5)
+            # 저장 대화상자가 준비될 때까지 대기
             keyboard.send_keys('{TAB}')
             keyboard.send_keys('{DOWN 4}')
             keyboard.send_keys('{ENTER}')
@@ -138,8 +226,10 @@ class OfficialCollector:
             keyboard.send_keys('{DOWN 1}')
             keyboard.send_keys('{ENTER}')
             keyboard.send_keys('%S')
-            time.sleep(0.5)
-            self.dlg['확인'].click()
+            
+            # 저장 완료 후 확인 버튼이 나타날 때까지 대기
+            if self._wait_for_element(lambda: self.dlg['확인']):
+                self.dlg['확인'].click()
         else:
             logger.error("대상 창이 연결되어 있지 않습니다.")
 
@@ -155,17 +245,16 @@ class OfficialCollector:
                 title='결재정보', control_type='Window')
             if not info_window.exists():
                 self.dlg['결재정보'].click()
+                self._wait_for_window('결재정보')
 
-            time.sleep(0.5)
+            info_window = self._wait_for_window('결재정보')
             info_window.set_focus()
 
             keyboard.send_keys('{TAB 3}')
             keyboard.send_keys('{SPACE}')
-            time.sleep(1)
-
-            # '과제카드 선택' 다이얼로그 찾기
-            dialog = self.dlg.child_window(
-                title="과제카드 선택", control_type="Window")
+            
+            # '과제카드 선택' 다이얼로그가 나타날 때까지 대기
+            dialog = self._wait_for_window("과제카드 선택")
             dialog_rect = dialog.rectangle()
             mouse.click(coords=(dialog_rect.right - 20, dialog_rect.top + 50))
 
@@ -173,25 +262,35 @@ class OfficialCollector:
             pyperclip.copy(document_group_name)
             keyboard.send_keys('^v')
             keyboard.send_keys('{ENTER}')
-            time.sleep(0.5)
+            
+            # 검색 결과가 나타날 때까지 잠시 대기
+            self._wait_for_condition(lambda: True, timeout=1.0)
 
             keyboard.send_keys('{TAB}')
             keyboard.send_keys('{SPACE}')
             keyboard.send_keys('{TAB 3}')
             keyboard.send_keys('{ENTER}')
-            time.sleep(0.5)
+            
+            # 선택 완료 대기
+            self._wait_for_condition(lambda: True, timeout=1.0)
             keyboard.send_keys('{ENTER}')
 
-            self.dlg['결재'].click()
-            keyboard.send_keys('{ENTER}')
+            # 결재 버튼이 클릭 가능해질 때까지 대기
+            if self._wait_for_element(lambda: self.dlg['결재']):
+                self.dlg['결재'].click()
+                keyboard.send_keys('{ENTER}')
 
-            confirm_window = self.dlg.child_window(
-                title='확인', control_type='Window')
-            if not confirm_window.exists():
-                self.dlg['예(Y)'].click()
+            # 확인 창 처리
+            confirm_exists = self._wait_for_condition(
+                lambda: self.dlg.child_window(title='확인', control_type='Window').exists(),
+                timeout=2.0
+            )
+            
+            if not confirm_exists:
+                if self._wait_for_element(lambda: self.dlg['예(Y)']):
+                    self.dlg['예(Y)'].click()
 
-            logger.info("문서 분류 대기중...")
-            time.sleep(2)
+            logger.info("문서 분류 처리 완료")
         else:
             logger.error("대상 창이 연결되어 있지 않습니다.")
 
