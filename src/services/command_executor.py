@@ -20,18 +20,22 @@ class CommandExecutor:
     def _connect_cmd_window(self) -> None:
         """
         'C:'로 시작하는 제목을 가진 CMD 창을 찾아 연결합니다.
-        연결 실패 시 에러 로그 출력 후 종료합니다.
+        연결 실패 시 에러 로그 출력하지만 계속 진행합니다.
         """
         try:
             handle = find_window(title_re="^C:")
             self.app = Application().connect(handle=handle)
             self.dlg = self.app.window(handle=handle)
+            logger.info("CMD 창에 연결되었습니다.")
         except WindowNotFoundError:
             logger.error("CMD 창을 찾을 수 없습니다. 'cmd'로 실행 후 다시 시도하세요.")
-            sys.exit(1)
+            # CMD 창이 없어도 계속 진행
+            self.app = None
+            self.dlg = None
         except Exception as e:
             logger.exception(f"CMD 창 연결 중 오류 발생: {e}")
-            sys.exit(1)
+            self.app = None
+            self.dlg = None
 
     def activate(self) -> None:
         """CMD 창에 포커스를 줍니다."""

@@ -108,15 +108,37 @@ class OfficialCollector:
         """
         window_titles = [("^접수", "접수"), ("^전자결재", "전자결재")]
         
+        # 현재 사용 가능한 창 목록을 로깅
+        try:
+            available_windows = findwindows.find_windows()
+            logger.info(f"사용 가능한 창 개수: {len(available_windows)}")
+            for hwnd in available_windows[:5]:  # 처음 5개만 로깅
+                try:
+                    title = findwindows.window_text(hwnd)
+                    if title and ("접수" in title or "전자결재" in title):
+                        logger.info(f"발견된 관련 창: '{title}'")
+                except:
+                    pass
+        except Exception as e:
+            logger.warning(f"창 목록 조회 중 오류: {e}")
+        
         for title_pattern, display_name in window_titles:
             try:
+                logger.info(f"{display_name} 창 연결 시도 중... (패턴: {title_pattern})")
                 self.app.connect(title_re=title_pattern)
                 self.dlg = self.app.top_window()
-                # 창이 실제로 준비될 때까지 대기
-                self.dlg.wait('ready', timeout=10)
-                logger.info(f"{display_name} 창에 연결되었습니다.")
+                actual_title = self.dlg.window_text()
+                logger.info(f"{display_name} 창에 연결되었습니다. 실제 제목: '{actual_title}'")
+                # 창이 실제로 준비될 때까지 대기 (더 긴 타임아웃과 예외 처리)
+                try:
+                    self.dlg.wait('ready', timeout=5)
+                    logger.info(f"{display_name} 창이 준비 상태입니다.")
+                except PyWinAutoTimeoutError:
+                    logger.warning(f"{display_name} 창 준비 대기 타임아웃, 하지만 연결은 성공했습니다.")
+                    # 창이 연결되었으므로 계속 진행
                 return
-            except (ElementNotFoundError, PyWinAutoTimeoutError):
+            except (ElementNotFoundError, PyWinAutoTimeoutError) as e:
+                logger.warning(f"{display_name} 창 연결 실패: {e}")
                 continue
                 
         raise PyWinAutoTimeoutError("공문 처리기를 찾을 수 없습니다.")

@@ -167,11 +167,19 @@ class DialogHandler:
         print(f"\n=== 저장된 {item_type} 목록 ===")
         for i, item in enumerate(items, 1):
             if item_type == "과제 카드":
-                title, task_title = item
-                print(f"{i}. {title} -> {task_title}")
+                if len(item) >= 3:
+                    title, task_title, registered_at = item[0], item[1], item[2]
+                    print(f"{i}. {title} -> {task_title} [등록: {registered_at}]")
+                else:
+                    title, task_title = item[0], item[1]
+                    print(f"{i}. {title} -> {task_title}")
             else:  # 접수 문서
-                title, approval, share = item
-                print(f"{i}. {title} (담당: {approval}, 공람: {share})")
+                if len(item) >= 4:
+                    title, approval, share, registered_at = item[0], item[1], item[2], item[3]
+                    print(f"{i}. {title} (담당: {approval}, 공람: {share}) [등록: {registered_at}]")
+                else:
+                    title, approval, share = item[0], item[1], item[2]
+                    print(f"{i}. {title} (담당: {approval}, 공람: {share})")
         
         print("\n삭제할 항목 번호를 입력하세요 (여러 개는 쉼표로 구분, 전체 삭제는 'all', 취소는 'q'):")
         user_input = get_styled_input("선택: ").strip()

@@ -153,10 +153,10 @@ class DeletionService:
         """외부에서 호출할 수 있는 접수 문서 삭제 메서드"""
         return self.reception_service.delete_reception_by_title(title)
 
-    def get_all_cards(self) -> List[Tuple[str, str]]:
-        """모든 과제 카드 목록을 반환합니다."""
+    def get_all_cards(self) -> List[Tuple[str, str, str]]:
+        """모든 과제 카드 목록을 반환합니다. (title, task_title, registered_at)"""
         return self.task_service.list_all_cards()
 
-    def get_all_receptions(self) -> List[Tuple[str, str, str]]:
-        """모든 접수 문서 목록을 반환합니다."""
+    def get_all_receptions(self) -> List[Tuple[str, str, str, str]]:
+        """모든 접수 문서 목록을 반환합니다. (title, approval, share, registered_at)"""
         return self.reception_service.list_all_receptions()

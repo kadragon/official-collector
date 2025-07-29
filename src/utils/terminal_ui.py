@@ -37,15 +37,15 @@ class Colors:
 
 class Symbols:
     """터미널 심볼."""
-    ARROW = "→"
-    BULLET = "•"
-    CHECK = "✓"
-    CROSS = "✗"
+    ARROW = "->"
+    BULLET = "*"
+    CHECK = "[OK]"
+    CROSS = "[X]"
     QUESTION = "?"
-    INFO = "ℹ"
-    WARNING = "⚠"
-    ERROR = "✗"
-    SUCCESS = "✓"
+    INFO = "[INFO]"
+    WARNING = "[WARN]"
+    ERROR = "[ERROR]"
+    SUCCESS = "[OK]"
 
 
 def get_display_width(text: str) -> int:

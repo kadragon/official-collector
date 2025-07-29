@@ -42,7 +42,8 @@ class SupabaseService:
         """
         doc_id = generate_document_id(title)
         document = Document(page_content=title, metadata={
-                            'title': title, 'taskTitle': task_title})
+                            'title': title, 
+                            'taskTitle': task_title})
         
         def upload_document():
             self.vector_store.add_documents([document], ids=[doc_id])
@@ -254,8 +255,12 @@ class SupabaseService:
         저장된 모든 과제 카드 목록을 조회합니다.
         """
         def list_operation():
-            response = self.supabase.table(self.vector_store.table_name).select("metadata").execute()
-            return [(item['metadata']['title'], item['metadata'].get('taskTitle', '')) for item in response.data]
+            response = self.supabase.table(self.vector_store.table_name).select("metadata, registered_at").execute()
+            return [(
+                item['metadata']['title'], 
+                item['metadata'].get('taskTitle', ''),
+                item.get('registered_at', 'N/A')
+            ) for item in response.data]
         
         cards = safe_execute(
             list_operation,
@@ -271,8 +276,13 @@ class SupabaseService:
         저장된 모든 접수 문서 목록을 조회합니다.
         """
         def list_operation():
-            response = self.supabase.table(self.vector_store.table_name).select("metadata").execute()
-            return [(item['metadata']['title'], item['metadata'].get('approval', ''), item['metadata'].get('share', '')) for item in response.data]
+            response = self.supabase.table(self.vector_store.table_name).select("metadata, registered_at").execute()
+            return [(
+                item['metadata']['title'], 
+                item['metadata'].get('approval', ''), 
+                item['metadata'].get('share', ''),
+                item.get('registered_at', 'N/A')
+            ) for item in response.data]
         
         receptions = safe_execute(
             list_operation,
