@@ -14,6 +14,15 @@ from utils.input_validator import (
     confirm_choice
 )
 from utils.string_processor import format_option_display
+from utils.terminal_ui import (
+    clear_screen, 
+    print_document_info, 
+    print_selection_menu, 
+    print_recommendation_menu,
+    get_styled_input,
+    print_success,
+    draw_separator
+)
 
 
 class DialogHandler:
@@ -37,22 +46,18 @@ class DialogHandler:
             Tuple[str, str]: (선택된 담당자, 선택된 공람 대상자)
         """
         self.cmd.activate()
+        clear_screen()
 
         if len(approval_list) == 1:
             selected_approval = approval_list[0]
+            print_success(f"담당자 자동 선택: {selected_approval}")
         else:
-            # 담당자 선택
-            print("\n[담당자 선택]")
-            for idx, name in enumerate(approval_list):
-                print(f"[{idx}] {name}")
+            print_selection_menu("담당자 선택", approval_list)
+            selected_approval = get_valid_selection(get_styled_input("번호를 선택하세요: "), approval_list)
 
-            selected_approval = get_valid_selection("번호를 선택하세요: ", approval_list)
-
-        # 공람 대상자 선택
-        print("\n[공람자 선택]")
-        print(format_option_display(share_list))
-
-        selected_share = get_valid_selection("번호를 선택하세요: ", share_list)
+        draw_separator()
+        print_selection_menu("공람자 선택", share_list)
+        selected_share = get_valid_selection(get_styled_input("번호를 선택하세요: "), share_list)
 
         return selected_approval, selected_share
 
@@ -62,15 +67,17 @@ class DialogHandler:
         사용자에게 추천된 taskTitle을 확인할지 묻습니다.
         """
         self.cmd.activate()
-        print(f"공문 제목: {title}")
-        print(f"추천 과제 카드: {recommended_task_title}")
-        return confirm_choice("이 추천을 사용하시겠습니까?", default_yes=True)
+        clear_screen()
+        print_recommendation_menu(title, recommended_task_title)
+        return confirm_choice(get_styled_input("이 추천을 사용하시겠습니까? (Y/n): "), default_yes=True)
 
     def choose_from_predefined_list(self, title: str, card_list: List[str]) -> Tuple[SelectionResult, Optional[str]]:
         """
         When task cards cannot be recommended, this method displays a predefined list for the user to choose from.
         """
         self.cmd.activate()
+        clear_screen()
+        print_document_info(title, "과제 카드 선택")
         return get_user_choice_from_list(title, card_list, allow_skip=True)
 
     def choose_from_full_list(self, title: str, card_list: List[str]) -> Tuple[SelectionResult, Optional[str]]:
@@ -78,6 +85,8 @@ class DialogHandler:
         Displays the full list of task cards for the user to choose from.
         """
         self.cmd.activate()
+        clear_screen()
+        print_document_info(title, "전체 목록에서 선택")
         return get_user_choice_from_list(title, card_list, allow_skip=False)
 
     def choose_from_recommendations(self, title: str, recommendations: List[str]) -> Tuple[SelectionResult, Optional[str]]:
@@ -85,6 +94,8 @@ class DialogHandler:
         사용자에게 추천된 과제 카드 목록을 보여주고 선택하도록 합니다.
         """
         self.cmd.activate()
+        clear_screen()
+        print_document_info(title, "추천 목록")
         return get_user_choice_from_recommendations(title, recommendations)
 
     def get_manual_task_card(self, title: str) -> Optional[str]:
@@ -92,5 +103,6 @@ class DialogHandler:
         사용자로부터 직접 과제 카드 이름을 입력받습니다.
         """
         self.cmd.activate()
-        print(f"\n'{title}'에 대한 과제 카드를 직접 입력해주세요.")
-        return get_manual_input("과제 카드 이름: ")
+        clear_screen()
+        print_document_info(title, "직접 입력")
+        return get_manual_input(get_styled_input("과제 카드 이름: "))

@@ -12,6 +12,15 @@ from services.task_card_service import TaskCardService
 from utils.data_loader import load_base_data
 from utils.string_processor import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
+from utils.terminal_ui import (
+    clear_screen, 
+    draw_header,
+    print_document_info,
+    print_success,
+    print_warning,
+    print_info,
+    print_final_result
+)
 
 logger = setup_logger(__name__)
 
@@ -56,13 +65,23 @@ class Main:
 
     def run(self) -> None:
         """ 메인 로직 """
+        clear_screen()
+        draw_header("공문 자동 분류 시스템")
+        print_info("문서 처리를 시작합니다...")
+        
+        processed_count = 0
+        success_count = 0
+        
         while True:
             if self.collector.check_end_collecting():
                 break
 
             title = self.collector.get_official_title()
+            processed_count += 1
 
             if is_reception_document(title):
+                print_document_info(title, "접수 문서")
+                
                 approval, shared = self.reception_service.handle_reception(title)
 
                 if approval:
@@ -70,8 +89,10 @@ class Main:
                     if shared is not None and shared != '공람없음':
                         self.collector.add_share(str(shared))
                     
+                    print_success(f"접수 처리 완료: {approval} / {shared}")
                     logger.info(f"접수 처리 완료: {title} -> {approval} / {shared}")
                     self.collector.reception()
+                    success_count += 1
 
                     if shared != '공람없음':
                         self.collector.dlg['확인2'].click()
@@ -79,18 +100,22 @@ class Main:
             else:
                 # 전자결재 문서 처리
                 processed_title = extract_title_from_approval(title)
+                print_document_info(processed_title, "전자결재 문서")
                 
                 card_name = self.task_card_service.match_task_card(processed_title)
 
                 if card_name:
                     self.collector.document_sort(card_name)
+                    print_success(f"문서 분류 완료: {card_name}")
                     logger.info(f"문서 분류 완료: {processed_title} -> {card_name}")
+                    success_count += 1
                 else:
+                    print_warning("과제 카드 매칭 실패로 문서 분류를 건너뜁니다")
                     logger.warning(f"과제 카드 매칭 실패로 문서 분류를 건너뜁니다: {processed_title}")
 
                 time.sleep(2)
 
-        print("완료되었습니다.")
+        print_final_result(success_count, processed_count)
 
 if __name__ == '__main__':
     main = Main()

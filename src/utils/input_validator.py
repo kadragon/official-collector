@@ -4,6 +4,7 @@
 
 from typing import List, Optional, Tuple
 from enum import Enum, auto
+from utils.terminal_ui import print_selection_menu, get_styled_input
 
 
 class SelectionResult(Enum):
@@ -62,13 +63,12 @@ def get_user_choice_from_list(title: str, options: List[str], allow_skip: bool =
     Returns:
         Tuple[SelectionResult, Optional[str]]: (선택 결과, 선택된 값)
     """
-    print(f"\n목록에서 선택해주세요.")
-    display_numbered_options(options, show_skip_option=allow_skip)
-    print()
+    skip_text = "목록에 없음" if allow_skip else None
+    print_selection_menu("목록에서 선택", options, allow_skip, skip_text)
 
     while True:
         try:
-            selection = input("번호를 선택하세요: ")
+            selection = get_styled_input("번호를 선택하세요: ")
             
             if allow_skip and selection == '0':
                 return SelectionResult.SKIPPED, None
@@ -93,14 +93,11 @@ def get_user_choice_from_recommendations(title: str, recommendations: List[str])
     Returns:
         Tuple[SelectionResult, Optional[str]]: (선택 결과, 선택된 값)
     """
-    print(f"\n'{title}'에 대한 추천 목록입니다. 선택해주세요.")
-    display_numbered_options(recommendations)
-    print("[0] 추천 없음 (다음 단계로 이동)")
-    print()
+    print_selection_menu("추천 목록", recommendations, allow_skip=True, skip_text="추천 없음 (다음 단계로 이동)")
 
     while True:
         try:
-            selection = input("번호를 선택하세요: ")
+            selection = get_styled_input("번호를 선택하세요: ")
             if selection == "0":
                 return SelectionResult.SKIPPED, None
 
