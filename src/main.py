@@ -1,5 +1,6 @@
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
+import sys
 import time
 from typing import List, Dict, Any
 
@@ -117,6 +118,15 @@ class Main:
 
         print_final_result(success_count, processed_count)
 
+def run_deletion_interface():
+    """삭제 인터페이스를 실행합니다."""
+    from services.deletion_service import DeletionService
+    deletion_service = DeletionService()
+    deletion_service.run_deletion_interface()
+
 if __name__ == '__main__':
-    main = Main()
-    main.run()
+    if len(sys.argv) > 1 and sys.argv[1] == '--delete':
+        run_deletion_interface()
+    else:
+        main = Main()
+        main.run()

@@ -170,3 +170,139 @@ class SupabaseService:
                     seen_approvals.add(approval)
 
         return recommendations
+
+    def delete_card_by_title(self, title: str):
+        """
+        주어진 title과 일치하는 과제 카드를 삭제합니다.
+        """
+        def delete_operation():
+            response = self.supabase.table(self.vector_store.table_name).delete().eq('metadata->>title', title).execute()
+            return len(response.data) > 0
+        
+        success = safe_execute(
+            delete_operation,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"과제 카드 삭제 실패: {title}"
+        )
+        
+        if success:
+            self.logger.info(f"과제 카드 '{title}'를 성공적으로 삭제했습니다.")
+        else:
+            self.logger.error(f"과제 카드 '{title}' 삭제에 실패했습니다.")
+        
+        return success
+
+    def delete_reception_by_title(self, title: str):
+        """
+        주어진 title과 일치하는 접수 문서를 삭제합니다.
+        """
+        def delete_operation():
+            response = self.supabase.table(self.vector_store.table_name).delete().eq('metadata->>title', title).execute()
+            return len(response.data) > 0
+        
+        success = safe_execute(
+            delete_operation,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"접수 문서 삭제 실패: {title}"
+        )
+        
+        if success:
+            self.logger.info(f"접수 문서 '{title}'를 성공적으로 삭제했습니다.")
+        else:
+            self.logger.error(f"접수 문서 '{title}' 삭제에 실패했습니다.")
+        
+        return success
+
+    def card_exists(self, title: str) -> bool:
+        """
+        주어진 title의 과제 카드가 존재하는지 확인합니다.
+        """
+        def check_operation():
+            response = self.supabase.table(self.vector_store.table_name).select("id").eq('metadata->>title', title).limit(1).execute()
+            return len(response.data) > 0
+        
+        exists = safe_execute(
+            check_operation,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"과제 카드 존재 확인 실패: {title}"
+        )
+        
+        return exists
+
+    def reception_exists(self, title: str) -> bool:
+        """
+        주어진 title의 접수 문서가 존재하는지 확인합니다.
+        """
+        def check_operation():
+            response = self.supabase.table(self.vector_store.table_name).select("id").eq('metadata->>title', title).limit(1).execute()
+            return len(response.data) > 0
+        
+        exists = safe_execute(
+            check_operation,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"접수 문서 존재 확인 실패: {title}"
+        )
+        
+        return exists
+
+    def list_all_cards(self):
+        """
+        저장된 모든 과제 카드 목록을 조회합니다.
+        """
+        def list_operation():
+            response = self.supabase.table(self.vector_store.table_name).select("metadata").execute()
+            return [(item['metadata']['title'], item['metadata'].get('taskTitle', '')) for item in response.data]
+        
+        cards = safe_execute(
+            list_operation,
+            default_return=[],
+            logger=self.logger,
+            error_message="과제 카드 목록 조회 실패"
+        )
+        
+        return cards
+
+    def list_all_receptions(self):
+        """
+        저장된 모든 접수 문서 목록을 조회합니다.
+        """
+        def list_operation():
+            response = self.supabase.table(self.vector_store.table_name).select("metadata").execute()
+            return [(item['metadata']['title'], item['metadata'].get('approval', ''), item['metadata'].get('share', '')) for item in response.data]
+        
+        receptions = safe_execute(
+            list_operation,
+            default_return=[],
+            logger=self.logger,
+            error_message="접수 문서 목록 조회 실패"
+        )
+        
+        return receptions
+
+    def bulk_delete_cards(self, titles: list):
+        """
+        여러 과제 카드를 일괄 삭제합니다.
+        """
+        deleted_count = 0
+        for title in titles:
+            if self.delete_card_by_title(title):
+                deleted_count += 1
+        
+        self.logger.info(f"총 {deleted_count}개의 과제 카드가 삭제되었습니다.")
+        return deleted_count
+
+    def bulk_delete_receptions(self, titles: list):
+        """
+        여러 접수 문서를 일괄 삭제합니다.
+        """
+        deleted_count = 0
+        for title in titles:
+            if self.delete_reception_by_title(title):
+                deleted_count += 1
+        
+        self.logger.info(f"총 {deleted_count}개의 접수 문서가 삭제되었습니다.")
+        return deleted_count

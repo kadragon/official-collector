@@ -14,6 +14,24 @@ This is a Korean official document automation system built with Python 3.12+ tha
 uv run ./src/main.py
 ```
 
+### Data Management Operations
+
+#### Deleting Stored Data
+
+```bash
+# Run deletion interface through main application
+uv run ./src/main.py --delete
+
+# Or run standalone deletion script
+uv run ./src/delete_data.py
+```
+
+The deletion interface provides options to:
+- View and delete individual task cards or reception documents
+- Delete items by title search
+- Bulk delete multiple selected items
+- Delete all stored data (with confirmation prompts)
+
 ### Installing Dependencies
 
 ```bash

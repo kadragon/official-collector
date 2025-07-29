@@ -14,25 +14,25 @@ class SelectionResult(Enum):
     MANUAL_INPUT = auto()
 
 
-def get_valid_selection(prompt: str, options: List[str]) -> str:
+def get_valid_selection(user_input: str, options: List[str]) -> str:
     """
-    사용자에게 유효한 입력을 받을 때까지 반복 요청합니다.
+    사용자 입력을 검증하고 유효한 옵션을 반환합니다.
 
     Args:
-        prompt (str): 입력 프롬프트 메시지.
+        user_input (str): 사용자가 입력한 값.
         options (List[str]): 선택 가능한 옵션 리스트.
 
     Returns:
         str: 사용자가 선택한 옵션.
     """
-    while True:
-        try:
-            selection = int(input(prompt))
-            if 0 <= selection < len(options):
-                return options[selection]
-            print("유효하지 않은 번호입니다. 다시 선택해주세요.")
-        except ValueError:
-            print("숫자를 입력해주세요.")
+    try:
+        selection = int(user_input) - 1  # 1-based to 0-based
+        if 0 <= selection < len(options):
+            return options[selection]
+        else:
+            raise ValueError("유효하지 않은 번호입니다.")
+    except ValueError:
+        raise ValueError("유효하지 않은 입력입니다. 숫자를 입력해주세요.")
 
 
 def display_numbered_options(options: List[str], start_index: int = 1, show_skip_option: bool = False) -> None:
