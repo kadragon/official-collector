@@ -5,16 +5,14 @@ pywinauto를 활용하여 전자결재 및 접수 창과 상호작용합니다.
 """
 
 import time
-import logging
 from typing import Optional
 
 import pyperclip
 from pywinauto import Application, keyboard, mouse, findwindows
 from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
+from utils.error_handler import setup_logger, handle_connection_error
 
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class OfficialCollector:
@@ -30,6 +28,7 @@ class OfficialCollector:
         self.dlg: Optional[Application.window] = None
         self._connect_to_window()
 
+    @handle_connection_error("공문 처리기 연결", logger)
     def _connect_to_window(self, max_attempts: int = 10, wait_time: int = 5) -> None:
         """
         접수 또는 전자결재 창에 연결을 시도합니다.
@@ -40,24 +39,19 @@ class OfficialCollector:
         Raises:
             PyWinAutoTimeoutError: 지정된 창을 찾지 못한 경우.
         """
-        for attempt in range(max_attempts):
+        try:
+            self.app.connect(title_re="^접수")
+            self.dlg = self.app.top_window()
+            logger.info("접수 창에 연결되었습니다.")
+            return
+        except findwindows.ElementNotFoundError:
             try:
-                self.app.connect(title_re="^접수")
+                self.app.connect(title_re="^전자결재")
                 self.dlg = self.app.top_window()
-                logger.info("접수 창에 연결되었습니다.")
+                logger.info("전자결재 창에 연결되었습니다.")
                 return
             except findwindows.ElementNotFoundError:
-                try:
-                    self.app.connect(title_re="^전자결재")
-                    self.dlg = self.app.top_window()
-                    logger.info("전자결재 창에 연결되었습니다.")
-                    return
-                except findwindows.ElementNotFoundError:
-                    logger.info("공문 처리기를 찾지 못했습니다. "
-                                "실행을 기다리는 중입니다... (시도 %d/%d)", attempt + 1, max_attempts)
-                    time.sleep(wait_time)
-
-        raise PyWinAutoTimeoutError("공문 처리기를 찾을 수 없습니다.")
+                raise PyWinAutoTimeoutError("공문 처리기를 찾을 수 없습니다.")
 
     def add_share(self, share_name: str) -> None:
         """

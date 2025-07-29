@@ -1,15 +1,14 @@
 """CMD 창을 제어하기 위한 유틸리티 모듈."""
 
 import sys
-import logging
 from typing import Optional
 
 from pywinauto import Application
 from pywinauto.findwindows import find_window, WindowNotFoundError
 from pywinauto.base_wrapper import BaseWrapper
+from utils.error_handler import setup_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class CommandExecutor:

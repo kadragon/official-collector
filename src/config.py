@@ -2,9 +2,9 @@
 
 import os
 from dotenv import load_dotenv
-import logging
+from utils.error_handler import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 def load_environment_variables():
     """
