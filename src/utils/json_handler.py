@@ -23,9 +23,11 @@ def load_json(file_path: str) -> Dict[str, Any]:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
+        logger.warning(f"File {file_path} not found. Creating an empty dictionary.")
         print(f"File {file_path} not found. Creating an empty dictionary.")
         return {}
     except json.JSONDecodeError:
+        logger.error(f"File {file_path} is not valid JSON. Creating an empty dictionary.")
         print(
             f"File {file_path} is not valid JSON. Creating an empty dictionary.")
         return {}

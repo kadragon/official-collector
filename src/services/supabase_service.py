@@ -1,8 +1,6 @@
 import os
 import sys
 from pathlib import Path
-import uuid
-import hashlib
 from typing import Any
 
 from langchain_community.vectorstores import SupabaseVectorStore
@@ -12,9 +10,13 @@ from langchain.storage import LocalFileStore
 from langchain.embeddings import CacheBackedEmbeddings
 from supabase.client import Client, create_client
 
+from utils.id_generator import generate_document_id, generate_cache_key
+from utils.error_handler import setup_logger, safe_execute
+
 
 class SupabaseService:
     def __init__(self, openai_api_key: str, supabase_url: str, supabase_key: str, table_name: str = "documents", query_name: str = "match_documents"):
+        self.logger = setup_logger(__name__)
         self.supabase: Client = create_client(supabase_url, supabase_key)
 
         # 캐시 설정
@@ -23,8 +25,7 @@ class SupabaseService:
             openai_api_key=openai_api_key, model="text-embedding-3-small"
         )
         self.embeddings = CacheBackedEmbeddings.from_bytes_store(
-            underlying_embeddings, fs, key_encoder=lambda x: hashlib.sha256(
-                x.encode('utf-8')).hexdigest()
+            underlying_embeddings, fs, key_encoder=generate_cache_key
         )
 
         self.vector_store = SupabaseVectorStore(
@@ -36,16 +37,29 @@ class SupabaseService:
 
     def upsert_card_embedding(self, title: str, task_title: str):
         """
-        과제 카드를 벡터로 변환하여 Supabase에 업로드하거나 갱신합니다.
-        동일한 title이 존재하면 갱신합니다.
+        과제 카드 제목을 임베딩으로 변환하여 벡터 데이터베이스에 저장합니다.
+        기존에 동일한 title이 존재하면 갱신합니다.
         """
-        doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, title)
-                     )  # Consistent UUID from title
+        doc_id = generate_document_id(title)
         document = Document(page_content=title, metadata={
-                            'title': title, 'taskTitle': task_title})
-        self.vector_store.add_documents([document], ids=[doc_id])
-        print(
-            f"과제 카드 '{title}' (taskTitle: '{task_title}')를 성공적으로 업로드/갱신했습니다.")
+                            'title': title,
+                            'taskTitle': task_title})
+
+        def upload_document():
+            self.vector_store.add_documents([document], ids=[doc_id])
+            return True
+
+        success = safe_execute(
+            upload_document,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"과제 카드 업로드 실패: {title}"
+        )
+
+        if success:
+            self.logger.info("과제 카드 '%s' (taskTitle: '%s')를 성공적으로 업로드/갱신했습니다.", title, task_title)
+        else:
+            self.logger.error("과제 카드 '%s' 업로드에 실패했습니다.", title)
 
     def retrieve_card_by_title(self, title: str):
         """
@@ -61,17 +75,18 @@ class SupabaseService:
 
     def recommend_cards(self, title: str, count: int = 10):
         """
-        입력된 제목과 유사한 과제 카드를 추천하고, 연관도 순으로 중복을 제거한 taskTitle을 반환합니다.
+        임베딩 기반 의미적 유사도를 통해 입력된 제목과 유사한 과제 카드를 추천합니다.
+        벡터 유사도 순으로 정렬하여 중복을 제거한 taskTitle을 반환합니다.
         """
         embedding = self.embeddings.embed_query(title)
 
-        # Directly call the Supabase RPC function for card recommendations
+        # Supabase 벡터 매칭 함수를 통한 의미적 유사도 검색
         response = self.supabase.rpc(
             'match_documents',
             {
                 'query_embedding': embedding,
                 'match_count': count,
-                'filter': {}  # No filter applied currently
+                'filter': {}  # 현재 필터 미적용
             }
         ).execute()
 
@@ -90,13 +105,28 @@ class SupabaseService:
 
     def upsert_reception_embedding(self, title: str, approval: str, share: Any):
         """
-        '접수' 정보를 벡터로 변환하여 Supabase에 업로드하거나 갱신합니다.
+        접수 문서 정보를 임베딩으로 변환하여 벡터 데이터베이스에 저장합니다.
+        향후 유사한 접수 문서에 대한 자동 담당자 배정을 위해 사용됩니다.
         """
-        doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, title))
+        doc_id = generate_document_id(title)
         metadata = {'title': title, 'approval': approval, 'share': share}
         document = Document(page_content=title, metadata=metadata)
-        self.vector_store.add_documents([document], ids=[doc_id])
-        print(f"접수 정보 '{title}' (담당: '{approval}')를 성공적으로 업로드/갱신했습니다.")
+
+        def upload_reception():
+            self.vector_store.add_documents([document], ids=[doc_id])
+            return True
+
+        success = safe_execute(
+            upload_reception,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"접수 정보 업로드 실패: {title}"
+        )
+
+        if success:
+            self.logger.info("접수 정보 '%s' (담당: '%s')를 성공적으로 업로드/갱신했습니다.", title, approval)
+        else:
+            self.logger.error("접수 정보 '%s' 업로드에 실패했습니다.", title)
 
     def retrieve_reception_by_title(self, title: str):
         """
@@ -111,17 +141,18 @@ class SupabaseService:
 
     def recommend_reception(self, title: str, count: int = 5):
         """
-        입력된 제목과 유사한 접수 정보를 추천합니다.
+        임베딩 기반 의미적 유사도를 통해 입력된 제목과 유사한 접수 정보를 추천합니다.
+        벡터 유사도 기반으로 가장 적절한 담당자와 공람 대상자를 찾습니다.
         """
         embedding = self.embeddings.embed_query(title)
 
-        # Directly call the Supabase RPC function for reception recommendations
+        # Supabase 벡터 매칭 함수를 통한 접수 문서 의미적 유사도 검색
         response = self.supabase.rpc(
             'match_reception_documents',
             {
                 'query_embedding': embedding,
                 'match_count': count,
-                'filter': {}  # No filter applied currently
+                'filter': {}  # 현재 필터 미적용
             }
         ).execute()
 
@@ -140,3 +171,170 @@ class SupabaseService:
                     seen_approvals.add(approval)
 
         return recommendations
+
+    def delete_card_by_title(self, title: str):
+        """
+        주어진 title과 일치하는 과제 카드를 삭제합니다.
+        """
+        def delete_operation():
+            response = self.supabase.table(self.vector_store.table_name).delete().eq('metadata->>title', title).execute()
+            return len(response.data) > 0
+
+        success = safe_execute(
+            delete_operation,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"과제 카드 삭제 실패: {title}"
+        )
+
+        if success:
+            self.logger.info("과제 카드 '%s'를 성공적으로 삭제했습니다.", title)
+        else:
+            self.logger.error("과제 카드 '%s' 삭제에 실패했습니다.", title)
+
+        return success
+
+    def delete_reception_by_title(self, title: str):
+        """
+        주어진 title과 일치하는 접수 문서를 삭제합니다.
+        """
+        def delete_operation():
+            response = self.supabase.table(self.vector_store.table_name).delete().eq('metadata->>title', title).execute()
+            return len(response.data) > 0
+
+        success = safe_execute(
+            delete_operation,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"접수 문서 삭제 실패: {title}"
+        )
+
+        if success:
+            self.logger.info("접수 문서 '%s'를 성공적으로 삭제했습니다.", title)
+        else:
+            self.logger.error("접수 문서 '%s' 삭제에 실패했습니다.", title)
+
+        return success
+
+    def card_exists(self, title: str) -> bool:
+        """
+        주어진 title의 과제 카드가 존재하는지 확인합니다.
+        """
+        def check_operation():
+            response = self.supabase.table(self.vector_store.table_name).select("id").eq('metadata->>title', title).limit(1).execute()
+            return len(response.data) > 0
+
+        exists = safe_execute(
+            check_operation,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"과제 카드 존재 확인 실패: {title}"
+        )
+
+        return exists
+
+    def reception_exists(self, title: str) -> bool:
+        """
+        주어진 title의 접수 문서가 존재하는지 확인합니다.
+        """
+        def check_operation():
+            response = self.supabase.table(self.vector_store.table_name).select("id").eq('metadata->>title', title).limit(1).execute()
+            return len(response.data) > 0
+
+        exists = safe_execute(
+            check_operation,
+            default_return=False,
+            logger=self.logger,
+            error_message=f"접수 문서 존재 확인 실패: {title}"
+        )
+
+        return exists
+
+    def list_all_cards(self):
+        """
+        저장된 모든 과제 카드 목록을 조회합니다.
+        """
+        def list_operation():
+            response = self.supabase.table(self.vector_store.table_name).select("metadata, registered_at").execute()
+            return [(
+                item['metadata']['title'],
+                item['metadata'].get('taskTitle', ''),
+                item.get('registered_at', 'N/A')
+            ) for item in response.data]
+
+        cards = safe_execute(
+            list_operation,
+            default_return=[],
+            logger=self.logger,
+            error_message="과제 카드 목록 조회 실패"
+        )
+
+        return cards
+
+    def list_all_receptions(self):
+        """
+        저장된 모든 접수 문서 목록을 조회합니다.
+        """
+        def list_operation():
+            response = self.supabase.table(self.vector_store.table_name).select("metadata, registered_at").execute()
+            return [(
+                item['metadata']['title'],
+                item['metadata'].get('approval', ''),
+                item['metadata'].get('share', ''),
+                item.get('registered_at', 'N/A')
+            ) for item in response.data]
+
+        receptions = safe_execute(
+            list_operation,
+            default_return=[],
+            logger=self.logger,
+            error_message="접수 문서 목록 조회 실패"
+        )
+
+        return receptions
+
+    def bulk_delete_cards(self, titles: list):
+        """
+        여러 과제 카드를 일괄 삭제합니다.
+        """
+        if not titles:
+            return 0
+
+        def bulk_delete_operation():
+            # Use the 'in' filter for a single bulk delete operation
+            response = (self.supabase.table(self.vector_store.table_name)
+                       .delete().in_('metadata->>title', titles).execute())
+            return len(response.data)
+
+        deleted_count = safe_execute(
+            bulk_delete_operation,
+            default_return=0,
+            logger=self.logger,
+            error_message="과제 카드 일괄 삭제 실패"
+        )
+
+        self.logger.info("총 %s개의 과제 카드가 삭제되었습니다.", deleted_count)
+        return deleted_count
+
+    def bulk_delete_receptions(self, titles: list):
+        """
+        여러 접수 문서를 일괄 삭제합니다.
+        """
+        if not titles:
+            return 0
+
+        def bulk_delete_operation():
+            # Use the 'in' filter for a single bulk delete operation
+            response = (self.supabase.table(self.vector_store.table_name)
+                       .delete().in_('metadata->>title', titles).execute())
+            return len(response.data)
+
+        deleted_count = safe_execute(
+            bulk_delete_operation,
+            default_return=0,
+            logger=self.logger,
+            error_message="접수 문서 일괄 삭제 실패"
+        )
+
+        self.logger.info("총 %s개의 접수 문서가 삭제되었습니다.", deleted_count)
+        return deleted_count

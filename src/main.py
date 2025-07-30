@@ -1,27 +1,37 @@
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
+import sys
 import time
-import re
-import logging
 from typing import List, Dict, Any
-from pathlib import Path
 
 from config import config
-from services.official_collector import OfficialCollector
-from utils.json_handler import load_json
+from services.official_collector import OfficialCollector, DocumentFlowState
 from services.dialog_service import DialogHandler
 from services.supabase_service import SupabaseService
 from services.reception_service import ReceptionService
 from services.task_card_service import TaskCardService
+from utils.data_loader import load_base_data
+from utils.string_processor import is_reception_document, extract_title_from_approval
+from utils.error_handler import setup_logger
+from utils.terminal_ui import (
+    clear_screen,
+    draw_header,
+    print_document_info,
+    print_success,
+    print_warning,
+    print_info,
+    print_final_result
+)
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
+
 
 class Main:
     """공문 자동 분류 및 처리를 위한 메인 클래스."""
 
-    def __init__(self):
-        base_data = self._load_base_data()
+    def __init__(self, auto_continue: bool = True):
+        self.auto_continue = auto_continue
+        base_data = load_base_data()
         self.approval_name_list: List[str] = base_data["reception_list"]
         self.share_name_list: List[str] = base_data["share_list"]
 
@@ -55,57 +65,112 @@ class Main:
             task_card_supabase_service, self.dialog, self.predefined_card_list
         )
 
-    def _load_base_data(self) -> Dict[str, List[str]]:
-        """data/base_data.json 파일에서 기본 데이터를 읽어옵니다."""
-        PROJECT_ROOT = Path(__file__).resolve().parents[1]
-        file_path = PROJECT_ROOT / "data" / "base_data.json"
-        try:
-            return load_json(str(file_path))
-        except FileNotFoundError:
-            logger.error(f"Error: base_data.json not found at {file_path}")
-            return {"card_list": [], "reception_list": [], "share_list": []}
-
     def run(self) -> None:
         """ 메인 로직 """
+        clear_screen()
+        draw_header("공문 자동 분류 시스템")
+        print_info("문서 처리를 시작합니다...")
+
+        processed_count = 0
+        success_count = 0
+
         while True:
-            if self.collector.check_end_collecting():
+            flow_state = self.collector.check_document_flow_state()
+
+            if flow_state == DocumentFlowState.EXIT:
+                print_info("문서 처리를 종료합니다.")
+                self.collector.handle_document_flow_dialog(flow_state)
                 break
+            elif flow_state == DocumentFlowState.CONTINUE:
+                if not self.auto_continue:
+                    user_choice = input(
+                        "\n다음 문서를 처리하시겠습니까? (y/n): ").lower().strip()
+                    if user_choice in ['n', 'no', '아니오']:
+                        print_info("사용자 요청으로 문서 처리를 종료합니다.")
+                        # 대화상자에서 취소 버튼 클릭
+                        self.collector.handle_cancel_dialog()
+                        break
+
+                if not self.collector.handle_document_flow_dialog(flow_state, self.auto_continue):
+                    break
+            elif flow_state == DocumentFlowState.UNKNOWN:
+                print_warning("알 수 없는 대화상자가 나타났습니다.")
+
+                if not self.auto_continue:
+                    # 사용자에게 선택권 제공
+                    user_choice = input(
+                        "계속 처리하시겠습니까? (y: 계속, n: 종료): ").lower().strip()
+                    if user_choice in ['y', 'yes', '예']:
+                        print_info("사용자 선택: 다음 문서 처리 계속")
+                        self.collector.handle_confirm_dialog()
+                        continue
+                    else:
+                        print_info("사용자 선택: 처리 종료")
+                        self.collector.handle_cancel_dialog()
+                        break
+                else:
+                    # 자동 모드에서는 안전하게 종료
+                    print_warning("자동 모드에서 알 수 없는 대화상자 - 안전하게 처리를 중단합니다.")
+                    self.collector.handle_document_flow_dialog(flow_state)
+                    break
 
             title = self.collector.get_official_title()
+            processed_count += 1
 
-            if title.startswith('접수'):
-                approval, shared = self.reception_service.handle_reception(title)
+            if is_reception_document(title):
+                print_document_info(title, "접수 문서")
+
+                approval, shared = self.reception_service.handle_reception(
+                    title)
 
                 if approval:
                     self.collector.approval(approval)
                     if shared is not None and shared != '공람없음':
                         self.collector.add_share(str(shared))
-                    
-                    print(f"{title} -> {approval} / {shared}")
-                    self.collector.reception()
 
-                    if shared != '공람없음':
-                        self.collector.dlg['확인2'].click()
+                    print_success(f"접수 처리 완료: {approval} / {shared}")
+                    logger.info("접수 처리 완료: %s -> %s / %s",
+                                title, approval, shared)
+                    self.collector.reception()
+                    success_count += 1
                     time.sleep(1)
             else:
-                if title.startswith('전자결재:'):
-                    match = re.search(r'(?:[^]]*]){2}(.*)', title)
-                    if match:
-                        title = match.group(1).strip()
-                    else:
-                        title = title.split("]")[-1].strip()
-                
-                card_name = self.task_card_service.match_task_card(title)
+                # 전자결재 문서 처리
+                processed_title = extract_title_from_approval(title)
+                print_document_info(processed_title, "전자결재 문서")
+
+                card_name = self.task_card_service.match_task_card(
+                    processed_title)
 
                 if card_name:
                     self.collector.document_sort(card_name)
+                    print_success(f"문서 분류 완료: {card_name}")
+                    logger.info("문서 분류 완료: %s -> %s",
+                                processed_title, card_name)
+                    success_count += 1
                 else:
-                    logger.warning(f"Skipping document sort for title: {title} due to no valid task card.")
+                    print_warning("과제 카드 매칭 실패로 문서 분류를 건너뜁니다")
+                    logger.warning(
+                        "과제 카드 매칭 실패로 문서 분류를 건너뜁니다: %s", processed_title)
 
                 time.sleep(2)
 
-        print("완료되었습니다.")
+        print_final_result(success_count, processed_count)
+
+
+def run_deletion_interface():
+    """삭제 인터페이스를 실행합니다."""
+    from services.deletion_service import DeletionService
+    deletion_service = DeletionService()
+    deletion_service.run_deletion_interface()
+
 
 if __name__ == '__main__':
-    main = Main()
-    main.run()
+    if len(sys.argv) > 1 and sys.argv[1] == '--delete':
+        run_deletion_interface()
+    elif len(sys.argv) > 1 and sys.argv[1] == '--interactive':
+        main = Main(auto_continue=False)
+        main.run()
+    else:
+        main = Main(auto_continue=True)
+        main.run()
