@@ -3,21 +3,6 @@
 사용자의 입력이 필요한 부분에 대한 제어.
 """
 
-import logging
-from typing import Dict, Tuple, List, Optional
-from services.command_executor import CommandExecutor
-from utils.error_handler import setup_logger
-
-logger = setup_logger(__name__)
-from utils.input_validator import (
-    SelectionResult,
-    get_valid_selection,
-    get_user_choice_from_list,
-    get_user_choice_from_recommendations,
-    get_manual_input,
-    confirm_choice
-)
-from utils.string_processor import format_option_display
 from utils.terminal_ui import (
     clear_screen,
     print_document_info,
@@ -27,6 +12,21 @@ from utils.terminal_ui import (
     print_success,
     draw_separator
 )
+from utils.string_processor import format_option_display
+from utils.input_validator import (
+    SelectionResult,
+    get_valid_selection,
+    get_user_choice_from_list,
+    get_user_choice_from_recommendations,
+    get_manual_input,
+    confirm_choice
+)
+import logging
+from typing import Dict, Tuple, List, Optional
+from services.command_executor import CommandExecutor
+from utils.error_handler import setup_logger
+
+logger = setup_logger(__name__)
 
 
 class DialogHandler:
@@ -35,8 +35,6 @@ class DialogHandler:
     def __init__(self) -> None:
         """초기화 및 CMD 창 활성화."""
         self.cmd = CommandExecutor()
-
-
 
     def select_approval_and_share(self, approval_list: List[str],
                                   share_list: List[str]) -> Tuple[str, str]:
@@ -61,7 +59,8 @@ class DialogHandler:
             while True:
                 try:
                     user_input = get_styled_input("번호를 선택하세요: ")
-                    selected_approval = get_valid_selection(user_input, approval_list)
+                    selected_approval = get_valid_selection(
+                        user_input, approval_list)
                     break
                 except ValueError as e:
                     print(str(e))
@@ -77,7 +76,6 @@ class DialogHandler:
                 print(str(e))
 
         return selected_approval, selected_share
-
 
     def confirm_recommendation(self, title: str, recommended_task_title: str) -> bool:
         """
@@ -171,14 +169,16 @@ class DialogHandler:
             return []
 
         logger.info(f"저장된 {item_type} 목록 표시 ({len(items)}개)")
-        
+
         print(f"\n=== 저장된 {item_type} 목록 ===")
         for i, item in enumerate(items, 1):
             if item_type == "과제 카드":
                 if len(item) >= 3:
                     title, task_title, registered_at = item[0], item[1], item[2]
-                    logger.debug(f"항목 {i}: {title} -> {task_title} [등록: {registered_at}]")
-                    print(f"{i}. {title} -> {task_title} [등록: {registered_at}]")
+                    logger.debug(
+                        f"항목 {i}: {title} -> {task_title} [등록: {registered_at}]")
+                    print(
+                        f"{i}. {title} -> {task_title} [등록: {registered_at}]")
                 else:
                     title, task_title = item[0], item[1]
                     logger.debug(f"항목 {i}: {title} -> {task_title}")
@@ -186,11 +186,14 @@ class DialogHandler:
             else:  # 접수 문서
                 if len(item) >= 4:
                     title, approval, share, registered_at = item[0], item[1], item[2], item[3]
-                    logger.debug(f"항목 {i}: {title} (담당: {approval}, 공람: {share}) [등록: {registered_at}]")
-                    print(f"{i}. {title} (담당: {approval}, 공람: {share}) [등록: {registered_at}]")
+                    logger.debug(
+                        f"항목 {i}: {title} (담당: {approval}, 공람: {share}) [등록: {registered_at}]")
+                    print(
+                        f"{i}. {title} (담당: {approval}, 공람: {share}) [등록: {registered_at}]")
                 else:
                     title, approval, share = item[0], item[1], item[2]
-                    logger.debug(f"항목 {i}: {title} (담당: {approval}, 공람: {share})")
+                    logger.debug(
+                        f"항목 {i}: {title} (담당: {approval}, 공람: {share})")
                     print(f"{i}. {title} (담당: {approval}, 공람: {share})")
 
         print("\n삭제할 항목 번호를 입력하세요 (여러 개는 쉼표로 구분, 전체 삭제는 'all', 취소는 'q'):")
@@ -233,7 +236,7 @@ class DialogHandler:
         clear_screen()
 
         logger.info(f"{item_type} 개별 삭제 시작")
-        
+
         print(f"\n=== {item_type} 개별 삭제 ===")
         title = get_styled_input(f"삭제할 {item_type}의 제목을 입력하세요: ").strip()
 

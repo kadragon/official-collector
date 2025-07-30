@@ -25,6 +25,7 @@ from utils.terminal_ui import (
 
 logger = setup_logger(__name__)
 
+
 class Main:
     """공문 자동 분류 및 처리를 위한 메인 클래스."""
 
@@ -64,7 +65,6 @@ class Main:
             task_card_supabase_service, self.dialog, self.predefined_card_list
         )
 
-
     def run(self) -> None:
         """ 메인 로직 """
         clear_screen()
@@ -76,28 +76,30 @@ class Main:
 
         while True:
             flow_state = self.collector.check_document_flow_state()
-            
+
             if flow_state == DocumentFlowState.EXIT:
                 print_info("문서 처리를 종료합니다.")
                 self.collector.handle_document_flow_dialog(flow_state)
                 break
             elif flow_state == DocumentFlowState.CONTINUE:
                 if not self.auto_continue:
-                    user_choice = input("\n다음 문서를 처리하시겠습니까? (y/n): ").lower().strip()
+                    user_choice = input(
+                        "\n다음 문서를 처리하시겠습니까? (y/n): ").lower().strip()
                     if user_choice in ['n', 'no', '아니오']:
                         print_info("사용자 요청으로 문서 처리를 종료합니다.")
                         # 대화상자에서 취소 버튼 클릭
                         self.collector.handle_cancel_dialog()
                         break
-                
+
                 if not self.collector.handle_document_flow_dialog(flow_state, self.auto_continue):
                     break
             elif flow_state == DocumentFlowState.UNKNOWN:
                 print_warning("알 수 없는 대화상자가 나타났습니다.")
-                
+
                 if not self.auto_continue:
                     # 사용자에게 선택권 제공
-                    user_choice = input("계속 처리하시겠습니까? (y: 계속, n: 종료): ").lower().strip()
+                    user_choice = input(
+                        "계속 처리하시겠습니까? (y: 계속, n: 종료): ").lower().strip()
                     if user_choice in ['y', 'yes', '예']:
                         print_info("사용자 선택: 다음 문서 처리 계속")
                         self.collector.handle_confirm_dialog()
@@ -118,7 +120,8 @@ class Main:
             if is_reception_document(title):
                 print_document_info(title, "접수 문서")
 
-                approval, shared = self.reception_service.handle_reception(title)
+                approval, shared = self.reception_service.handle_reception(
+                    title)
 
                 if approval:
                     self.collector.approval(approval)
@@ -126,7 +129,8 @@ class Main:
                         self.collector.add_share(str(shared))
 
                     print_success(f"접수 처리 완료: {approval} / {shared}")
-                    logger.info("접수 처리 완료: %s -> %s / %s", title, approval, shared)
+                    logger.info("접수 처리 완료: %s -> %s / %s",
+                                title, approval, shared)
                     self.collector.reception()
                     success_count += 1
                     time.sleep(1)
@@ -135,26 +139,31 @@ class Main:
                 processed_title = extract_title_from_approval(title)
                 print_document_info(processed_title, "전자결재 문서")
 
-                card_name = self.task_card_service.match_task_card(processed_title)
+                card_name = self.task_card_service.match_task_card(
+                    processed_title)
 
                 if card_name:
                     self.collector.document_sort(card_name)
                     print_success(f"문서 분류 완료: {card_name}")
-                    logger.info("문서 분류 완료: %s -> %s", processed_title, card_name)
+                    logger.info("문서 분류 완료: %s -> %s",
+                                processed_title, card_name)
                     success_count += 1
                 else:
                     print_warning("과제 카드 매칭 실패로 문서 분류를 건너뜁니다")
-                    logger.warning("과제 카드 매칭 실패로 문서 분류를 건너뜁니다: %s", processed_title)
+                    logger.warning(
+                        "과제 카드 매칭 실패로 문서 분류를 건너뜁니다: %s", processed_title)
 
                 time.sleep(2)
 
         print_final_result(success_count, processed_count)
+
 
 def run_deletion_interface():
     """삭제 인터페이스를 실행합니다."""
     from services.deletion_service import DeletionService
     deletion_service = DeletionService()
     deletion_service.run_deletion_interface()
+
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == '--delete':
