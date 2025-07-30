@@ -87,8 +87,7 @@ class Main:
                     if user_choice in ['n', 'no', '아니오']:
                         print_info("사용자 요청으로 문서 처리를 종료합니다.")
                         # 대화상자에서 취소 버튼 클릭
-                        cancel_buttons = ['아니오(N)', '취소', '아니오', 'Cancel']
-                        self.collector._click_dialog_button(cancel_buttons)
+                        self.collector.handle_cancel_dialog()
                         break
                 
                 if not self.collector.handle_document_flow_dialog(flow_state, self.auto_continue):
@@ -101,13 +100,11 @@ class Main:
                     user_choice = input("계속 처리하시겠습니까? (y: 계속, n: 종료): ").lower().strip()
                     if user_choice in ['y', 'yes', '예']:
                         print_info("사용자 선택: 다음 문서 처리 계속")
-                        confirm_buttons = ['예(Y)', '확인', '예', 'OK']
-                        self.collector._click_dialog_button(confirm_buttons)
+                        self.collector.handle_confirm_dialog()
                         continue
                     else:
                         print_info("사용자 선택: 처리 종료")
-                        cancel_buttons = ['아니오(N)', '취소', '아니오', 'Cancel']
-                        self.collector._click_dialog_button(cancel_buttons)
+                        self.collector.handle_cancel_dialog()
                         break
                 else:
                     # 자동 모드에서는 안전하게 종료
@@ -132,9 +129,6 @@ class Main:
                     logger.info("접수 처리 완료: %s -> %s / %s", title, approval, shared)
                     self.collector.reception()
                     success_count += 1
-
-                    if shared != '공람없음':
-                        self.collector.dlg['확인2'].click()
                     time.sleep(1)
             else:
                 # 전자결재 문서 처리

@@ -6,6 +6,9 @@
 import logging
 from typing import Dict, Tuple, List, Optional
 from services.command_executor import CommandExecutor
+from utils.error_handler import setup_logger
+
+logger = setup_logger(__name__)
 from utils.input_validator import (
     SelectionResult,
     get_valid_selection,
@@ -162,13 +165,11 @@ class DialogHandler:
         clear_screen()
 
         if not items:
-            logger = logging.getLogger(__name__)
             logger.info(f"삭제 가능한 {item_type}이 없습니다.")
             print(f"삭제 가능한 {item_type}이 없습니다.")
             input("엔터를 눌러 계속...")
             return []
 
-        logger = logging.getLogger(__name__)
         logger.info(f"저장된 {item_type} 목록 표시 ({len(items)}개)")
         
         print(f"\n=== 저장된 {item_type} 목록 ===")
@@ -231,7 +232,6 @@ class DialogHandler:
         self.cmd.activate()
         clear_screen()
 
-        logger = logging.getLogger(__name__)
         logger.info(f"{item_type} 개별 삭제 시작")
         
         print(f"\n=== {item_type} 개별 삭제 ===")

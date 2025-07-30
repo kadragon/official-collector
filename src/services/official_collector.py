@@ -55,8 +55,10 @@ class OfficialCollector:
                 element = element_selector()
                 if element.exists() and element.is_enabled():
                     return True
-            except Exception:
-                pass
+            except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+                logger.debug("요소 대기 중 오류 (계속 시도): %s", e)
+            except Exception as e:
+                logger.warning("요소 대기 중 예상치 못한 오류: %s", e)
             time.sleep(interval)
         return False
 
@@ -101,8 +103,10 @@ class OfficialCollector:
             try:
                 if condition():
                     return True
-            except Exception:
-                pass
+            except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+                logger.debug("조건 확인 중 오류 (계속 시도): %s", e)
+            except Exception as e:
+                logger.warning("조건 확인 중 예상치 못한 오류: %s", e)
             time.sleep(interval)
         return False
 
@@ -128,8 +132,10 @@ class OfficialCollector:
                     title = findwindows.window_text(hwnd)
                     if title and ("접수" in title or "전자결재" in title):
                         logger.info("발견된 관련 창: '%s'", title)
-                except:
-                    pass
+                except (OSError, RuntimeError) as e:
+                    logger.debug("창 제목 조회 실패 (hwnd: %s): %s", hwnd, e)
+                except Exception as e:
+                    logger.warning("창 제목 조회 중 예상치 못한 오류 (hwnd: %s): %s", hwnd, e)
         except Exception as e:
             logger.warning("창 목록 조회 중 오류: %s", e)
 
@@ -402,8 +408,10 @@ class OfficialCollector:
                             control_text = control.window_text()
                             if control_text and control_text not in all_text:
                                 all_text += " " + control_text
-                except:
-                    pass
+                except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+                    logger.debug("Static 컨트롤에서 텍스트 수집 실패: %s", e)
+                except Exception as e:
+                    logger.warning("Static 컨트롤 텍스트 수집 중 예상치 못한 오류: %s", e)
                 
                 # Edit 컨트롤에서도 텍스트 수집 시도  
                 try:
@@ -413,8 +421,10 @@ class OfficialCollector:
                             control_text = control.window_text()
                             if control_text and control_text not in all_text:
                                 all_text += " " + control_text
-                except:
-                    pass
+                except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+                    logger.debug("Edit 컨트롤에서 텍스트 수집 실패: %s", e)
+                except Exception as e:
+                    logger.warning("Edit 컨트롤 텍스트 수집 중 예상치 못한 오류: %s", e)
                 
                 logger.debug("대화상자에서 수집된 전체 텍스트: '%s'", all_text)
                 return all_text
@@ -445,10 +455,16 @@ class OfficialCollector:
                         text = child.window_text()
                         if text and text.strip() and text != '확인' and text not in all_texts:
                             all_texts.append(text.strip())
-                    except:
+                    except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+                        logger.debug("자식 컨트롤 텍스트 읽기 실패: %s", e)
                         continue
-            except:
-                pass
+                    except Exception as e:
+                        logger.warning("자식 컨트롤 처리 중 예상치 못한 오류: %s", e)
+                        continue
+            except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+                logger.debug("자식 컨트롤 목록 조회 실패: %s", e)
+            except Exception as e:
+                logger.warning("자식 컨트롤 순회 중 예상치 못한 오류: %s", e)
             
             # Print control identifiers for debugging (only if no text found)
             if not all_texts:
@@ -465,8 +481,10 @@ class OfficialCollector:
                         logger.debug("컨트롤 정보: %s", control_info[:500])  # 처음 500자만 로깅
                     finally:
                         sys.stdout = old_stdout
-                except:
-                    pass
+                except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+                    logger.debug("컨트롤 구조 분석 실패: %s", e)
+                except Exception as e:
+                    logger.warning("컨트롤 구조 분석 중 예상치 못한 오류: %s", e)
             
             result = " ".join(all_texts)
             logger.debug("상세 텍스트 수집 결과: '%s'", result)
@@ -540,6 +558,26 @@ class OfficialCollector:
         logger.warning("사용 가능한 버튼을 찾을 수 없습니다: %s", button_names)
         return False
     
+    def handle_cancel_dialog(self) -> bool:
+        """
+        대화상자에서 취소 버튼을 클릭합니다.
+        
+        Returns:
+            bool: 취소 버튼 클릭 성공 여부
+        """
+        cancel_buttons = ['아니오(N)', '취소', '아니오', 'Cancel']
+        return self._click_dialog_button(cancel_buttons)
+    
+    def handle_confirm_dialog(self) -> bool:
+        """
+        대화상자에서 확인 버튼을 클릭합니다.
+        
+        Returns:
+            bool: 확인 버튼 클릭 성공 여부
+        """
+        confirm_buttons = ['예(Y)', '확인', '예', 'OK']
+        return self._click_dialog_button(confirm_buttons)
+
     def check_end_collecting(self) -> bool:
         """
         정리가 끝났는지 확인합니다. (이전 버전과의 호환성을 위한 메서드)

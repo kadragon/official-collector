@@ -5,9 +5,67 @@
 import logging
 import time
 import functools
-from datetime import datetime
-from typing import Callable, Any, Optional, Type, Union
+import os
+from datetime import datetime, timedelta
+from typing import Callable, Any, Optional
 from pathlib import Path
+
+
+# Global variable to store the current execution's log file path
+_current_log_file = None
+_logger_initialized = False
+
+
+def cleanup_old_logs(log_directory: str = "logs", days_to_keep: int = 7) -> None:
+    """
+    지정된 일수보다 오래된 로그 파일들을 삭제합니다.
+
+    Args:
+        log_directory (str): 로그 디렉토리 경로.
+        days_to_keep (int): 보관할 일수.
+    """
+    if not os.path.exists(log_directory):
+        return
+
+    cutoff_time = datetime.now() - timedelta(days=days_to_keep)
+
+    for filename in os.listdir(log_directory):
+        if filename.endswith('.log'):
+            file_path = os.path.join(log_directory, filename)
+            try:
+                file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                if file_time < cutoff_time:
+                    os.remove(file_path)
+                    print(f"삭제된 오래된 로그 파일: {filename}")
+            except (OSError, ValueError):
+                # 파일 접근 오류나 시간 변환 오류는 무시
+                continue
+
+
+def initialize_execution_logger() -> str:
+    """
+    메인 실행을 위한 로그 파일을 초기화하고 오래된 로그를 정리합니다.
+
+    Returns:
+        str: 생성된 로그 파일 경로.
+    """
+    global _current_log_file, _logger_initialized
+
+    if not _logger_initialized:
+        # 오래된 로그 파일 정리
+        cleanup_old_logs()
+
+        # 현재 실행을 위한 로그 파일 생성
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _current_log_file = f"logs/app_{timestamp}.log"
+
+        # logs 디렉토리가 없으면 생성
+        log_path = Path(_current_log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        _logger_initialized = True
+
+    return _current_log_file
 
 
 def setup_logger(
@@ -43,11 +101,10 @@ def setup_logger(
 
     formatter = logging.Formatter(format_string)
 
-    # 로그 파일이 지정되지 않았다면 자동 생성
+    # 로그 파일이 지정되지 않았다면 실행별 로그 파일 사용
     if log_file is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = f"logs/app_{timestamp}.log"
-    
+        log_file = initialize_execution_logger()
+
     # logs 디렉토리가 없으면 생성
     log_path = Path(log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,11 +154,14 @@ def retry_with_backoff(
                     return func(*args, **kwargs)
                 except exceptions as e:
                     if attempt == max_attempts - 1:
-                        logger.error(f"함수 {func.__name__} 실행 실패 (최대 시도 횟수 초과): {e}")
+                        logger.error("함수 %s 실행 실패 (최대 시도 횟수 초과): %s", func.__name__, e)
                         raise
 
-                    logger.warning(f"함수 {func.__name__} 실행 실패 (시도 {attempt + 1}/{max_attempts}): {e}")
-                    logger.info(f"{delay}초 후 재시도...")
+                    logger.warning(
+                        "함수 %s 실행 실패 (시도 %d/%d): %s", 
+                        func.__name__, attempt + 1, max_attempts, e
+                    )
+                    logger.info("%s초 후 재시도...", delay)
                     time.sleep(delay)
                     delay *= backoff_factor
 
@@ -136,10 +196,13 @@ def handle_connection_error(
                     return func(*args, **kwargs)
                 except Exception as e:
                     if attempt == max_attempts - 1:
-                        logger.critical(f"{operation_name} 연결 실패 (최대 시도 횟수 초과): {e}")
+                        logger.critical("%s 연결 실패 (최대 시도 횟수 초과): %s", operation_name, e)
                         raise
 
-                    logger.info(f"{operation_name} 연결 실패. 재시도 중... (시도 {attempt + 1}/{max_attempts})")
+                    logger.info(
+                        "%s 연결 실패. 재시도 중... (시도 %d/%d)", 
+                        operation_name, attempt + 1, max_attempts
+                    )
                     time.sleep(wait_time)
 
             return None
@@ -168,11 +231,11 @@ def log_execution_time(logger: Optional[logging.Logger] = None) -> Callable:
             try:
                 result = func(*args, **kwargs)
                 execution_time = time.time() - start_time
-                logger.info(f"함수 {func.__name__} 실행 완료 (소요시간: {execution_time:.2f}초)")
+                logger.info("함수 %s 실행 완료 (소요시간: %.2f초)", func.__name__, execution_time)
                 return result
             except Exception as e:
                 execution_time = time.time() - start_time
-                logger.error(f"함수 {func.__name__} 실행 실패 (소요시간: {execution_time:.2f}초): {e}")
+                logger.error("함수 %s 실행 실패 (소요시간: %.2f초): %s", func.__name__, execution_time, e)
                 raise
         return wrapper
     return decorator

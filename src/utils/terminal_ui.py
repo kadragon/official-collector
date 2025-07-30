@@ -63,7 +63,14 @@ def get_display_width(text: str) -> int:
 
 def clear_screen():
     """화면을 지웁니다."""
-    os.system('cls' if os.name == 'nt' else 'clear')
+    try:
+        if os.name == 'nt':
+            os.system('cls')
+        else:
+            os.system('clear')
+    except Exception:
+        # Fallback: print newlines to simulate clearing
+        print('\n' * 50)
 
 
 def draw_separator(char='─', width=60):

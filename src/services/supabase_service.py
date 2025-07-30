@@ -297,10 +297,21 @@ class SupabaseService:
         """
         여러 과제 카드를 일괄 삭제합니다.
         """
-        deleted_count = 0
-        for title in titles:
-            if self.delete_card_by_title(title):
-                deleted_count += 1
+        if not titles:
+            return 0
+
+        def bulk_delete_operation():
+            # Use the 'in' filter for a single bulk delete operation
+            response = (self.supabase.table(self.vector_store.table_name)
+                       .delete().in_('metadata->>title', titles).execute())
+            return len(response.data)
+
+        deleted_count = safe_execute(
+            bulk_delete_operation,
+            default_return=0,
+            logger=self.logger,
+            error_message="과제 카드 일괄 삭제 실패"
+        )
 
         self.logger.info("총 %s개의 과제 카드가 삭제되었습니다.", deleted_count)
         return deleted_count
@@ -309,10 +320,21 @@ class SupabaseService:
         """
         여러 접수 문서를 일괄 삭제합니다.
         """
-        deleted_count = 0
-        for title in titles:
-            if self.delete_reception_by_title(title):
-                deleted_count += 1
+        if not titles:
+            return 0
+
+        def bulk_delete_operation():
+            # Use the 'in' filter for a single bulk delete operation
+            response = (self.supabase.table(self.vector_store.table_name)
+                       .delete().in_('metadata->>title', titles).execute())
+            return len(response.data)
+
+        deleted_count = safe_execute(
+            bulk_delete_operation,
+            default_return=0,
+            logger=self.logger,
+            error_message="접수 문서 일괄 삭제 실패"
+        )
 
         self.logger.info("총 %s개의 접수 문서가 삭제되었습니다.", deleted_count)
         return deleted_count
