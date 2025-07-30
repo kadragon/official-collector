@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Korean official document automation system built with Python 3.12+ that uses RPA (Robotic Process Automation) to classify and process official documents automatically. The system integrates with Supabase for vector storage and OpenAI for embeddings to provide intelligent document matching and recommendations.
+This is a Korean official document automation system built with Python 3.12+ that uses RPA (Robotic Process Automation) to classify and process official documents automatically. The system integrates with Chroma for local vector storage and Ollama for embeddings to provide intelligent document matching and recommendations, running entirely locally without external API dependencies.
 
 ## Key Commands
 
@@ -12,6 +12,30 @@ This is a Korean official document automation system built with Python 3.12+ tha
 
 ```bash
 uv run ./src/main.py
+```
+
+### Testing the Integration
+
+Before running the main application, test if Ollama and Chroma are working correctly:
+
+```bash
+# Install dev dependencies first
+uv sync --group dev
+
+# Quick test - check environment and basic connectivity
+pytest tests/test_integration.py::TestEnvironmentConfig tests/test_integration.py::TestOllamaIntegration -v
+
+# Full integration tests - comprehensive validation
+pytest tests/test_integration.py -v
+
+# Run only integration tests (if you have other test types)
+pytest -m integration -v
+
+# Run with coverage report
+pytest tests/test_integration.py --cov=src --cov-report=html
+
+# Clean up test databases (if they remain after pytest)
+uv run ./cleanup_test_db.py
 ```
 
 ### Data Management Operations
@@ -68,11 +92,39 @@ The project includes a `.pylintrc` configuration file with Korean-friendly setti
 Required environment variables in `.env`:
 
 ```
+# Ollama Configuration (for local embeddings)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=snowflake-arctic-embed
+
+# Chroma Configuration (for local vector database)
+CHROMA_PERSIST_DIR=./chroma_db
+
+# Legacy configurations (optional for backward compatibility)
 OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+QDRANT_URL=http://localhost:6333
 SUPABASE_URL=YOUR_SUPABASE_URL
 SUPABASE_KEY=YOUR_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 ```
+
+### Local Setup Requirements
+
+Before running the application, ensure Ollama is installed and running. Chroma runs as a Python library and requires no additional setup:
+
+#### Ollama Setup
+```bash
+# Install Ollama (if not already installed)
+# Visit https://ollama.ai for installation instructions
+
+# Pull the embedding model
+ollama pull snowflake-arctic-embed
+
+# Verify Ollama is running
+ollama list
+```
+
+#### Chroma Setup
+Chroma runs as a Python library and requires no additional installation. The vector database will be automatically created in the specified directory (default: `./chroma_db`) when the application runs for the first time.
 
 ## Core Architecture
 
@@ -86,7 +138,7 @@ SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 
    - `ReceptionService`: Handles incoming document assignment using vector similarity
    - `TaskCardService`: Matches documents to task cards using embeddings
-   - `SupabaseService`: Manages vector storage and similarity search
+   - `ChromaService`: Manages local vector storage and similarity search
 
 4. **User Interaction** (`src/services/dialog_service.py`): Provides CLI-based user selection when automated matching isn't confident enough
 
@@ -101,8 +153,8 @@ SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 ### Technology Stack
 
 - **RPA**: pywinauto for Windows automation
-- **AI/ML**: OpenAI embeddings via langchain
-- **Database**: Supabase with pgvector for semantic search
+- **AI/ML**: Ollama (snowflake-arctic-embed) for local embeddings via langchain-ollama
+- **Vector Database**: Chroma for local semantic search and vector storage
 - **UI**: Command-line interface for user decisions
 - **Configuration**: python-dotenv for environment management
 

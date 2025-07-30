@@ -3,7 +3,7 @@
 from typing import List, Optional
 
 from services.dialog_service import DialogHandler
-from services.supabase_service import SupabaseService
+from services.chroma_service import ChromaService
 from utils.input_validator import SelectionResult
 from utils.error_handler import setup_logger
 
@@ -13,8 +13,8 @@ class TaskCardService:
     """
     과제 카드를 매칭하는 클래스.
     """
-    def __init__(self, supabase_service: SupabaseService, dialog_handler: DialogHandler, predefined_card_list: List[str]):
-        self.supabase_service = supabase_service
+    def __init__(self, chroma_service: ChromaService, dialog_handler: DialogHandler, predefined_card_list: List[str]):
+        self.chroma_service = chroma_service
         self.dialog = dialog_handler
         self.predefined_card_list = predefined_card_list
 
@@ -28,7 +28,7 @@ class TaskCardService:
         logger.info("임베딩 기반 과제 카드 매칭 시작: %s", title)
 
         # 1. 정확한 제목 매칭을 먼저 시도
-        card_name = self.supabase_service.retrieve_card_by_title(title)
+        card_name = self.chroma_service.retrieve_card_by_title(title)
         is_exact_match = card_name is not None
 
         if is_exact_match:
@@ -36,7 +36,7 @@ class TaskCardService:
             return card_name
 
         # 2. 임베딩 기반 의미적 유사도로 추천 생성
-        recommendations = self.supabase_service.recommend_cards(title, count=5)
+        recommendations = self.chroma_service.recommend_cards(title, count=5)
         if recommendations:
             logger.info("벡터 유사도 기반 추천 과제 카드: %s", recommendations)
             status, value = self.dialog.choose_from_recommendations(title, recommendations)
@@ -63,7 +63,7 @@ class TaskCardService:
 
         # 4. 새로운 매칭이 발견된 경우 임베딩으로 학습 데이터에 추가
         if card_name and not is_exact_match:
-            self.supabase_service.upsert_card_embedding(title, card_name)
+            self.chroma_service.upsert_card_embedding(title, card_name)
             logger.info("새로운 매칭을 벡터 데이터베이스에 학습: %s -> %s", title, card_name)
 
         return card_name

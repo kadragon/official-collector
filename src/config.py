@@ -12,7 +12,7 @@ def load_environment_variables():
     """
     load_dotenv()
 
-    required_env_vars = ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]
+    required_env_vars = ["OLLAMA_BASE_URL", "OLLAMA_MODEL"]
     missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
 
     if missing_vars:
@@ -26,7 +26,15 @@ class AppConfig:
     """
     def __init__(self):
         load_environment_variables()
+        # Legacy OpenAI support (optional for backward compatibility)
         self.openai_api_key = os.environ.get("OPENAI_API_KEY")
+        # Ollama configuration
+        self.ollama_base_url = os.environ.get("OLLAMA_BASE_URL")
+        self.ollama_model = os.environ.get("OLLAMA_MODEL")
+        # Chroma configuration
+        self.chroma_persist_dir = os.environ.get("CHROMA_PERSIST_DIR", "./chroma_db")
+        # Legacy configurations (optional)
+        self.qdrant_url = os.environ.get("QDRANT_URL")
         self.supabase_url = os.environ.get("SUPABASE_URL")
         self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 

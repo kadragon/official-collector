@@ -10,10 +10,14 @@ dependencies = [
     "langchain-community",
     "langchain-core",
     "langchain-openai",
-    "supabase",
+    "langchain-ollama",
+    "langchain-chroma",
+    "chromadb",
 ]
 
 [dependency-groups]
 dev = [
     "pylint>=3.3.7",
+    "pytest>=8.0.0",
+    "pytest-mock>=3.14.0",
 ]

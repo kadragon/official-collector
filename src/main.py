@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 from config import config
 from services.official_collector import OfficialCollector, DocumentFlowState
 from services.dialog_service import DialogHandler
-from services.supabase_service import SupabaseService
+from services.chroma_service import ChromaService
 from services.reception_service import ReceptionService
 from services.task_card_service import TaskCardService
 from utils.data_loader import load_base_data
@@ -38,31 +38,29 @@ class Main:
         self.collector = OfficialCollector()
         self.dialog = DialogHandler()
 
-        # Reception을 위한 Supabase 서비스
-        reception_supabase_service = SupabaseService(
-            openai_api_key=config.openai_api_key,
-            supabase_url=config.supabase_url,
-            supabase_key=config.supabase_key,
-            table_name="reception_documents",
-            query_name="match_reception_documents"
+        # Reception을 위한 Chroma 서비스
+        reception_chroma_service = ChromaService(
+            ollama_base_url=config.ollama_base_url,
+            ollama_model=config.ollama_model,
+            chroma_persist_dir=config.chroma_persist_dir,
+            collection_name="reception_documents"
         )
 
-        # Task Card를 위한 Supabase 서비스
-        task_card_supabase_service = SupabaseService(
-            openai_api_key=config.openai_api_key,
-            supabase_url=config.supabase_url,
-            supabase_key=config.supabase_key,
-            table_name="documents",
-            query_name="match_documents"
+        # Task Card를 위한 Chroma 서비스
+        task_card_chroma_service = ChromaService(
+            ollama_base_url=config.ollama_base_url,
+            ollama_model=config.ollama_model,
+            chroma_persist_dir=config.chroma_persist_dir,
+            collection_name="documents"
         )
 
         self.predefined_card_list: List[str] = base_data["card_list"]
 
         self.reception_service = ReceptionService(
-            reception_supabase_service, self.dialog, self.approval_name_list, self.share_name_list
+            reception_chroma_service, self.dialog, self.approval_name_list, self.share_name_list
         )
         self.task_card_service = TaskCardService(
-            task_card_supabase_service, self.dialog, self.predefined_card_list
+            task_card_chroma_service, self.dialog, self.predefined_card_list
         )
 
     def run(self) -> None:
