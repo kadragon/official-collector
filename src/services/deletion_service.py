@@ -1,37 +1,35 @@
 """
-Supabase에 저장된 문서와 과제카드 데이터를 삭제하는 서비스
+Chroma에 저장된 문서와 과제카드 데이터를 삭제하는 서비스
 """
 
-import os
 from typing import List, Tuple
-from services.supabase_service import SupabaseService
+from services.chroma_service import ChromaService
 from services.dialog_service import DialogHandler
 from utils.error_handler import setup_logger
 from utils.terminal_ui import print_success, print_error
+from config import config
 
 
 class DeletionService:
-    """Supabase 데이터 삭제를 관리하는 서비스"""
+    """Chroma 데이터 삭제를 관리하는 서비스"""
 
     def __init__(self):
         self.logger = setup_logger(__name__)
         self.dialog = DialogHandler()
 
-        # Supabase 서비스 초기화
-        self.task_service = SupabaseService(
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
-            supabase_url=os.getenv("SUPABASE_URL"),
-            supabase_key=os.getenv("SUPABASE_KEY"),
-            table_name="documents",
-            query_name="match_documents"
+        # Chroma 서비스 초기화
+        self.task_service = ChromaService(
+            ollama_base_url=config.ollama_base_url,
+            ollama_model=config.ollama_model,
+            chroma_persist_dir=config.chroma_persist_dir,
+            collection_name="documents"
         )
 
-        self.reception_service = SupabaseService(
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
-            supabase_url=os.getenv("SUPABASE_URL"),
-            supabase_key=os.getenv("SUPABASE_KEY"),
-            table_name="reception_documents",
-            query_name="match_reception_documents"
+        self.reception_service = ChromaService(
+            ollama_base_url=config.ollama_base_url,
+            ollama_model=config.ollama_model,
+            chroma_persist_dir=config.chroma_persist_dir,
+            collection_name="reception_documents"
         )
 
     def run_deletion_interface(self):

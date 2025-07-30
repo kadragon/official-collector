@@ -1,11 +1,8 @@
-import os
-import sys
-from pathlib import Path
 from typing import Any
 
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
+from langchain_ollama import OllamaEmbeddings
 from langchain.storage import LocalFileStore
 from langchain.embeddings import CacheBackedEmbeddings
 from supabase.client import Client, create_client
@@ -15,14 +12,15 @@ from utils.error_handler import setup_logger, safe_execute
 
 
 class SupabaseService:
-    def __init__(self, openai_api_key: str, supabase_url: str, supabase_key: str, table_name: str = "documents", query_name: str = "match_documents"):
+    def __init__(self, ollama_base_url: str, ollama_model: str, supabase_url: str, supabase_key: str, table_name: str = "documents", query_name: str = "match_documents"):
         self.logger = setup_logger(__name__)
         self.supabase: Client = create_client(supabase_url, supabase_key)
 
         # 캐시 설정
         fs = LocalFileStore(root_path="./.cache/")
-        underlying_embeddings = OpenAIEmbeddings(
-            openai_api_key=openai_api_key, model="text-embedding-3-small"
+        underlying_embeddings = OllamaEmbeddings(
+            base_url=ollama_base_url,
+            model=ollama_model
         )
         self.embeddings = CacheBackedEmbeddings.from_bytes_store(
             underlying_embeddings, fs, key_encoder=generate_cache_key

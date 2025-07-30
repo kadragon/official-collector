@@ -102,7 +102,8 @@ class DialogHandler:
         self.cmd.activate()
         clear_screen()
         print_document_info(title, "전체 목록에서 선택")
-        return get_user_choice_from_list(title, card_list, allow_skip=False)
+        sorted_card_list = sorted(card_list)
+        return get_user_choice_from_list(title, sorted_card_list, allow_skip=False)
 
     def choose_from_recommendations(self, title: str, recommendations: List[str]) -> Tuple[SelectionResult, Optional[str]]:
         """
