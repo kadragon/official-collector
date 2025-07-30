@@ -12,3 +12,8 @@ dependencies = [
     "langchain-openai",
     "supabase",
 ]
+
+[dependency-groups]
+dev = [
+    "pylint>=3.3.7",
+]

@@ -38,6 +38,31 @@ The deletion interface provides options to:
 uv install
 ```
 
+### Code Quality Tools
+
+#### Running Pylint
+
+```bash
+# Check all source code for quality issues
+uv run pylint src/
+
+# Check specific file or directory
+uv run pylint src/main.py
+uv run pylint src/services/
+
+# Generate detailed report with score
+uv run pylint src/ --score=yes
+
+# Fix only specific message types
+uv run pylint src/ --disable=trailing-whitespace,line-too-long
+```
+
+The project includes a `.pylintrc` configuration file with Korean-friendly settings:
+- Supports Korean variable names and comments
+- Configured for RPA automation context
+- Minimum score threshold: 7.0/10
+- Customized rules for the project's specific needs
+
 ## Environment Setup
 
 Required environment variables in `.env`:

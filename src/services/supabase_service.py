@@ -42,24 +42,24 @@ class SupabaseService:
         """
         doc_id = generate_document_id(title)
         document = Document(page_content=title, metadata={
-                            'title': title, 
+                            'title': title,
                             'taskTitle': task_title})
-        
+
         def upload_document():
             self.vector_store.add_documents([document], ids=[doc_id])
             return True
-        
+
         success = safe_execute(
             upload_document,
             default_return=False,
             logger=self.logger,
             error_message=f"과제 카드 업로드 실패: {title}"
         )
-        
+
         if success:
-            self.logger.info(f"과제 카드 '{title}' (taskTitle: '{task_title}')를 성공적으로 업로드/갱신했습니다.")
+            self.logger.info("과제 카드 '%s' (taskTitle: '%s')를 성공적으로 업로드/갱신했습니다.", title, task_title)
         else:
-            self.logger.error(f"과제 카드 '{title}' 업로드에 실패했습니다.")
+            self.logger.error("과제 카드 '%s' 업로드에 실패했습니다.", title)
 
     def retrieve_card_by_title(self, title: str):
         """
@@ -111,22 +111,22 @@ class SupabaseService:
         doc_id = generate_document_id(title)
         metadata = {'title': title, 'approval': approval, 'share': share}
         document = Document(page_content=title, metadata=metadata)
-        
+
         def upload_reception():
             self.vector_store.add_documents([document], ids=[doc_id])
             return True
-        
+
         success = safe_execute(
             upload_reception,
             default_return=False,
             logger=self.logger,
             error_message=f"접수 정보 업로드 실패: {title}"
         )
-        
+
         if success:
-            self.logger.info(f"접수 정보 '{title}' (담당: '{approval}')를 성공적으로 업로드/갱신했습니다.")
+            self.logger.info("접수 정보 '%s' (담당: '%s')를 성공적으로 업로드/갱신했습니다.", title, approval)
         else:
-            self.logger.error(f"접수 정보 '{title}' 업로드에 실패했습니다.")
+            self.logger.error("접수 정보 '%s' 업로드에 실패했습니다.", title)
 
     def retrieve_reception_by_title(self, title: str):
         """
@@ -179,19 +179,19 @@ class SupabaseService:
         def delete_operation():
             response = self.supabase.table(self.vector_store.table_name).delete().eq('metadata->>title', title).execute()
             return len(response.data) > 0
-        
+
         success = safe_execute(
             delete_operation,
             default_return=False,
             logger=self.logger,
             error_message=f"과제 카드 삭제 실패: {title}"
         )
-        
+
         if success:
-            self.logger.info(f"과제 카드 '{title}'를 성공적으로 삭제했습니다.")
+            self.logger.info("과제 카드 '%s'를 성공적으로 삭제했습니다.", title)
         else:
-            self.logger.error(f"과제 카드 '{title}' 삭제에 실패했습니다.")
-        
+            self.logger.error("과제 카드 '%s' 삭제에 실패했습니다.", title)
+
         return success
 
     def delete_reception_by_title(self, title: str):
@@ -201,19 +201,19 @@ class SupabaseService:
         def delete_operation():
             response = self.supabase.table(self.vector_store.table_name).delete().eq('metadata->>title', title).execute()
             return len(response.data) > 0
-        
+
         success = safe_execute(
             delete_operation,
             default_return=False,
             logger=self.logger,
             error_message=f"접수 문서 삭제 실패: {title}"
         )
-        
+
         if success:
-            self.logger.info(f"접수 문서 '{title}'를 성공적으로 삭제했습니다.")
+            self.logger.info("접수 문서 '%s'를 성공적으로 삭제했습니다.", title)
         else:
-            self.logger.error(f"접수 문서 '{title}' 삭제에 실패했습니다.")
-        
+            self.logger.error("접수 문서 '%s' 삭제에 실패했습니다.", title)
+
         return success
 
     def card_exists(self, title: str) -> bool:
@@ -223,14 +223,14 @@ class SupabaseService:
         def check_operation():
             response = self.supabase.table(self.vector_store.table_name).select("id").eq('metadata->>title', title).limit(1).execute()
             return len(response.data) > 0
-        
+
         exists = safe_execute(
             check_operation,
             default_return=False,
             logger=self.logger,
             error_message=f"과제 카드 존재 확인 실패: {title}"
         )
-        
+
         return exists
 
     def reception_exists(self, title: str) -> bool:
@@ -240,14 +240,14 @@ class SupabaseService:
         def check_operation():
             response = self.supabase.table(self.vector_store.table_name).select("id").eq('metadata->>title', title).limit(1).execute()
             return len(response.data) > 0
-        
+
         exists = safe_execute(
             check_operation,
             default_return=False,
             logger=self.logger,
             error_message=f"접수 문서 존재 확인 실패: {title}"
         )
-        
+
         return exists
 
     def list_all_cards(self):
@@ -257,18 +257,18 @@ class SupabaseService:
         def list_operation():
             response = self.supabase.table(self.vector_store.table_name).select("metadata, registered_at").execute()
             return [(
-                item['metadata']['title'], 
+                item['metadata']['title'],
                 item['metadata'].get('taskTitle', ''),
                 item.get('registered_at', 'N/A')
             ) for item in response.data]
-        
+
         cards = safe_execute(
             list_operation,
             default_return=[],
             logger=self.logger,
             error_message="과제 카드 목록 조회 실패"
         )
-        
+
         return cards
 
     def list_all_receptions(self):
@@ -278,19 +278,19 @@ class SupabaseService:
         def list_operation():
             response = self.supabase.table(self.vector_store.table_name).select("metadata, registered_at").execute()
             return [(
-                item['metadata']['title'], 
-                item['metadata'].get('approval', ''), 
+                item['metadata']['title'],
+                item['metadata'].get('approval', ''),
                 item['metadata'].get('share', ''),
                 item.get('registered_at', 'N/A')
             ) for item in response.data]
-        
+
         receptions = safe_execute(
             list_operation,
             default_return=[],
             logger=self.logger,
             error_message="접수 문서 목록 조회 실패"
         )
-        
+
         return receptions
 
     def bulk_delete_cards(self, titles: list):
@@ -301,8 +301,8 @@ class SupabaseService:
         for title in titles:
             if self.delete_card_by_title(title):
                 deleted_count += 1
-        
-        self.logger.info(f"총 {deleted_count}개의 과제 카드가 삭제되었습니다.")
+
+        self.logger.info("총 %s개의 과제 카드가 삭제되었습니다.", deleted_count)
         return deleted_count
 
     def bulk_delete_receptions(self, titles: list):
@@ -313,6 +313,6 @@ class SupabaseService:
         for title in titles:
             if self.delete_reception_by_title(title):
                 deleted_count += 1
-        
-        self.logger.info(f"총 {deleted_count}개의 접수 문서가 삭제되었습니다.")
+
+        self.logger.info("총 %s개의 접수 문서가 삭제되었습니다.", deleted_count)
         return deleted_count

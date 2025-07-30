@@ -4,6 +4,7 @@
 
 import os
 import sys
+import logging
 from typing import List, Optional
 from enum import Enum
 
@@ -13,7 +14,7 @@ class Colors:
     RESET = '\033[0m'
     BOLD = '\033[1m'
     DIM = '\033[2m'
-    
+
     # 기본 색상
     BLACK = '\033[30m'
     RED = '\033[31m'
@@ -23,7 +24,7 @@ class Colors:
     MAGENTA = '\033[35m'
     CYAN = '\033[36m'
     WHITE = '\033[37m'
-    
+
     # 배경 색상
     BG_BLACK = '\033[40m'
     BG_RED = '\033[41m'
@@ -90,35 +91,46 @@ def draw_section_header(title: str, width=60):
 
 def print_info(message: str):
     """정보 메시지를 출력합니다."""
+    logger = logging.getLogger(__name__)
+    logger.info(message)
     print(f"{Colors.BLUE}{Symbols.INFO} {message}{Colors.RESET}")
 
 
 def print_success(message: str):
     """성공 메시지를 출력합니다."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"SUCCESS: {message}")
     print(f"{Colors.GREEN}{Symbols.SUCCESS} {message}{Colors.RESET}")
 
 
 def print_warning(message: str):
     """경고 메시지를 출력합니다."""
+    logger = logging.getLogger(__name__)
+    logger.warning(message)
     print(f"{Colors.YELLOW}{Symbols.WARNING} {message}{Colors.RESET}")
 
 
 def print_error(message: str):
     """에러 메시지를 출력합니다."""
+    logger = logging.getLogger(__name__)
+    logger.error(message)
     print(f"{Colors.RED}{Symbols.ERROR} {message}{Colors.RESET}")
 
 
 def print_document_info(title: str, doc_type: str = "문서"):
     """문서 정보를 예쁘게 출력합니다."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"처리 중인 {doc_type}: {title}")
+    
     # 터미널 너비를 고려한 최대 표시 너비 설정
     max_display_width = 60
-    
+
     # 제목이 너무 길면 줄바꿈 처리
     if get_display_width(title) > max_display_width - 4:  # 여백을 고려한 실제 내용 너비
         lines = []
         current_line = ""
         words = title.split()
-        
+
         for word in words:
             test_line = current_line + word + " " if current_line else word + " "
             if get_display_width(test_line) <= max_display_width - 4:
@@ -127,31 +139,31 @@ def print_document_info(title: str, doc_type: str = "문서"):
                 if current_line:
                     lines.append(current_line.strip())
                 current_line = word + " "
-        
+
         if current_line:
             lines.append(current_line.strip())
     else:
         lines = [title]
-    
+
     # 박스 너비 계산 (가장 긴 줄의 표시 너비 기준)
     content_display_width = max(get_display_width(line) for line in lines)
     header_text = f"처리 중인 {doc_type}"
     header_display_width = get_display_width(header_text) + 4
-    
+
     # 박스 실제 너비는 표시 너비와 동일하게 설정
     box_display_width = max(content_display_width, header_display_width) + 4
-    
+
     print()
     # 상단 테두리
     header_dashes = box_display_width - get_display_width(header_text) - 3
     print(f"{Colors.BOLD}{Colors.WHITE}┌─ {header_text} {'─' * header_dashes}┐{Colors.RESET}")
-    
+
     # 내용 출력
     for line in lines:
         line_display_width = get_display_width(line)
         padding_spaces = box_display_width - line_display_width - 2
         print(f"{Colors.BOLD}{Colors.WHITE}│ {line}{' ' * padding_spaces}│{Colors.RESET}")
-    
+
     # 하단 테두리
     print(f"{Colors.BOLD}{Colors.WHITE}└{'─' * box_display_width}┘{Colors.RESET}")
     print()
@@ -161,13 +173,13 @@ def print_numbered_list(items: List[str], start_index=1, highlight_color=Colors.
     """번호가 매겨진 목록을 예쁘게 출력합니다."""
     for idx, item in enumerate(items):
         number = f"[{idx + start_index:02d}]"
-        
+
         # 항목이 너무 길면 줄바꿈 처리
         if get_display_width(item) > 60:
             words = item.split()
             lines = []
             current_line = ""
-            
+
             for word in words:
                 test_line = current_line + word + " " if current_line else word + " "
                 if get_display_width(test_line) <= 55:  # 들여쓰기 고려
@@ -176,10 +188,10 @@ def print_numbered_list(items: List[str], start_index=1, highlight_color=Colors.
                     if current_line:
                         lines.append(current_line.strip())
                     current_line = word + " "
-            
+
             if current_line:
                 lines.append(current_line.strip())
-            
+
             # 첫 번째 줄은 번호와 함께 출력
             if lines:
                 print(f"  {highlight_color}{number}{Colors.RESET} {lines[0]}")
@@ -194,19 +206,19 @@ def print_numbered_list(items: List[str], start_index=1, highlight_color=Colors.
 def print_selection_menu(title: str, items: List[str], allow_skip=False, skip_text="목록에 없음"):
     """선택 메뉴를 예쁘게 출력합니다."""
     draw_section_header(title)
-    
+
     print_numbered_list(items)
-    
+
     if allow_skip:
         print(f"  {Colors.YELLOW}[00]{Colors.RESET} {skip_text}")
-    
+
     print()
 
 
 def print_recommendation_menu(title: str, recommended_item: str):
     """추천 확인 메뉴를 예쁘게 출력합니다."""
     draw_section_header("추천 확인")
-    
+
     print(f"  {Colors.DIM}공문 제목:{Colors.RESET} {title}")
     print(f"  {Colors.GREEN}추천 항목:{Colors.RESET} {Colors.BOLD}{recommended_item}{Colors.RESET}")
     print()
@@ -223,7 +235,7 @@ def print_processing_status(step: str, current: int, total: int):
     bar_length = 30
     filled_length = int(bar_length * current // total) if total > 0 else 0
     bar = '█' * filled_length + '░' * (bar_length - filled_length)
-    
+
     print(f"\r{Colors.BLUE}{step}{Colors.RESET} [{bar}] {percentage:.1f}% ({current}/{total})", end='', flush=True)
 
 
@@ -234,12 +246,15 @@ def wait_for_enter(message="계속하려면 Enter를 누르세요..."):
 
 def print_final_result(success_count: int, total_count: int):
     """최종 결과를 출력합니다."""
-    draw_header("처리 완료")
+    logger = logging.getLogger(__name__)
+    logger.info(f"처리 완료 - 성공: {success_count}/{total_count}")
     
+    draw_header("처리 완료")
+
     if success_count == total_count:
         print_success(f"모든 문서 처리 완료: {success_count}/{total_count}")
     else:
         print_warning(f"일부 문서 처리 완료: {success_count}/{total_count}")
         print_error(f"실패: {total_count - success_count}건")
-    
+
     print()

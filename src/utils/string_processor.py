@@ -18,11 +18,11 @@ def clean_document_title(title: str) -> str:
     """
     if not title:
         return ""
-    
+
     # 접수 문서 처리
     if title.startswith('접수'):
         return title.replace("접수: ", '').strip()
-    
+
     return title.strip()
 
 
@@ -38,7 +38,7 @@ def extract_title_from_approval(title: str) -> str:
     """
     if not title.startswith('전자결재:'):
         return title.strip()
-    
+
     # 정규식을 사용하여 대괄호 부분을 제거하고 실제 제목 추출
     match = re.search(r'(?:[^]]*]){2}(.*)', title)
     if match:
@@ -60,10 +60,10 @@ def normalize_text(text: str) -> str:
     """
     if not text:
         return ""
-    
+
     # 연속된 공백을 하나로 줄이고 앞뒤 공백 제거
     normalized = re.sub(r'\s+', ' ', text.strip())
-    
+
     return normalized
 
 
@@ -138,10 +138,10 @@ def sanitize_filename(filename: str) -> str:
     # Windows에서 파일명에 사용할 수 없는 문자들 제거
     invalid_chars = r'[<>:"/\\|?*]'
     sanitized = re.sub(invalid_chars, '_', filename)
-    
+
     # 연속된 언더스코어를 하나로 줄이기
     sanitized = re.sub(r'_+', '_', sanitized)
-    
+
     # 앞뒤 언더스코어 및 공백 제거
     return sanitized.strip('_ ')
 
@@ -160,5 +160,5 @@ def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
     """
     if len(text) <= max_length:
         return text
-    
+
     return text[:max_length - len(suffix)] + suffix

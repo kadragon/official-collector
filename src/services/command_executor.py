@@ -33,7 +33,7 @@ class CommandExecutor:
             self.app = None
             self.dlg = None
         except Exception as e:
-            logger.exception(f"CMD 창 연결 중 오류 발생: {e}")
+            logger.exception("CMD 창 연결 중 오류 발생: %s", e)
             self.app = None
             self.dlg = None
 
@@ -46,4 +46,4 @@ class CommandExecutor:
         try:
             self.dlg.set_focus()
         except Exception as e:
-            logger.exception(f"CMD 창 포커스 실패: {e}")
+            logger.exception("CMD 창 포커스 실패: %s", e)

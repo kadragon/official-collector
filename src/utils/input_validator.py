@@ -2,6 +2,7 @@
 사용자 입력 검증 및 선택 메뉴를 위한 유틸리티 모듈.
 """
 
+import logging
 from typing import List, Optional, Tuple
 from enum import Enum, auto
 from utils.terminal_ui import print_selection_menu, get_styled_input
@@ -44,9 +45,12 @@ def display_numbered_options(options: List[str], start_index: int = 1, show_skip
         start_index (int): 시작 번호 (기본값: 1).
         show_skip_option (bool): "목록에 없음" 옵션을 표시할지 여부.
     """
+    logger = logging.getLogger(__name__)
+    logger.debug(f"옵션 목록 표시: {len(options)}개 항목")
+    
     for idx, option in enumerate(options):
         print(f"[{idx + start_index:02d}] {option}")
-    
+
     if show_skip_option:
         print("[0] 목록에 없음")
 
@@ -69,7 +73,7 @@ def get_user_choice_from_list(title: str, options: List[str], allow_skip: bool =
     while True:
         try:
             selection = get_styled_input("번호를 선택하세요: ")
-            
+
             if allow_skip and selection == '0':
                 return SelectionResult.SKIPPED, None
 
@@ -77,8 +81,12 @@ def get_user_choice_from_list(title: str, options: List[str], allow_skip: bool =
             if 0 <= selected_index < len(options):
                 return SelectionResult.SELECTED, options[selected_index]
             else:
+                logger = logging.getLogger(__name__)
+                logger.warning(f"유효하지 않은 번호 선택: {selection}")
                 print("유효하지 않은 번호입니다. 다시 선택해주세요.")
         except ValueError:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"유효하지 않은 입력: {selection}")
             print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
 
 
@@ -105,8 +113,12 @@ def get_user_choice_from_recommendations(title: str, recommendations: List[str])
             if 0 <= selected_index < len(recommendations):
                 return SelectionResult.SELECTED, recommendations[selected_index]
             else:
+                logger = logging.getLogger(__name__)
+                logger.warning(f"유효하지 않은 번호 선택 (추천에서): {selection}")
                 print("유효하지 않은 번호입니다. 다시 선택해주세요.")
         except ValueError:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"유효하지 않은 입력 (추천에서): {selection}")
             print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
 
 
@@ -136,8 +148,8 @@ def confirm_choice(message: str, default_yes: bool = True) -> bool:
     """
     prompt_suffix = " (Y/n): " if default_yes else " (y/N): "
     confirm = input(message + prompt_suffix)
-    
+
     if not confirm:  # 빈 입력인 경우 기본값 사용
         return default_yes
-    
+
     return confirm.lower() == 'y'

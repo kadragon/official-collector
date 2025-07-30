@@ -11,10 +11,10 @@ def load_environment_variables():
     .env 파일에서 환경 변수를 로드하고 필수 변수가 설정되었는지 확인합니다.
     """
     load_dotenv()
-    
+
     required_env_vars = ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]
     missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
-    
+
     if missing_vars:
         error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
         logger.critical(error_msg)

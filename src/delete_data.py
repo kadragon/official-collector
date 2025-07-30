@@ -14,32 +14,36 @@ sys.path.insert(0, str(project_root))
 
 from services.deletion_service import DeletionService
 from utils.terminal_ui import clear_screen, print_success, print_error
+from utils.error_handler import setup_logger
 
 
 def main():
     """메인 실행 함수"""
     # 환경 변수 로드
     load_dotenv()
-    
+
     # 필수 환경 변수 확인
     required_env_vars = ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-    
+
     if missing_vars:
         print_error(f"필수 환경 변수가 설정되지 않았습니다: {', '.join(missing_vars)}")
         print_error("'.env' 파일을 확인해주세요.")
         sys.exit(1)
-    
+
     try:
+        logger = setup_logger(__name__)
+        logger.info("Supabase 데이터 삭제 도구 시작")
+        
         clear_screen()
         print_success("=== Supabase 데이터 삭제 도구 ===")
         print("이 도구를 사용하여 분류된 문서와 과제카드 데이터를 삭제할 수 있습니다.")
         print()
-        
+
         # 삭제 서비스 초기화 및 실행
         deletion_service = DeletionService()
         deletion_service.run_deletion_interface()
-        
+
     except KeyboardInterrupt:
         print_success("\n작업이 사용자에 의해 중단되었습니다.")
     except Exception as e:
