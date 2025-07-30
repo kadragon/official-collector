@@ -20,10 +20,10 @@ class TaskCardService:
 
     def match_task_card(self, title: str) -> Optional[str]:
         """
-        결재 완료된 공문에 대해 임베딩 기반 의미적 유사도로 과제 카드를 매칭합니다.
-        1단계: 정확한 제목 매칭 시도
-        2단계: 벡터 유사도 기반 추천 제시
-        3단계: 사용자 수동 선택
+        전자결재 문서에 대해 과제 카드를 매칭합니다.
+        1순위: 동일한 문서명이 있다면 바로 처리
+        2순위: 임베딩을 통해서 유사한 문서명을 추천하여 사용자가 선택
+        3순위: 2순위에서 사용자가 목록에 없음을 선택하면 문서카드 목록 전체를 A->Z 순서로 정리해서 보여줌
         """
         logger.info("임베딩 기반 과제 카드 매칭 시작: %s", title)
 
@@ -53,13 +53,20 @@ class TaskCardService:
                 card_name = value
                 logger.info("미리 정의된 목록에서 선택: %s -> %s", title, card_name)
             elif status == SelectionResult.SKIPPED:
-                # 수동 입력 요청
-                manual_card_name = self.dialog.get_manual_task_card(title)
-                if manual_card_name:
-                    card_name = manual_card_name
-                    logger.info("수동 입력: %s -> %s", title, card_name)
-                else:
-                    logger.warning("과제 카드가 제공되지 않음: %s", title)
+                # 3순위: 전체 문서카드 목록 A->Z 순서로 정렬하여 제공
+                logger.info("미리 정의된 목록에서 선택되지 않음 - 전체 목록 제공")
+                status, value = self.dialog.choose_from_full_list(title, self.predefined_card_list)
+                if status == SelectionResult.SELECTED:
+                    card_name = value
+                    logger.info("전체 목록에서 선택: %s -> %s", title, card_name)
+                elif status == SelectionResult.SKIPPED:
+                    # 최후 수단: 수동 입력 요청
+                    manual_card_name = self.dialog.get_manual_task_card(title)
+                    if manual_card_name:
+                        card_name = manual_card_name
+                        logger.info("수동 입력: %s -> %s", title, card_name)
+                    else:
+                        logger.warning("과제 카드가 제공되지 않음: %s", title)
 
         # 4. 새로운 매칭이 발견된 경우 임베딩으로 학습 데이터에 추가
         if card_name and not is_exact_match:
