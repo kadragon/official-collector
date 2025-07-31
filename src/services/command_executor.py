@@ -1,6 +1,5 @@
 """CMD 창을 제어하기 위한 유틸리티 모듈."""
 
-import sys
 from typing import Optional
 
 from pywinauto import Application

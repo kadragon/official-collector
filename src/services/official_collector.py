@@ -329,36 +329,6 @@ class OfficialCollector:
         logger.error("대상 창이 연결되어 있지 않습니다.")
         return ""
 
-    def save_pc(self) -> None:
-        """
-        PC 저장 기능을 수행합니다.
-        """
-        if self.dlg:
-            self.dlg['PC저장'].click()
-            # HSATTACHBAR_CONTROL 패널이 나타날 때까지 대기
-            pane_exists = self._wait_for_condition(
-                lambda: self.dlg.child_window(
-                    title="HSATTACHBAR_CONTROL", auto_id="4", control_type="Pane"
-                ).exists()
-            )
-            if pane_exists:
-                if self._wait_for_element(lambda: self.dlg['본문 + 붙임']):
-                    self.dlg['본문 + 붙임'].click()
-                    if self._wait_for_element(lambda: self.dlg['확인']):
-                        self.dlg['확인'].click()
-            # 저장 대화상자가 준비될 때까지 대기
-            keyboard.send_keys('{TAB}')
-            keyboard.send_keys('{DOWN 4}')
-            keyboard.send_keys('{ENTER}')
-            keyboard.send_keys('{TAB 8}')
-            keyboard.send_keys('{DOWN 1}')
-            keyboard.send_keys('{ENTER}')
-            keyboard.send_keys('%S')
-            # 저장 완료 후 확인 버튼이 나타날 때까지 대기
-            if self._wait_for_element(lambda: self.dlg['확인']):
-                self.dlg['확인'].click()
-        else:
-            logger.error("대상 창이 연결되어 있지 않습니다.")
 
     def document_sort(self, document_group_name: str) -> None:
         """
@@ -796,21 +766,5 @@ class OfficialCollector:
         confirm_buttons = ['예(Y)', '확인', '예', 'OK']
         return self._click_dialog_button(confirm_buttons)
 
-    def check_end_collecting(self) -> bool:
-        """
-        정리가 끝났는지 확인합니다. (이전 버전과의 호환성을 위한 메서드)
-        Returns:
-            bool: 정리가 끝났으면 True, 아니면 False 반환
-        """
-        state = self.check_document_flow_state()
-        if state == DocumentFlowState.CONTINUE:
-            return not self.handle_document_flow_dialog(state)
-        elif state == DocumentFlowState.EXIT:
-            return self.handle_document_flow_dialog(state)
-        else:
-            return self.handle_document_flow_dialog(state)
-
-
 if __name__ == '__main__':
-    # Example usage - not intended for production use
     pass

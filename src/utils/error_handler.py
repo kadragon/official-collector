@@ -6,7 +6,7 @@ import logging
 import time
 import functools
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Callable, Any, Optional
 from pathlib import Path
 
@@ -124,51 +124,6 @@ def setup_logger(
     return logger
 
 
-def retry_with_backoff(
-    max_attempts: int = 3,
-    initial_delay: float = 1.0,
-    backoff_factor: float = 2.0,
-    exceptions: tuple = (Exception,)
-):
-    """
-    지수 백오프와 함께 재시도를 수행하는 데코레이터.
-
-    Args:
-        max_attempts (int): 최대 시도 횟수.
-        initial_delay (float): 초기 지연 시간(초).
-        backoff_factor (float): 백오프 배수.
-        exceptions (tuple): 재시도할 예외 타입들.
-
-    Returns:
-        Callable: 데코레이터 함수.
-    """
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            logger = logging.getLogger(func.__module__)
-            delay = initial_delay
-
-            for attempt in range(max_attempts):
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    if attempt == max_attempts - 1:
-                        logger.error("함수 %s 실행 실패 (최대 시도 횟수 초과): %s", func.__name__, e)
-                        raise
-
-                    logger.warning(
-                        "함수 %s 실행 실패 (시도 %d/%d): %s", 
-                        func.__name__, attempt + 1, max_attempts, e
-                    )
-                    logger.info("%s초 후 재시도...", delay)
-                    time.sleep(delay)
-                    delay *= backoff_factor
-
-            return None
-        return wrapper
-    return decorator
-
-
 def handle_connection_error(
     operation_name: str,
     logger: logging.Logger,
@@ -209,37 +164,6 @@ def handle_connection_error(
     return decorator
 
 
-def log_execution_time(logger: Optional[logging.Logger] = None) -> Callable:
-    """
-    함수 실행 시간을 로깅하는 데코레이터.
-
-    Args:
-        logger (Optional[logging.Logger]): 사용할 로거.
-
-    Returns:
-        Callable: 데코레이터 함수.
-    """
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            nonlocal logger
-            if logger is None:
-                logger = logging.getLogger(func.__module__)
-
-            start_time = time.time()
-            try:
-                result = func(*args, **kwargs)
-                execution_time = time.time() - start_time
-                logger.info("함수 %s 실행 완료 (소요시간: %.2f초)", func.__name__, execution_time)
-                return result
-            except Exception as e:
-                execution_time = time.time() - start_time
-                logger.error("함수 %s 실행 실패 (소요시간: %.2f초): %s", func.__name__, execution_time, e)
-                raise
-        return wrapper
-    return decorator
-
-
 def safe_execute(
     func: Callable,
     default_return: Any = None,
@@ -265,62 +189,3 @@ def safe_execute(
             message = error_message or f"함수 실행 중 오류 발생: {e}"
             logger.exception(message)
         return default_return
-
-
-def validate_required_params(**required_params) -> None:
-    """
-    필수 매개변수들이 제공되었는지 검증합니다.
-
-    Args:
-        **required_params: 검증할 매개변수들.
-
-    Raises:
-        ValueError: 필수 매개변수가 누락된 경우.
-    """
-    missing_params = [param for param, value in required_params.items() if value is None]
-    if missing_params:
-        raise ValueError(f"필수 매개변수가 누락되었습니다: {', '.join(missing_params)}")
-
-
-def create_error_context(operation: str, **context) -> dict:
-    """
-    에러 컨텍스트 정보를 생성합니다.
-
-    Args:
-        operation (str): 작업 이름.
-        **context: 컨텍스트 정보.
-
-    Returns:
-        dict: 에러 컨텍스트.
-    """
-    return {
-        'operation': operation,
-        'timestamp': time.time(),
-        **context
-    }
-
-
-def log_and_reraise(
-    exception: Exception,
-    logger: logging.Logger,
-    context: Optional[dict] = None,
-    level: int = logging.ERROR
-) -> None:
-    """
-    예외를 로깅하고 다시 발생시킵니다.
-
-    Args:
-        exception (Exception): 발생한 예외.
-        logger (logging.Logger): 사용할 로거.
-        context (Optional[dict]): 추가 컨텍스트 정보.
-        level (int): 로깅 레벨.
-
-    Raises:
-        Exception: 입력받은 예외를 다시 발생.
-    """
-    message = f"예외 발생: {str(exception)}"
-    if context:
-        message += f" (컨텍스트: {context})"
-
-    logger.log(level, message, exc_info=True)
-    raise exception

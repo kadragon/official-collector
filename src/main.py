@@ -2,7 +2,7 @@
 
 import sys
 import time
-from typing import List, Dict, Any
+from typing import List
 
 from config import config
 from services.official_collector import OfficialCollector, DocumentFlowState
