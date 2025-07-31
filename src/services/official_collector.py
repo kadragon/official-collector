@@ -199,11 +199,16 @@ class OfficialCollector:
            6-1) '종료하시겠습니까?' → 확인 클릭하고 분류 종료
            6-2) '문서를 처리하겠습니까?' → 확인 클릭하고 새 문서 처리
         Args:
-            shared: 공람대상자 정보 (공람없음 여부 확인용)
+            shared: 공람대상자 정보. None, 빈 문자열, 또는 '공람없음'인 경우 공람지정 없음으로 처리
         """
         if not self.dlg:
             logger.error("대상 창이 연결되어 있지 않습니다.")
             return
+        
+        # Parameter validation and normalization
+        has_circulation = shared and shared.strip() and shared.strip() != '공람없음'
+        logger.debug("공람대상자 처리: shared='%s', has_circulation=%s", shared, has_circulation)
+        
         try:
             # 3) 접수 버튼 클릭
             logger.info("접수 버튼 클릭")
@@ -211,8 +216,11 @@ class OfficialCollector:
             # 4) '문서를 접수하시겠습니까?' 확인 대화상자 처리
             self._handle_reception_confirmation()
             # 5) 공람지정 완료 확인 처리 (공람대상자가 있는 경우)
-            if shared and shared != '공람없음':
+            if has_circulation:
+                logger.info("공람대상자가 있어 공람지정 완료 확인 처리를 진행합니다: %s", shared)
                 self._handle_circulation_completion()
+            else:
+                logger.debug("공람대상자가 없어 공람지정 완료 확인을 건너뜁니다")
             # 6) 후속 처리 분기 (종료 또는 다음 문서)
             self._handle_reception_result()
             logger.info("접수 처리 완료")

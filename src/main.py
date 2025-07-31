@@ -129,7 +129,8 @@ class Main:
                     print_success(f"접수 처리 완료: {approval} / {shared}")
                     logger.info("접수 처리 완료: %s -> %s / %s",
                                 title, approval, shared)
-                    self.collector.reception(shared)
+                    # Ensure shared is in expected format for reception method
+                    self.collector.reception(shared if shared and shared != '공람없음' else None)
                     success_count += 1
                     time.sleep(1)
             else:
