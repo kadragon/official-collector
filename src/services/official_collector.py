@@ -741,5 +741,5 @@ class OfficialCollector:
         else:
             return self.handle_document_flow_dialog(state)
 if __name__ == '__main__':
-    officialCollector = OfficialCollector()
-    officialCollector.dlg.print_control_identifiers()
+    # Example usage - not intended for production use
+    pass
