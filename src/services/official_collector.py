@@ -12,15 +12,20 @@ from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
 from pywinauto.findwindows import ElementNotFoundError
 from utils.error_handler import setup_logger, handle_connection_error
 logger = setup_logger(__name__)
+
+
 class DocumentFlowState(Enum):
     """문서 처리 흐름 상태를 나타내는 열거형"""
     CONTINUE = "continue"  # 다음 문서 처리 계속
     EXIT = "exit"  # 처리 종료
     UNKNOWN = "unknown"  # 알 수 없는 상태
+
+
 class OfficialCollector:
     """
     전자결재 및 공문 처리를 위한 클래스.
     """
+
     def __init__(self) -> None:
         """
         OfficialCollector 인스턴스를 초기화하고, 지정된 창에 연결을 시도합니다.
@@ -28,6 +33,7 @@ class OfficialCollector:
         self.app: Application = Application(backend="uia")
         self.dlg: Optional[Application.window] = None
         self._connect_to_window()
+
     def _wait_for_element(self, element_selector: Callable,
                           timeout: float = 10.0, interval: float = 0.1) -> bool:
         """
@@ -51,6 +57,7 @@ class OfficialCollector:
                 logger.warning("요소 대기 중 예상치 못한 오류: %s", e)
             time.sleep(interval)
         return False
+
     def _wait_for_window(self, title: str, timeout: float = 10.0):
         """
         특정 창이 나타날 때까지 대기합니다.
@@ -70,6 +77,7 @@ class OfficialCollector:
             raise PyWinAutoTimeoutError(
                 f"창 '{title}'을(를) {timeout}초 내에 찾을 수 없습니다."
             )
+
     def _wait_for_condition(self, condition: Callable[[], bool],
                             timeout: float = 10.0, interval: float = 0.1) -> bool:
         """
@@ -92,6 +100,7 @@ class OfficialCollector:
                 logger.warning("조건 확인 중 예상치 못한 오류: %s", e)
             time.sleep(interval)
         return False
+
     @handle_connection_error("공문 처리기 연결", logger)
     def _connect_to_window(self, max_attempts: int = 10, wait_time: int = 5) -> None:
         """
@@ -115,28 +124,33 @@ class OfficialCollector:
                 except (OSError, RuntimeError) as e:
                     logger.debug("창 제목 조회 실패 (hwnd: %s): %s", hwnd, e)
                 except Exception as e:
-                    logger.warning("창 제목 조회 중 예상치 못한 오류 (hwnd: %s): %s", hwnd, e)
+                    logger.warning(
+                        "창 제목 조회 중 예상치 못한 오류 (hwnd: %s): %s", hwnd, e)
         except Exception as e:
             logger.warning("창 목록 조회 중 오류: %s", e)
         for title_pattern, display_name in window_titles:
             try:
-                logger.info("%s 창 연결 시도 중... (패턴: %s)", display_name, title_pattern)
+                logger.info("%s 창 연결 시도 중... (패턴: %s)",
+                            display_name, title_pattern)
                 self.app.connect(title_re=title_pattern)
                 self.dlg = self.app.top_window()
                 actual_title = self.dlg.window_text()
-                logger.info("%s 창에 연결되었습니다. 실제 제목: '%s'", display_name, actual_title)
+                logger.info("%s 창에 연결되었습니다. 실제 제목: '%s'",
+                            display_name, actual_title)
                 # 창이 실제로 준비될 때까지 대기 (더 긴 타임아웃과 예외 처리)
                 try:
                     self.dlg.wait('ready', timeout=5)
                     logger.info("%s 창이 준비 상태입니다.", display_name)
                 except PyWinAutoTimeoutError:
-                    logger.warning("%s 창 준비 대기 타임아웃, 하지만 연결은 성공했습니다.", display_name)
+                    logger.warning(
+                        "%s 창 준비 대기 타임아웃, 하지만 연결은 성공했습니다.", display_name)
                     # 창이 연결되었으므로 계속 진행
                 return
             except (ElementNotFoundError, PyWinAutoTimeoutError) as e:
                 logger.warning("%s 창 연결 실패: %s", display_name, e)
                 continue
         raise PyWinAutoTimeoutError("공문 처리기를 찾을 수 없습니다.")
+
     def add_share(self, share_name: str) -> None:
         """
         공람 그룹에 지정된 이름을 추가합니다.
@@ -151,6 +165,7 @@ class OfficialCollector:
             self.dlg['확인'].click()
         else:
             logger.error("대상 창이 연결되어 있지 않습니다.")
+
     def approval(self, approval_name: str) -> None:
         """
         결재선을 설정합니다.
@@ -188,6 +203,7 @@ class OfficialCollector:
         except Exception as e:
             logger.error("결재선 설정 중 예상치 못한 오류: %s", e)
             raise
+
     def reception(self, shared: Optional[str] = None) -> None:
         """
         접수 버튼을 클릭하여 문서를 접수합니다.
@@ -204,11 +220,10 @@ class OfficialCollector:
         if not self.dlg:
             logger.error("대상 창이 연결되어 있지 않습니다.")
             return
-        
         # Parameter validation and normalization
         has_circulation = shared and shared.strip() and shared.strip() != '공람없음'
-        logger.debug("공람대상자 처리: shared='%s', has_circulation=%s", shared, has_circulation)
-        
+        logger.debug("공람대상자 처리: shared='%s', has_circulation=%s",
+                     shared, has_circulation)
         try:
             # 3) 접수 버튼 클릭
             logger.info("접수 버튼 클릭")
@@ -227,10 +242,12 @@ class OfficialCollector:
         except Exception as e:
             logger.error("접수 처리 중 오류 발생: %s", e)
             raise
+
     def _handle_reception_confirmation(self) -> None:
         """4) '문서를 접수하시겠습니까?' 확인 대화상자를 처리합니다."""
         reception_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(title='확인', control_type='Window').exists(),
+            lambda: self.dlg.child_window(
+                title='확인', control_type='Window').exists(),
             timeout=10.0
         )
         if reception_dialog_appeared:
@@ -244,10 +261,12 @@ class OfficialCollector:
                 self.handle_confirm_dialog()
         else:
             logger.warning("접수 확인 대화상자가 나타나지 않음")
+
     def _handle_circulation_completion(self) -> None:
         """5) '공람지정을 완료하였습니다.' 확인 대화상자를 처리합니다."""
         circulation_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(title='확인', control_type='Window').exists(),
+            lambda: self.dlg.child_window(
+                title='확인', control_type='Window').exists(),
             timeout=10.0
         )
         if circulation_dialog_appeared:
@@ -260,10 +279,12 @@ class OfficialCollector:
                 logger.debug("공람지정 완료 대화상자가 아님: %s", dialog_text)
         else:
             logger.debug("공람지정 완료 대화상자가 나타나지 않음")
+
     def _handle_reception_result(self) -> None:
         """6) 접수 후 결과 처리 (종료 또는 다음 문서)."""
         result_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(title='확인', control_type='Window').exists(),
+            lambda: self.dlg.child_window(
+                title='확인', control_type='Window').exists(),
             timeout=15.0
         )
         if result_dialog_appeared:
@@ -280,6 +301,7 @@ class OfficialCollector:
                 self.handle_confirm_dialog()
         else:
             logger.info("접수 결과 대화상자가 나타나지 않음 - 처리 완료")
+
     def get_official_title(self) -> str:
         """
         공문의 제목을 반환합니다.
@@ -291,6 +313,7 @@ class OfficialCollector:
             return texts[0] if texts else ""
         logger.error("대상 창이 연결되어 있지 않습니다.")
         return ""
+
     def save_pc(self) -> None:
         """
         PC 저장 기능을 수행합니다.
@@ -321,6 +344,7 @@ class OfficialCollector:
                 self.dlg['확인'].click()
         else:
             logger.error("대상 창이 연결되어 있지 않습니다.")
+
     def document_sort(self, document_group_name: str) -> None:
         """
         전자결재 문서 분류 과정을 실행합니다.
@@ -354,6 +378,7 @@ class OfficialCollector:
         except Exception as e:
             logger.error("문서 분류 중 오류 발생: %s", e)
             raise
+
     def _perform_task_card_selection(self, document_group_name: str) -> None:
         """문서카드 선택 프로세스를 수행합니다."""
         info_window = self._wait_for_window('결재정보')
@@ -378,6 +403,7 @@ class OfficialCollector:
         self._wait_for_condition(lambda: True, timeout=1.0)
         keyboard.send_keys('{ENTER}')
         logger.info("문서카드 선택 완료: %s", document_group_name)
+
     def _click_approval_button(self) -> None:
         """결재 버튼을 클릭합니다."""
         if self._wait_for_element(lambda: self.dlg['결재']):
@@ -385,11 +411,13 @@ class OfficialCollector:
             self.dlg['결재'].click()
         else:
             raise Exception("결재 버튼을 찾을 수 없습니다")
+
     def _handle_approval_confirmation(self) -> None:
         """'결재를 진행하시겠습니까?' 확인 대화상자를 처리합니다."""
         # 결재 진행 확인 대화상자가 나타날 때까지 대기
         confirm_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(title='확인', control_type='Window').exists(),
+            lambda: self.dlg.child_window(
+                title='확인', control_type='Window').exists(),
             timeout=5.0
         )
         if confirm_dialog_appeared:
@@ -405,11 +433,13 @@ class OfficialCollector:
                 self.handle_confirm_dialog()
         else:
             logger.info("결재 진행 확인 대화상자가 나타나지 않음")
+
     def _handle_approval_result(self) -> None:
         """결재 결과를 처리합니다 (완료 또는 다음 문서)."""
         # 결과 대화상자가 나타날 때까지 대기
         result_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(title='확인', control_type='Window').exists(),
+            lambda: self.dlg.child_window(
+                title='확인', control_type='Window').exists(),
             timeout=10.0
         )
         if result_dialog_appeared:
@@ -428,6 +458,7 @@ class OfficialCollector:
                 self.handle_confirm_dialog()
         else:
             logger.info("결재 결과 대화상자가 나타나지 않음 - 처리 완료")
+
     def check_document_flow_state(self) -> DocumentFlowState:
         """
         현재 문서 처리 흐름 상태를 확인합니다.
@@ -436,7 +467,8 @@ class OfficialCollector:
         """
         try:
             # 확인 창이 존재하는지 확인
-            confirm_window = self.dlg.child_window(title='확인', control_type='Window')
+            confirm_window = self.dlg.child_window(
+                title='확인', control_type='Window')
             if not confirm_window.exists():
                 return DocumentFlowState.CONTINUE
             # 창의 텍스트 내용을 확인하여 상태 결정
@@ -496,6 +528,7 @@ class OfficialCollector:
         except Exception as e:
             logger.warning("예상치 못한 오류: %s", e)
             return DocumentFlowState.EXIT
+
     def _get_confirm_dialog_text(self) -> str:
         """
         확인 대화상자의 텍스트 내용을 가져옵니다.
@@ -503,14 +536,16 @@ class OfficialCollector:
             str: 대화상자의 텍스트 내용
         """
         try:
-            confirm_window = self.dlg.child_window(title='확인', control_type='Window')
+            confirm_window = self.dlg.child_window(
+                title='확인', control_type='Window')
             if confirm_window.exists():
                 # 대화상자 내의 모든 텍스트를 수집
                 texts = confirm_window.texts()
                 all_text = " ".join(texts) if texts else ""
                 # Static 컨트롤에서도 텍스트 수집 시도
                 try:
-                    static_controls = confirm_window.children(control_type='Text')
+                    static_controls = confirm_window.children(
+                        control_type='Text')
                     for control in static_controls:
                         if control.exists():
                             control_text = control.window_text()
@@ -522,7 +557,8 @@ class OfficialCollector:
                     logger.warning("Static 컨트롤 텍스트 수집 중 예상치 못한 오류: %s", e)
                 # Edit 컨트롤에서도 텍스트 수집 시도
                 try:
-                    edit_controls = confirm_window.children(control_type='Edit')
+                    edit_controls = confirm_window.children(
+                        control_type='Edit')
                     for control in edit_controls:
                         if control.exists():
                             control_text = control.window_text()
@@ -538,6 +574,7 @@ class OfficialCollector:
         except Exception as e:
             logger.debug("확인 대화상자 텍스트 가져오기 실패: %s", e)
             return ""
+
     def _get_detailed_dialog_text(self) -> str:
         """
         확인 대화상자의 상세 텍스트를 다양한 방법으로 수집합니다.
@@ -545,7 +582,8 @@ class OfficialCollector:
             str: 대화상자의 상세 텍스트 내용
         """
         try:
-            confirm_window = self.dlg.child_window(title='확인', control_type='Window')
+            confirm_window = self.dlg.child_window(
+                title='확인', control_type='Window')
             if not confirm_window.exists():
                 return ""
             all_texts = []
@@ -579,7 +617,8 @@ class OfficialCollector:
                     try:
                         confirm_window.print_control_identifiers()
                         control_info = mystdout.getvalue()
-                        logger.debug("컨트롤 정보: %s", control_info[:500])  # 처음 500자만 로깅
+                        # 처음 500자만 로깅
+                        logger.debug("컨트롤 정보: %s", control_info[:500])
                     finally:
                         sys.stdout = old_stdout
                 except (ElementNotFoundError, AttributeError, RuntimeError) as e:
@@ -592,6 +631,7 @@ class OfficialCollector:
         except Exception as e:
             logger.debug("상세 대화상자 텍스트 가져오기 실패: %s", e)
             return ""
+
     def handle_document_flow_dialog(self, state: DocumentFlowState, auto_continue: bool = True) -> bool:
         """
         문서 처리 흐름 대화상자를 처리합니다.
@@ -625,6 +665,7 @@ class OfficialCollector:
         except Exception as e:
             logger.error("문서 흐름 대화상자 처리 중 오류: %s", e)
             return False
+
     def _ensure_payment_info_window(self) -> bool:
         """
         결재정보 창이 표시되어 있는지 확인하고, 없으면 열어줍니다.
@@ -633,7 +674,8 @@ class OfficialCollector:
         """
         try:
             # 결재정보 창이 이미 열려있는지 확인
-            info_window_spec = self.dlg.child_window(title='결재정보', control_type='Window')
+            info_window_spec = self.dlg.child_window(
+                title='결재정보', control_type='Window')
             if info_window_spec.exists():
                 logger.debug("결재정보 창이 이미 열려있습니다.")
                 return True
@@ -657,13 +699,15 @@ class OfficialCollector:
                     logger.debug("'%s' 버튼 클릭 실패: %s", button_name, e)
                     continue
                 except Exception as e:
-                    logger.warning("'%s' 버튼 클릭 중 예상치 못한 오류: %s", button_name, e)
+                    logger.warning(
+                        "'%s' 버튼 클릭 중 예상치 못한 오류: %s", button_name, e)
                     continue
             logger.error("결재정보 버튼을 찾을 수 없거나 클릭할 수 없습니다.")
             return False
         except Exception as e:
             logger.error("결재정보 창 확인 중 오류 발생: %s", e)
             return False
+
     def _click_dialog_button(self, button_names: list) -> bool:
         """
         대화상자에서 사용 가능한 버튼을 찾아 클릭합니다.
@@ -674,7 +718,8 @@ class OfficialCollector:
         """
         # 먼저 확인 창이 실제로 존재하는지 확인
         try:
-            confirm_window = self.dlg.child_window(title='확인', control_type='Window')
+            confirm_window = self.dlg.child_window(
+                title='확인', control_type='Window')
             if not confirm_window.exists():
                 logger.debug("확인 창이 존재하지 않음 - 버튼 클릭 시도 생략")
                 return True  # 창이 없으면 성공으로 간주
@@ -711,6 +756,7 @@ class OfficialCollector:
             logger.warning("키보드 ENTER 시도 실패: %s", e)
         logger.warning("사용 가능한 버튼을 찾을 수 없습니다: %s", button_names)
         return False
+
     def handle_cancel_dialog(self) -> bool:
         """
         대화상자에서 취소 버튼을 클릭합니다.
@@ -719,6 +765,7 @@ class OfficialCollector:
         """
         cancel_buttons = ['아니오(N)', '취소', '아니오', 'Cancel']
         return self._click_dialog_button(cancel_buttons)
+
     def handle_confirm_dialog(self) -> bool:
         """
         대화상자에서 확인 버튼을 클릭합니다.
@@ -727,6 +774,7 @@ class OfficialCollector:
         """
         confirm_buttons = ['예(Y)', '확인', '예', 'OK']
         return self._click_dialog_button(confirm_buttons)
+
     def check_end_collecting(self) -> bool:
         """
         정리가 끝났는지 확인합니다. (이전 버전과의 호환성을 위한 메서드)
@@ -740,6 +788,8 @@ class OfficialCollector:
             return self.handle_document_flow_dialog(state)
         else:
             return self.handle_document_flow_dialog(state)
+
+
 if __name__ == '__main__':
     # Example usage - not intended for production use
     pass
