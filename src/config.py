@@ -26,17 +26,11 @@ class AppConfig:
     """
     def __init__(self):
         load_environment_variables()
-        # Legacy OpenAI support (optional for backward compatibility)
-        self.openai_api_key = os.environ.get("OPENAI_API_KEY")
         # Ollama configuration
         self.ollama_base_url = os.environ.get("OLLAMA_BASE_URL")
         self.ollama_model = os.environ.get("OLLAMA_MODEL")
         # Chroma configuration
         self.chroma_persist_dir = os.environ.get("CHROMA_PERSIST_DIR", "./chroma_db")
-        # Legacy configurations (optional)
-        self.qdrant_url = os.environ.get("QDRANT_URL")
-        self.supabase_url = os.environ.get("SUPABASE_URL")
-        self.supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 # 전역 설정 객체
 config = AppConfig()
