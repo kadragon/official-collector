@@ -38,6 +38,40 @@ class ChromaService:
             persist_directory=self.chroma_persist_dir,
         )
 
+    def _add_document_with_dimension_recovery(self, document: Document, doc_id: str) -> bool:
+        """
+        차원 불일치 복구 기능이 있는 문서 추가 헬퍼 메서드
+        """
+        try:
+            # 기존 문서가 있는지 확인하고 있으면 삭제
+            document_type = document.metadata.get('type')
+            title = document.metadata.get('title')
+            
+            existing_docs = self.vector_store.get(
+                where={"$and": [{"title": title}, {"type": document_type}]}
+            )
+            if existing_docs['ids']:
+                self.vector_store.delete(ids=existing_docs['ids'])
+            
+            # 새 문서 추가
+            self.vector_store.add_documents([document], ids=[doc_id])
+            return True
+            
+        except ValueError as e:
+            # 차원 불일치 오류인지 확인
+            if "dimension" in str(e).lower():
+                self.logger.info("차원 불일치 오류 발생, 컬렉션을 재생성합니다.")
+                if self._handle_dimension_mismatch():
+                    # 재생성 후 다시 시도
+                    self.vector_store.add_documents([document], ids=[doc_id])
+                    return True
+            # 다른 ValueError는 다시 발생시킴
+            raise e
+        except Exception as e:
+            # 예상하지 못한 오류 처리
+            self.logger.error("문서 업로드 중 예상치 못한 오류: %s", str(e))
+            raise e
+
     def _handle_dimension_mismatch(self):
         """
         차원 불일치 문제가 발생했을 때 컬렉션을 재생성합니다.
@@ -86,32 +120,8 @@ class ChromaService:
             }
         )
 
-        def upload_document():
-            try:
-                # 기존 문서가 있는지 확인하고 있으면 삭제
-                existing_docs = self.vector_store.get(
-                    where={"$and": [{"title": title}, {"type": "card"}]}
-                )
-                if existing_docs['ids']:
-                    self.vector_store.delete(ids=existing_docs['ids'])
-                
-                # 새 문서 추가
-                self.vector_store.add_documents([document], ids=[doc_id])
-                return True
-                
-            except Exception as e:
-                # 차원 불일치 오류인지 확인
-                if "dimension" in str(e).lower():
-                    self.logger.info("차원 불일치 오류 발생, 컬렉션을 재생성합니다.")
-                    if self._handle_dimension_mismatch():
-                        # 재생성 후 다시 시도
-                        self.vector_store.add_documents([document], ids=[doc_id])
-                        return True
-                # 다른 오류는 다시 발생시킴
-                raise e
-
         success = safe_execute(
-            upload_document,
+            lambda: self._add_document_with_dimension_recovery(document, doc_id),
             default_return=False,
             logger=self.logger,
             error_message=f"과제 카드 업로드 실패: {title}"
@@ -180,32 +190,8 @@ class ChromaService:
         }
         document = Document(page_content=title, metadata=metadata)
 
-        def upload_reception():
-            try:
-                # 기존 문서가 있는지 확인하고 있으면 삭제
-                existing_docs = self.vector_store.get(
-                    where={"$and": [{"title": title}, {"type": "reception"}]}
-                )
-                if existing_docs['ids']:
-                    self.vector_store.delete(ids=existing_docs['ids'])
-                
-                # 새 문서 추가
-                self.vector_store.add_documents([document], ids=[doc_id])
-                return True
-                
-            except Exception as e:
-                # 차원 불일치 오류인지 확인
-                if "dimension" in str(e).lower():
-                    self.logger.info("차원 불일치 오류 발생, 컬렉션을 재생성합니다.")
-                    if self._handle_dimension_mismatch():
-                        # 재생성 후 다시 시도
-                        self.vector_store.add_documents([document], ids=[doc_id])
-                        return True
-                # 다른 오류는 다시 발생시킴
-                raise e
-
         success = safe_execute(
-            upload_reception,
+            lambda: self._add_document_with_dimension_recovery(document, doc_id),
             default_return=False,
             logger=self.logger,
             error_message=f"접수 정보 업로드 실패: {title}"

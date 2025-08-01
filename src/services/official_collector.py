@@ -726,8 +726,8 @@ class OfficialCollector:
                     logger.debug("메인 창에서 버튼 '%s' 클릭", button_name)
                     button.click()
                     return True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("메인 창에서 버튼 '%s' 찾기 실패: %s", button_name, str(e))
             # 메인 창에서 못 찾으면 확인 창에서 찾기
             try:
                 button = confirm_window[button_name]
@@ -735,8 +735,8 @@ class OfficialCollector:
                     logger.debug("확인 창에서 버튼 '%s' 클릭", button_name)
                     button.click()
                     return True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("확인 창에서 버튼 '%s' 찾기 실패: %s", button_name, str(e))
         # 버튼을 찾지 못한 경우 키보드로 ENTER 시도
         try:
             logger.debug("버튼을 찾지 못해 키보드 ENTER로 시도")

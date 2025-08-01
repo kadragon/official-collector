@@ -47,9 +47,11 @@ def clear_screen():
     """화면을 지웁니다."""
     try:
         if os.name == 'nt':
-            os.system('cls')
+            import subprocess
+            subprocess.run(['cls'], shell=True, check=True)
         else:
-            os.system('clear')
+            import subprocess
+            subprocess.run(['clear'], shell=True, check=True)
     except Exception:
         # Fallback: print newlines to simulate clearing
         print('\n' * 50)
