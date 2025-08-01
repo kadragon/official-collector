@@ -87,6 +87,58 @@ The project includes a `.pylintrc` configuration file with Korean-friendly setti
 - Minimum score threshold: 7.0/10
 - Customized rules for the project's specific needs
 
+#### Window Structure Debugging for RPA
+
+For debugging pywinauto automation issues and analyzing window structures:
+
+```bash
+# Interactive window structure debugging tool (for human use)
+uv run ./src/debug_window_structure.py
+```
+
+This debugging tool uses pywinauto's `print_control_identifiers()` function to:
+- Display complete window structure and control hierarchy
+- Monitor dialog changes in real-time during automation
+- Debug circulation completion flow and dialog timing issues
+- Export window structure to files for analysis
+
+**Key debugging capabilities:**
+- **Real-time monitoring**: Track dialog appearances and changes during RPA execution
+- **Control identification**: Find exact control references for automation scripts
+- **Timing analysis**: Monitor dialog response times and optimize wait conditions
+- **Structure export**: Save window structure snapshots to `./logs/debug/` directory
+
+**Programmatic AI Interface:**
+
+For AI/automated debugging without user interaction:
+
+```python
+from src.utils.debug_helper import AIDebugHelper, quick_debug_current_window
+
+# Quick window analysis
+debug_info = quick_debug_current_window()
+
+# Advanced programmatic debugging
+helper = AIDebugHelper()
+analysis = helper.quick_window_analysis()
+dialogs = helper.monitor_dialogs_programmatic(duration=10.0)
+circulation_dialog = helper.find_circulation_completion_dialog(timeout=5.0)
+```
+
+**AI Debug Helper Features:**
+- **Non-interactive mode**: No console output or user input prompts
+- **Structured data return**: Returns dictionaries with analysis results
+- **Automatic connection**: Tries both "접수:" and "전자결재" window patterns
+- **Dialog monitoring**: Programmatic monitoring of circulation completion dialogs
+- **Log file management**: All debug files saved to `./logs/debug/` directory
+
+**Use this tool when:**
+- RPA scripts fail to find expected windows or controls
+- Dialog timing issues cause automation failures
+- Need to update control selectors after UI changes
+- Optimizing wait times and polling intervals
+- AI needs to analyze window structure programmatically
+
 ## Environment Setup
 
 Required environment variables in `.env`:

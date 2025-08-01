@@ -249,49 +249,41 @@ class OfficialCollector:
 
     def _handle_reception_confirmation(self) -> None:
         """4) '문서를 접수하시겠습니까?' 확인 대화상자를 처리합니다."""
+        # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
         reception_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(
-                title='확인', control_type='Window').exists(),
+            lambda: (self.dlg.child_window(title='확인', control_type='Window').exists() and
+                    self.dlg.child_window(title="문서를 접수하시겠습니까?", class_name="Static").exists()),
             timeout=5.0,
             interval=0.05
         )
+        
         if reception_dialog_appeared:
-            # 빠른 처리를 위해 텍스트 확인과 버튼 클릭을 동시에 시도
-            dialog_text = self._get_confirm_dialog_text()
-            logger.debug("접수 확인 대화상자 텍스트: '%s'", dialog_text)
-
-            # 텍스트가 제대로 읽히지 않은 경우 짧은 대기 후 재시도
-            if dialog_text.strip() == "확인" or not dialog_text.strip():
-                time.sleep(0.3)  # 짧은 대기
-                dialog_text = self._get_confirm_dialog_text()
-                logger.debug("재시도 후 접수 확인 대화상자 텍스트: '%s'", dialog_text)
-
-            if "문서를 접수하시겠습니까" in dialog_text or "접수" in dialog_text:
-                logger.info("접수 확인 대화상자 감지 - 확인 버튼 클릭")
-            else:
-                logger.debug("일반 확인 대화상자로 처리: %s", dialog_text)
-
-            # 즉시 확인 버튼 클릭 (분석 결과와 관계없이)
-            self.handle_confirm_dialog()
+            logger.info("접수 확인 대화상자 감지 - 확인 버튼 클릭")
+            # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
+            confirm_dialog = self.dlg.child_window(title='확인', control_type='Window')
+            confirm_button = confirm_dialog.child_window(title='확인', class_name='Button')
+            confirm_button.click()
+            logger.debug("접수 확인 완료")
         else:
             logger.warning("접수 확인 대화상자가 나타나지 않음")
 
     def _handle_circulation_completion(self) -> None:
         """5) '공람지정을 완료하였습니다.' 확인 대화상자를 처리합니다."""
+        # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
         circulation_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(
-                title='확인', control_type='Window').exists(),
+            lambda: (self.dlg.child_window(title='확인', control_type='Window').exists() and
+                    self.dlg.child_window(title="공람지정을 완료하였습니다.", class_name="Static").exists()),
             timeout=8.0,
             interval=0.05
         )
+        
         if circulation_dialog_appeared:
-            dialog_text = self._get_confirm_dialog_text()
-            logger.info("공람지정 완료 대화상자 텍스트: '%s'", dialog_text)
-            if "공람지정을 완료하였습니다" in dialog_text or "공람지정" in dialog_text:
-                logger.info("공람지정 완료 대화상자 감지 - 확인 버튼 클릭")
-                self.handle_confirm_dialog()
-            else:
-                logger.debug("공람지정 완료 대화상자가 아님: %s", dialog_text)
+            logger.info("공람지정 완료 대화상자 감지 - 확인 버튼 클릭")
+            # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
+            confirm_dialog = self.dlg.child_window(title='확인', control_type='Window')
+            confirm_button = confirm_dialog.child_window(title='확인', class_name='Button')
+            confirm_button.click()
+            logger.debug("공람지정 완료 확인 완료")
         else:
             logger.debug("공람지정 완료 대화상자가 나타나지 않음")
 
