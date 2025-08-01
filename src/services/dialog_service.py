@@ -21,7 +21,7 @@ from utils.input_validator import (
     confirm_choice
 )
 from typing import Tuple, List, Optional
-from services.command_executor import CommandExecutor
+from services.command_service import CommandExecutor
 from utils.error_handler import setup_logger
 
 logger = setup_logger(__name__)

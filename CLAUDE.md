@@ -93,7 +93,7 @@ For debugging pywinauto automation issues and analyzing window structures:
 
 ```bash
 # Interactive window structure debugging tool (for human use)
-uv run ./src/debug_window_structure.py
+uv run ./debugs/debug_window_structure.py
 ```
 
 This debugging tool uses pywinauto's `print_control_identifiers()` function to:
@@ -184,7 +184,7 @@ Chroma runs as a Python library and requires no additional installation. The vec
 
 1. **Main Entry Point** (`src/main.py`): Orchestrates the document processing workflow, handling both reception documents (접수) and regular documents (전자결재)
 
-2. **RPA Controller** (`src/services/official_collector.py`): Uses pywinauto to automate Windows applications for document processing, including approval workflows and document classification
+2. **RPA Controller** (`src/services/official_service.py`): Uses pywinauto to automate Windows applications for document processing, including approval workflows and document classification
 
 3. **AI-Powered Services**:
 

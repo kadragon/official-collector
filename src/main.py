@@ -5,7 +5,7 @@ import time
 from typing import List
 
 from config import config
-from services.official_collector import OfficialCollector, DocumentFlowState
+from services.official_service import OfficialCollector, DocumentFlowState
 from services.dialog_service import DialogHandler
 from services.chroma_service import ChromaService
 from services.reception_service import ReceptionService
