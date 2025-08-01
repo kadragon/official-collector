@@ -9,7 +9,6 @@ dependencies = [
     "pywinauto>=0.6.9",
     "langchain-community",
     "langchain-core",
-    "langchain-openai",
     "langchain-ollama",
     "langchain-chroma",
     "chromadb",
@@ -17,6 +16,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "bandit>=1.8.6",
     "pylint>=3.3.7",
     "pytest>=8.0.0",
     "pytest-mock>=3.14.0",

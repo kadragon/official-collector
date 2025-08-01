@@ -4,7 +4,7 @@
 init-hook='import sys; sys.path.append("src")'
 
 # Files or directories to be skipped. They should be base names, not paths.
-ignore=CVS,.git,__pycache__,.pytest_cache,venv,.venv
+ignore=CVS,.git,__pycache__,.pytest_cache,venv,.venv,tests
 
 # Files or directories matching the regex patterns are skipped. The regex
 # matches against base names, not paths.
@@ -40,7 +40,10 @@ disable=
     # Allow broad exception catching in RPA context
     broad-exception-caught,
     # Allow unused variables with _ prefix
-    unused-variable
+    unused-variable,
+    # Test-specific ignores
+    redefined-outer-name,
+    unused-argument
 
 [REPORTS]
 # Set the output format. Available formats are text, parseable, colorized, json

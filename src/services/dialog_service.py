@@ -12,7 +12,6 @@ from utils.terminal_ui import (
     print_success,
     draw_separator
 )
-from utils.string_processor import format_option_display
 from utils.input_validator import (
     SelectionResult,
     get_valid_selection,
@@ -21,8 +20,7 @@ from utils.input_validator import (
     get_manual_input,
     confirm_choice
 )
-import logging
-from typing import Dict, Tuple, List, Optional
+from typing import Tuple, List, Optional
 from services.command_executor import CommandExecutor
 from utils.error_handler import setup_logger
 

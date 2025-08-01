@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Supabase에 저장된 분류된 문서와 과제카드 데이터를 삭제하는 독립 실행 스크립트
+Chroma에 저장된 분류된 문서와 과제카드 데이터를 삭제하는 독립 실행 스크립트
 """
 
 import sys
@@ -23,7 +23,7 @@ def main():
     load_dotenv()
 
     # 필수 환경 변수 확인
-    required_env_vars = ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]
+    required_env_vars = ["OLLAMA_BASE_URL", "OLLAMA_MODEL"]
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
 
     if missing_vars:
@@ -33,10 +33,10 @@ def main():
 
     try:
         logger = setup_logger(__name__)
-        logger.info("Supabase 데이터 삭제 도구 시작")
+        logger.info("Chroma 데이터 삭제 도구 시작")
         
         clear_screen()
-        print_success("=== Supabase 데이터 삭제 도구 ===")
+        print_success("=== Chroma 데이터 삭제 도구 ===")
         print("이 도구를 사용하여 분류된 문서와 과제카드 데이터를 삭제할 수 있습니다.")
         print()
 

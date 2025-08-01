@@ -33,10 +33,76 @@ class ChromaService:
         
         # Chroma 벡터 스토어 초기화
         self.vector_store = Chroma(
-            collection_name=collection_name,
+            collection_name=self.collection_name,
             embedding_function=self.embeddings,
-            persist_directory=chroma_persist_dir,
+            persist_directory=self.chroma_persist_dir,
         )
+
+    def _add_document_with_dimension_recovery(self, document: Document, doc_id: str) -> bool:
+        """
+        차원 불일치 복구 기능이 있는 문서 추가 헬퍼 메서드
+        """
+        try:
+            # 기존 문서가 있는지 확인하고 있으면 삭제
+            document_type = document.metadata.get('type')
+            title = document.metadata.get('title')
+            
+            existing_docs = self.vector_store.get(
+                where={"$and": [{"title": title}, {"type": document_type}]}
+            )
+            if existing_docs['ids']:
+                self.vector_store.delete(ids=existing_docs['ids'])
+            
+            # 새 문서 추가
+            self.vector_store.add_documents([document], ids=[doc_id])
+            return True
+            
+        except ValueError as e:
+            # 차원 불일치 오류인지 확인
+            if "dimension" in str(e).lower():
+                self.logger.info("차원 불일치 오류 발생, 컬렉션을 재생성합니다.")
+                if self._handle_dimension_mismatch():
+                    # 재생성 후 다시 시도
+                    self.vector_store.add_documents([document], ids=[doc_id])
+                    return True
+            # 다른 ValueError는 다시 발생시킴
+            raise e
+        except Exception as e:
+            # 예상하지 못한 오류 처리
+            self.logger.error("문서 업로드 중 예상치 못한 오류: %s", str(e))
+            raise e
+
+    def _handle_dimension_mismatch(self):
+        """
+        차원 불일치 문제가 발생했을 때 컬렉션을 재생성합니다.
+        """
+        try:
+            test_embedding = self.embeddings.embed_query("test")
+            current_dimension = len(test_embedding)
+            
+            self.logger.warning("임베딩 차원 불일치 감지. 새로운 컬렉션을 생성합니다 (%d차원)", current_dimension)
+            
+            # 기존 컬렉션 삭제
+            try:
+                import chromadb
+                client = chromadb.PersistentClient(path=self.chroma_persist_dir)
+                client.delete_collection(name=self.collection_name)
+                self.logger.info("기존 컬렉션 '%s' 삭제 완료", self.collection_name)
+            except Exception as delete_error:
+                self.logger.warning("기존 컬렉션 삭제 실패: %s", delete_error)
+            
+            # 새 벡터 스토어 생성
+            self.vector_store = Chroma(
+                collection_name=self.collection_name,
+                embedding_function=self.embeddings,
+                persist_directory=self.chroma_persist_dir,
+            )
+            self.logger.info("새로운 벡터 데이터베이스 생성 완료")
+            return True
+            
+        except Exception as e:
+            self.logger.error("차원 불일치 처리 실패: %s", e)
+            return False
 
     def upsert_card_embedding(self, title: str, task_title: str):
         """
@@ -54,20 +120,8 @@ class ChromaService:
             }
         )
 
-        def upload_document():
-            # 기존 문서가 있는지 확인하고 있으면 삭제
-            existing_docs = self.vector_store.get(
-                where={"$and": [{"title": title}, {"type": "card"}]}
-            )
-            if existing_docs['ids']:
-                self.vector_store.delete(ids=existing_docs['ids'])
-            
-            # 새 문서 추가
-            self.vector_store.add_documents([document], ids=[doc_id])
-            return True
-
         success = safe_execute(
-            upload_document,
+            lambda: self._add_document_with_dimension_recovery(document, doc_id),
             default_return=False,
             logger=self.logger,
             error_message=f"과제 카드 업로드 실패: {title}"
@@ -136,20 +190,8 @@ class ChromaService:
         }
         document = Document(page_content=title, metadata=metadata)
 
-        def upload_reception():
-            # 기존 문서가 있는지 확인하고 있으면 삭제
-            existing_docs = self.vector_store.get(
-                where={"$and": [{"title": title}, {"type": "reception"}]}
-            )
-            if existing_docs['ids']:
-                self.vector_store.delete(ids=existing_docs['ids'])
-            
-            # 새 문서 추가
-            self.vector_store.add_documents([document], ids=[doc_id])
-            return True
-
         success = safe_execute(
-            upload_reception,
+            lambda: self._add_document_with_dimension_recovery(document, doc_id),
             default_return=False,
             logger=self.logger,
             error_message=f"접수 정보 업로드 실패: {title}"
