@@ -13,7 +13,7 @@ from services.task_card_service import TaskCardService
 from utils.data_loader import load_base_data
 from utils.string_processor import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
-from utils.terminal_ui import (
+from ui.terminal_ui import (
     clear_screen,
     draw_header,
     print_document_info,

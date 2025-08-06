@@ -5,7 +5,7 @@
 import logging
 from typing import List, Optional, Tuple
 from enum import Enum, auto
-from utils.terminal_ui import print_selection_menu, get_styled_input
+from ui.terminal_ui import print_selection_menu, get_styled_input
 
 
 class SelectionResult(Enum):

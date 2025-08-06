@@ -6,7 +6,7 @@ from typing import List, Tuple
 from services.chroma_service import ChromaService
 from services.dialog_service import DialogHandler
 from utils.error_handler import setup_logger
-from utils.terminal_ui import print_success, print_error
+from ui.terminal_ui import print_success, print_error
 from config import config
 
 
@@ -118,7 +118,7 @@ class DeletionService:
     def _handle_bulk_deletion(self):
         """모든 데이터를 일괄 삭제합니다."""
         from utils.input_validator import confirm_choice
-        from utils.terminal_ui import get_styled_input, clear_screen
+        from ui.terminal_ui import get_styled_input, clear_screen
 
         clear_screen()
         self.logger.warning("일괄 삭제 작업 시작")

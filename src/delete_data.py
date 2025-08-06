@@ -13,7 +13,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from services.deletion_service import DeletionService
-from utils.terminal_ui import clear_screen, print_success, print_error
+from ui.terminal_ui import clear_screen, print_success, print_error
 from utils.error_handler import setup_logger
 
 

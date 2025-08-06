@@ -16,19 +16,19 @@ def cleanup_test_databases():
     """
     # Before tests - clean up any leftover test databases
     test_db_paths = [
-        "./chroma_db_test",
-        "chroma_db_test"
+        "./.chroma_db_test",
+        ".chroma_db_test"
     ]
-    
+
     for db_path in test_db_paths:
         if Path(db_path).exists():
             try:
                 shutil.rmtree(db_path)
             except Exception:
                 pass
-    
+
     yield  # Run all tests
-    
+
     # After all tests complete - clean up test databases
     for db_path in test_db_paths:
         if Path(db_path).exists():
@@ -43,4 +43,5 @@ def cleanup_test_databases():
                     if attempt < 4:
                         time.sleep(0.5 * (attempt + 1))  # Exponential backoff
                     else:
-                        print(f"Warning: Could not remove test database {db_path}: {e}")
+                        print(
+                            f"Warning: Could not remove test database {db_path}: {e}")
