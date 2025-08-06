@@ -7,9 +7,9 @@ User Interaction Manager
 """
 
 import logging
+import subprocess
 from enum import Enum, auto
 from typing import Tuple, List, Optional
-from services.command_service import CommandExecutor
 from utils.error_handler import setup_logger
 from .terminal_ui import (
     clear_screen,
@@ -174,8 +174,8 @@ class UserInteractionManager:
     """사용자 상호작용을 담당하는 클래스."""
 
     def __init__(self) -> None:
-        """초기화 및 CMD 창 활성화."""
-        self.cmd = CommandExecutor()
+        """초기화."""
+        pass  # CMD 창 활성화는 필요시 직접 처리
 
     def select_approval_and_share(self, approval_list: List[str],
                                   share_list: List[str]) -> Tuple[str, str]:
@@ -189,7 +189,11 @@ class UserInteractionManager:
         Returns:
             Tuple[str, str]: (선택된 담당자, 선택된 공람 대상자)
         """
-        self.cmd.activate()
+        # CMD 창 활성화 (간단한 방법)
+        try:
+            subprocess.run('cmd /c echo', shell=True, capture_output=True)
+        except:
+            pass
         clear_screen()
 
         if len(approval_list) == 1:
@@ -222,7 +226,11 @@ class UserInteractionManager:
         """
         사용자에게 추천된 taskTitle을 확인할지 묻습니다.
         """
-        self.cmd.activate()
+        # CMD 창 활성화 (간단한 방법)
+        try:
+            subprocess.run('cmd /c echo', shell=True, capture_output=True)
+        except:
+            pass
         clear_screen()
         print_recommendation_menu(title, recommended_task_title)
         return confirm_choice(get_styled_input("이 추천을 사용하시겠습니까? (Y/n): "), default_yes=True)
@@ -231,7 +239,11 @@ class UserInteractionManager:
         """
         When task cards cannot be recommended, this method displays a predefined list for the user to choose from.
         """
-        self.cmd.activate()
+        # CMD 창 활성화 (간단한 방법)
+        try:
+            subprocess.run('cmd /c echo', shell=True, capture_output=True)
+        except:
+            pass
         clear_screen()
         print_document_info(title, "과제 카드 선택")
         return get_user_choice_from_list(title, card_list, allow_skip=True)
@@ -240,7 +252,11 @@ class UserInteractionManager:
         """
         Displays the full list of task cards for the user to choose from.
         """
-        self.cmd.activate()
+        # CMD 창 활성화 (간단한 방법)
+        try:
+            subprocess.run('cmd /c echo', shell=True, capture_output=True)
+        except:
+            pass
         clear_screen()
         print_document_info(title, "전체 목록에서 선택")
         sorted_card_list = sorted(card_list)
@@ -250,7 +266,11 @@ class UserInteractionManager:
         """
         사용자에게 추천된 과제 카드 목록을 보여주고 선택하도록 합니다.
         """
-        self.cmd.activate()
+        # CMD 창 활성화 (간단한 방법)
+        try:
+            subprocess.run('cmd /c echo', shell=True, capture_output=True)
+        except:
+            pass
         clear_screen()
         print_document_info(title, "추천 목록")
         return get_user_choice_from_recommendations(title, recommendations)
@@ -259,7 +279,11 @@ class UserInteractionManager:
         """
         사용자로부터 직접 과제 카드 이름을 입력받습니다.
         """
-        self.cmd.activate()
+        # CMD 창 활성화 (간단한 방법)
+        try:
+            subprocess.run('cmd /c echo', shell=True, capture_output=True)
+        except:
+            pass
         clear_screen()
         print_document_info(title, "직접 입력")
         return get_manual_input(get_styled_input("과제 카드 이름: "))

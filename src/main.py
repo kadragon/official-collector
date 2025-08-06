@@ -6,10 +6,8 @@ from typing import List
 
 from config import config
 from services.official_service import OfficialCollector, DocumentFlowState
-from services.dialog_service import DialogHandler
 from services.chroma_service import ChromaService
-from services.reception_service import ReceptionService
-from services.task_card_service import TaskCardService
+from services.document_processor import DocumentProcessor
 from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
 from ui.terminal_ui import (
@@ -35,7 +33,6 @@ class Main:
         self.share_name_list: List[str] = config.share_list
 
         self.collector = OfficialCollector()
-        self.dialog = DialogHandler()
 
         # Reception을 위한 Chroma 서비스
         reception_chroma_service = ChromaService(
@@ -53,13 +50,13 @@ class Main:
             collection_name="documents"
         )
 
-        self.predefined_card_list: List[str] = config.card_list
-
-        self.reception_service = ReceptionService(
-            reception_chroma_service, self.dialog, self.approval_name_list, self.share_name_list
-        )
-        self.task_card_service = TaskCardService(
-            task_card_chroma_service, self.dialog, self.predefined_card_list
+        # 통합된 문서 처리기
+        self.document_processor = DocumentProcessor(
+            reception_chroma=reception_chroma_service,
+            task_card_chroma=task_card_chroma_service,
+            approval_name_list=self.approval_name_list,
+            share_name_list=self.share_name_list,
+            predefined_card_list=config.card_list
         )
 
     def run(self) -> None:
@@ -117,8 +114,7 @@ class Main:
             if is_reception_document(title):
                 print_document_info(title, "접수 문서")
 
-                approval, shared = self.reception_service.handle_reception(
-                    title)
+                approval, shared = self.document_processor.process_reception_document(title)
 
                 if approval:
                     self.collector.approval(approval)
@@ -161,7 +157,7 @@ class Main:
         """
         try:
             # 문서카드 매칭 (3단계 프로세스)
-            card_name = self.task_card_service.match_task_card(processed_title)
+            card_name = self.document_processor.process_task_card_matching(processed_title)
             logger.info("과제 카드 매칭 결과: %s", card_name if card_name else "매칭 실패")
 
             if card_name:
@@ -189,11 +185,130 @@ class Main:
             return False
 
 
+# ============================================================================
+# 삭제 모듈 (기존 deletion_service.py에서 통합)
+# ============================================================================
+
 def run_deletion_interface():
-    """삭제 인터페이스를 실행합니다."""
-    from services.deletion_service import DeletionService
-    deletion_service = DeletionService()
-    deletion_service.run_deletion_interface()
+    """간소화된 삭제 인터페이스를 실행합니다."""
+    from services.chroma_service import ChromaService
+    from ui.terminal_ui import print_success, print_error, clear_screen
+    from ui.deletion_menus import DeletionMenuHandler
+    
+    # Chroma 서비스 초기화
+    task_service = ChromaService(
+        ollama_base_url=config.ollama_base_url,
+        ollama_model=config.ollama_model,
+        chroma_persist_dir=config.chroma_persist_dir,
+        collection_name="documents"
+    )
+    
+    reception_service = ChromaService(
+        ollama_base_url=config.ollama_base_url,
+        ollama_model=config.ollama_model,
+        chroma_persist_dir=config.chroma_persist_dir,
+        collection_name="reception_documents"
+    )
+    
+    menu_handler = DeletionMenuHandler()
+    
+    while True:
+        choice = menu_handler.show_deletion_menu()
+        
+        if choice == "취소":
+            print_success("삭제 작업을 취소했습니다.")
+            break
+        elif choice == "과제 카드 목록 보기 및 삭제":
+            _handle_task_card_deletion(task_service, menu_handler)
+        elif choice == "접수 문서 목록 보기 및 삭제":
+            _handle_reception_deletion(reception_service, menu_handler)
+        elif choice == "개별 과제 카드 삭제":
+            _handle_individual_deletion(task_service, menu_handler, "과제 카드", "card")
+        elif choice == "개별 접수 문서 삭제":
+            _handle_individual_deletion(reception_service, menu_handler, "접수 문서", "reception")
+        elif choice == "일괄 삭제":
+            _handle_bulk_deletion(task_service, reception_service, menu_handler)
+
+
+def _handle_task_card_deletion(service: ChromaService, menu_handler):
+    """과제 카드 삭제 처리"""
+    try:
+        cards = service.list_all_cards()
+        selected_indices = menu_handler.show_items_for_deletion(cards, "과제 카드")
+        
+        if selected_indices:
+            titles_to_delete = [cards[i][0] for i in selected_indices]
+            deleted_count = service.bulk_delete_cards(titles_to_delete)
+            print_success(f"{deleted_count}개의 과제 카드가 삭제되었습니다.")
+        else:
+            print_success("삭제 작업이 취소되었습니다.")
+            
+    except Exception as e:
+        print_error(f"삭제 처리 중 오류 발생: {e}")
+    
+    input("엔터를 눌러 계속...")
+
+
+def _handle_reception_deletion(service: ChromaService, menu_handler):
+    """접수 문서 삭제 처리"""
+    try:
+        receptions = service.list_all_receptions()
+        selected_indices = menu_handler.show_items_for_deletion(receptions, "접수 문서")
+        
+        if selected_indices:
+            titles_to_delete = [receptions[i][0] for i in selected_indices]
+            deleted_count = service.bulk_delete_receptions(titles_to_delete)
+            print_success(f"{deleted_count}개의 접수 문서가 삭제되었습니다.")
+        else:
+            print_success("삭제 작업이 취소되었습니다.")
+            
+    except Exception as e:
+        print_error(f"삭제 처리 중 오류 발생: {e}")
+    
+    input("엔터를 눌러 계속...")
+
+
+def _handle_individual_deletion(service: ChromaService, menu_handler, item_type: str, service_type: str):
+    """개별 항목 삭제 처리"""
+    try:
+        title = menu_handler.get_title_for_deletion(item_type)
+        if not title:
+            return
+            
+        # 존재 여부 확인 및 삭제
+        if service_type == "card":
+            exists = service.card_exists(title)
+            success = service.delete_card_by_title(title) if exists else False
+        else:  # reception
+            exists = service.reception_exists(title)
+            success = service.delete_reception_by_title(title) if exists else False
+            
+        if not exists:
+            print_error(f"'{title}' {item_type}가 존재하지 않습니다.")
+        elif success:
+            print_success(f"'{title}' {item_type}가 삭제되었습니다.")
+        else:
+            print_error(f"'{title}' {item_type} 삭제에 실패했습니다.")
+            
+    except Exception as e:
+        print_error(f"개별 삭제 중 오류 발생: {e}")
+        
+    input("엔터를 눌러 계속...")
+
+
+def _handle_bulk_deletion(task_service: ChromaService, reception_service: ChromaService, menu_handler):
+    """일괄 삭제 처리"""
+    try:
+        if menu_handler.confirm_bulk_deletion():
+            task_count = task_service.delete_all_cards()
+            reception_count = reception_service.delete_all_receptions()
+            print_success(f"모든 데이터가 삭제되었습니다. (과제 카드: {task_count}, 접수 문서: {reception_count})")
+        else:
+            print_success("일괄 삭제가 취소되었습니다.")
+    except Exception as e:
+        print_error(f"일괄 삭제 중 오류 발생: {e}")
+    
+    input("엔터를 눌러 계속...")
 
 
 if __name__ == '__main__':
