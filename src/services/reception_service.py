@@ -4,8 +4,8 @@ from typing import List, Tuple, Optional, Any
 
 from services.dialog_service import DialogHandler
 from services.chroma_service import ChromaService
-from utils.input_validator import SelectionResult
-from utils.string_processor import clean_document_title
+from ui.user_interaction import SelectionResult
+from utils.text_utils import clean_document_title
 from utils.error_handler import setup_logger
 
 logger = setup_logger(__name__)

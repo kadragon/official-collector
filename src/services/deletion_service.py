@@ -117,7 +117,7 @@ class DeletionService:
 
     def _handle_bulk_deletion(self):
         """모든 데이터를 일괄 삭제합니다."""
-        from utils.input_validator import confirm_choice
+        from ui.user_interaction import confirm_choice
         from ui.terminal_ui import get_styled_input, clear_screen
 
         clear_screen()

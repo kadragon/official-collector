@@ -8,7 +8,7 @@ Dialog Service Compatibility Layer
 from ui.user_interaction import UserInteractionManager
 from ui.deletion_menus import DeletionMenuHandler
 from typing import Tuple, List, Optional
-from utils.input_validator import SelectionResult
+from ui.user_interaction import SelectionResult
 
 
 class DialogHandler:

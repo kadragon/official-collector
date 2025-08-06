@@ -10,7 +10,7 @@ from .terminal_ui import (
     print_selection_menu,
     get_styled_input
 )
-from utils.input_validator import (
+from ui.user_interaction import (
     get_valid_selection,
     confirm_choice
 )

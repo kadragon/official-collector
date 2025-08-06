@@ -89,48 +89,53 @@ The project includes a `.pylintrc` configuration file with Korean-friendly setti
 
 #### Window Structure Debugging for RPA
 
-For debugging pywinauto automation issues and analyzing window structures:
+For debugging pywinauto automation issues and analyzing window structures, use the unified debug manager:
 
 ```bash
-# Interactive window structure debugging tool (for human use)
-uv run ./debugs/debug_window_structure.py
+# Interactive debugging session (for human use)
+uv run -m src.debug.debug_manager
+
+# Or directly run the interactive session
+uv run -c "from src.debug import run_interactive_debug; run_interactive_debug()"
 ```
 
-This debugging tool uses pywinauto's `print_control_identifiers()` function to:
-- Display complete window structure and control hierarchy
-- Monitor dialog changes in real-time during automation
-- Debug circulation completion flow and dialog timing issues
-- Export window structure to files for analysis
+**Unified Debug Manager Features:**
 
-**Key debugging capabilities:**
+- **Dual-mode support**: Both interactive (human) and programmatic (AI) interfaces
+- **Window structure analysis**: Complete control hierarchy using pywinauto's `print_control_identifiers()`
 - **Real-time monitoring**: Track dialog appearances and changes during RPA execution
-- **Control identification**: Find exact control references for automation scripts
-- **Timing analysis**: Monitor dialog response times and optimize wait conditions
-- **Structure export**: Save window structure snapshots to `./logs/debug/` directory
+- **Circulation completion debugging**: Specialized flow for debugging approval processes
+- **Automatic connection**: Tries both "접수:" and "전자결재" window patterns
+- **Structure export**: Saves window structure snapshots to `./logs/debug/` directory
 
-**Programmatic AI Interface:**
-
-For AI/automated debugging without user interaction:
+**Programmatic Interface (for AI/automated debugging):**
 
 ```python
-from src.utils.debug_helper import AIDebugHelper, quick_debug_current_window
+from src.debug import (
+    create_debug_manager,
+    quick_window_analysis,
+    monitor_circulation_dialogs
+)
 
 # Quick window analysis
-debug_info = quick_debug_current_window()
+debug_info = quick_window_analysis()
 
 # Advanced programmatic debugging
-helper = AIDebugHelper()
-analysis = helper.quick_window_analysis()
-dialogs = helper.monitor_dialogs_programmatic(duration=10.0)
-circulation_dialog = helper.find_circulation_completion_dialog(timeout=5.0)
+manager = create_debug_manager(interactive=False)
+analysis = manager.analyze_current_window()
+dialogs = manager.monitor_dialogs(duration=10.0, interval=0.5)
+circulation_dialog = manager.find_circulation_completion_dialog(timeout=5.0)
+
+# Monitor circulation dialogs (convenience function)
+dialogs = monitor_circulation_dialogs(duration=10.0)
 ```
 
-**AI Debug Helper Features:**
-- **Non-interactive mode**: No console output or user input prompts
-- **Structured data return**: Returns dictionaries with analysis results
-- **Automatic connection**: Tries both "접수:" and "전자결재" window patterns
-- **Dialog monitoring**: Programmatic monitoring of circulation completion dialogs
-- **Log file management**: All debug files saved to `./logs/debug/` directory
+**Interactive Interface Options:**
+1. Print current window structure
+2. Monitor dialog changes with custom duration/interval
+3. Debug circulation completion flow
+4. Find circulation completion dialogs
+5. Exit
 
 **Use this tool when:**
 - RPA scripts fail to find expected windows or controls
@@ -138,6 +143,7 @@ circulation_dialog = helper.find_circulation_completion_dialog(timeout=5.0)
 - Need to update control selectors after UI changes
 - Optimizing wait times and polling intervals
 - AI needs to analyze window structure programmatically
+- Debugging circulation completion flow timing issues
 
 ## Environment Setup
 

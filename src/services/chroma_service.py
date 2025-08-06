@@ -9,7 +9,7 @@ from langchain.storage import LocalFileStore
 from langchain.embeddings import CacheBackedEmbeddings
 import chromadb.errors
 
-from utils.id_generator import generate_document_id, generate_cache_key
+from utils.text_utils import generate_document_id, generate_cache_key
 from utils.error_handler import setup_logger, safe_execute
 
 

@@ -2,7 +2,9 @@
 
 import sys
 import time
-from typing import List
+import json
+import os
+from typing import List, Dict, Any
 
 from config import config
 from services.official_service import OfficialCollector, DocumentFlowState
@@ -10,8 +12,7 @@ from services.dialog_service import DialogHandler
 from services.chroma_service import ChromaService
 from services.reception_service import ReceptionService
 from services.task_card_service import TaskCardService
-from utils.data_loader import load_base_data
-from utils.string_processor import is_reception_document, extract_title_from_approval
+from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
 from ui.terminal_ui import (
     clear_screen,
@@ -24,6 +25,34 @@ from ui.terminal_ui import (
 )
 
 logger = setup_logger(__name__)
+
+
+# ============================================================================
+# 데이터 로딩 함수 (기존 data_loader.py에서 이동)
+# ============================================================================
+
+def load_base_data() -> Dict[str, Any]:
+    """
+    base_data.json 파일에서 기본 데이터를 로드합니다.
+    
+    Returns:
+        Dict[str, Any]: 카드 목록, 접수 담당자 목록, 공람 목록을 포함한 딕셔너리
+    """
+    # 프로젝트 루트 디렉토리에서 data/base_data.json 파일 경로 구성
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    data_file_path = os.path.join(project_root, 'data', 'base_data.json')
+    
+    try:
+        with open(data_file_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+        return data
+    except FileNotFoundError:
+        raise FileNotFoundError(f"기본 데이터 파일을 찾을 수 없습니다: {data_file_path}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON 파일 형식이 올바르지 않습니다: {e}")
+    except Exception as e:
+        raise RuntimeError(f"데이터 로딩 중 오류가 발생했습니다: {e}")
 
 
 class Main:
