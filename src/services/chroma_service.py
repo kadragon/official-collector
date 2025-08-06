@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 from langchain_ollama import OllamaEmbeddings
 from langchain.storage import LocalFileStore
 from langchain.embeddings import CacheBackedEmbeddings
+import chromadb.errors
 
 from utils.id_generator import generate_document_id, generate_cache_key
 from utils.error_handler import setup_logger, safe_execute
@@ -57,7 +58,7 @@ class ChromaService:
             self.vector_store.add_documents([document], ids=[doc_id])
             return True
             
-        except ValueError as e:
+        except (ValueError, chromadb.errors.InvalidArgumentError) as e:
             # 차원 불일치 오류인지 확인
             if "dimension" in str(e).lower():
                 self.logger.info("차원 불일치 오류 발생, 컬렉션을 재생성합니다.")
@@ -65,7 +66,7 @@ class ChromaService:
                     # 재생성 후 다시 시도
                     self.vector_store.add_documents([document], ids=[doc_id])
                     return True
-            # 다른 ValueError는 다시 발생시킴
+            # 다른 오류는 다시 발생시킴
             raise e
         except Exception as e:
             # 예상하지 못한 오류 처리

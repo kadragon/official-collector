@@ -7,10 +7,11 @@ from typing import Optional, Callable
 from enum import Enum
 import pyperclip
 import win32gui
-from pywinauto import Application, keyboard, mouse, findwindows
+from pywinauto import Application, Desktop, keyboard, mouse, findwindows
 from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
 from pywinauto.findwindows import ElementNotFoundError
 from utils.error_handler import setup_logger, handle_connection_error
+from dialogs.dialog_classifier import DialogClassifier, DialogAction
 logger = setup_logger(__name__)
 
 
@@ -32,7 +33,17 @@ class OfficialCollector:
         """
         self.app: Application = Application(backend="uia")
         self.dlg: Optional[Application.window] = None
+        self.dialog_classifier = DialogClassifier()
         self._connect_to_window(debug_mode=True)
+
+    def _convert_dialog_action_to_flow_state(self, action: DialogAction) -> DocumentFlowState:
+        """DialogAction을 DocumentFlowState로 변환합니다."""
+        if action == DialogAction.EXIT:
+            return DocumentFlowState.EXIT
+        elif action in (DialogAction.CONTINUE, DialogAction.APPROVE, DialogAction.CANCEL_APPROVE):
+            return DocumentFlowState.CONTINUE
+        else:
+            return DocumentFlowState.UNKNOWN
 
     def _wait_for_element(self, element_selector: Callable,
                           timeout: float = 10.0, interval: float = 0.1) -> bool:
@@ -96,6 +107,13 @@ class OfficialCollector:
                     return True
             except (ElementNotFoundError, AttributeError, RuntimeError) as e:
                 logger.debug("조건 확인 중 오류 (계속 시도): %s", e)
+            except OSError as e:
+                # COM 오류 (-2147220991, '이벤트에서 가입자를 불러낼 수 없습니다') 처리
+                if e.args[0] == -2147220991:
+                    logger.debug("COM 이벤트 오류 (계속 시도): %s", e)
+                    time.sleep(0.1)  # 약간의 추가 대기
+                else:
+                    logger.warning("조건 확인 중 OS 오류: %s", e)
             except Exception as e:
                 logger.warning("조건 확인 중 예상치 못한 오류: %s", e)
             time.sleep(interval)
@@ -252,16 +270,18 @@ class OfficialCollector:
         # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
         reception_dialog_appeared = self._wait_for_condition(
             lambda: (self.dlg.child_window(title='확인', control_type='Window').exists() and
-                    self.dlg.child_window(title="문서를 접수하시겠습니까?", class_name="Static").exists()),
+                     self.dlg.child_window(title="문서를 접수하시겠습니까?", class_name="Static").exists()),
             timeout=5.0,
             interval=0.05
         )
-        
+
         if reception_dialog_appeared:
             logger.info("접수 확인 대화상자 감지 - 확인 버튼 클릭")
             # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
-            confirm_dialog = self.dlg.child_window(title='확인', control_type='Window')
-            confirm_button = confirm_dialog.child_window(title='확인', class_name='Button')
+            confirm_dialog = self.dlg.child_window(
+                title='확인', control_type='Window')
+            confirm_button = confirm_dialog.child_window(
+                title='확인', class_name='Button')
             confirm_button.click()
             logger.debug("접수 확인 완료")
         else:
@@ -272,16 +292,18 @@ class OfficialCollector:
         # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
         circulation_dialog_appeared = self._wait_for_condition(
             lambda: (self.dlg.child_window(title='확인', control_type='Window').exists() and
-                    self.dlg.child_window(title="공람지정을 완료하였습니다.", class_name="Static").exists()),
+                     self.dlg.child_window(title="공람지정을 완료하였습니다.", class_name="Static").exists()),
             timeout=8.0,
             interval=0.05
         )
-        
+
         if circulation_dialog_appeared:
             logger.info("공람지정 완료 대화상자 감지 - 확인 버튼 클릭")
             # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
-            confirm_dialog = self.dlg.child_window(title='확인', control_type='Window')
-            confirm_button = confirm_dialog.child_window(title='확인', class_name='Button')
+            confirm_dialog = self.dlg.child_window(
+                title='확인', control_type='Window')
+            confirm_button = confirm_dialog.child_window(
+                title='확인', class_name='Button')
             confirm_button.click()
             logger.debug("공람지정 완료 확인 완료")
         else:
@@ -292,20 +314,21 @@ class OfficialCollector:
         result_dialog_appeared = self._wait_for_condition(
             lambda: self.dlg.child_window(
                 title='확인', control_type='Window').exists(),
-            timeout=15.0
+            timeout=2.0
         )
         if result_dialog_appeared:
             dialog_text = self._get_confirm_dialog_text()
             logger.info("접수 결과 대화상자 텍스트: '%s'", dialog_text)
-            if "종료하시겠습니까" in dialog_text:
+
+            action = self.dialog_classifier.classify_dialog_action(dialog_text)
+            if action == DialogAction.EXIT:
                 logger.info("종료 확인 - 접수 처리 종료")
-                self.handle_confirm_dialog()
-            elif "문서를 처리하겠습니까" in dialog_text or "다음 문서" in dialog_text:
+            elif action == DialogAction.CONTINUE:
                 logger.info("다음 문서 처리 확인 - 계속 진행")
-                self.handle_confirm_dialog()
             else:
                 logger.info("일반적인 확인 대화상자 - 기본 처리")
-                self.handle_confirm_dialog()
+
+            self.handle_confirm_dialog()
         else:
             logger.info("접수 결과 대화상자가 나타나지 않음 - 처리 완료")
 
@@ -320,7 +343,6 @@ class OfficialCollector:
             return texts[0] if texts else ""
         logger.error("대상 창이 연결되어 있지 않습니다.")
         return ""
-
 
     def document_sort(self, document_group_name: str) -> None:
         """
@@ -391,56 +413,208 @@ class OfficialCollector:
 
     def _handle_approval_confirmation(self) -> None:
         """'결재를 진행하시겠습니까?' 확인 대화상자를 처리합니다."""
-        # 결재 진행 확인 대화상자가 나타날 때까지 대기
-        confirm_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(
-                title='확인', control_type='Window').exists(),
-            timeout=5.0
+        # 더 정확하고 빠른 대화상자 식별: 특정 Static 텍스트로 직접 확인
+        approval_dialog_appeared = self._wait_for_condition(
+            lambda: (self.dlg.child_window(title='확인', control_type='Window').exists() and
+                     self.dlg.child_window(title="결재를 진행하시겠습니까?", class_name="Static").exists()),
+            timeout=3.0,
+            interval=0.05
         )
-        if confirm_dialog_appeared:
-            # 대화상자의 텍스트 확인
-            dialog_text = self._get_confirm_dialog_text()
-            logger.info("결재 확인 대화상자 텍스트: '%s'", dialog_text)
-            if "결재를 진행하시겠습니까" in dialog_text or "결재 진행" in dialog_text:
-                logger.info("결재 진행 확인 대화상자 감지 - 확인 버튼 클릭")
-                self.handle_confirm_dialog()
-            else:
-                logger.warning("예상하지 못한 확인 대화상자: %s", dialog_text)
-                # 일단 확인으로 진행
-                self.handle_confirm_dialog()
+
+        if approval_dialog_appeared:
+            logger.info("결재 진행 확인 대화상자 감지 - 확인 버튼 클릭")
+            # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
+            confirm_dialog = self.dlg.child_window(
+                title='확인', control_type='Window')
+            confirm_button = confirm_dialog.child_window(
+                title='확인', class_name='Button')
+            confirm_button.click()
+            logger.debug("결재 진행 확인 완료")
         else:
-            logger.info("결재 진행 확인 대화상자가 나타나지 않음")
+            # 백업: 일반적인 확인 대화상자가 있는지 확인
+            general_dialog_appeared = self._wait_for_condition(
+                lambda: self.dlg.child_window(
+                    title='확인', control_type='Window').exists(),
+                timeout=2.0
+            )
+            if general_dialog_appeared:
+                confirm_dialog = self.dlg.child_window(
+                    title='확인', control_type='Window')
+                dialog_text = self._analyze_dialog_content(confirm_dialog)
+                logger.info("결재 확인 대화상자 텍스트: '%s'", dialog_text)
+
+                # 결재 진행 확인 패턴 체크
+                if "결재를 진행하시겠습니까" in dialog_text:
+                    logger.info("결재 진행 확인 대화상자 감지 - 확인 버튼 클릭")
+                    self.handle_confirm_dialog()
+                else:
+                    # 기존 분류기도 사용
+                    action = self.dialog_classifier.classify_dialog_action(
+                        dialog_text)
+                    if action == DialogAction.APPROVE:
+                        logger.info("결재 진행 확인 대화상자 감지 - 확인 버튼 클릭")
+                    else:
+                        logger.warning("예상하지 못한 확인 대화상자: %s", dialog_text)
+                    self.handle_confirm_dialog()
+            else:
+                logger.info("결재 진행 확인 대화상자가 나타나지 않음")
 
     def _handle_approval_result(self) -> None:
         """결재 결과를 처리합니다 (완료 또는 다음 문서)."""
-        # 확인 대화상자 처리 후 결과 대화상자가 나타날 때까지 짧은 대기
         logger.debug("결재 결과 대화상자 대기 시작")
         time.sleep(0.5)
 
-        # 결과 대화상자가 나타날 때까지 대기 (더 빈번한 체크)
-        result_dialog_appeared = self._wait_for_condition(
-            lambda: self.dlg.child_window(
-                title='확인', control_type='Window').exists(),
-            timeout=12.0,
-            interval=0.05
-        )
-        logger.debug("결재 결과 대화상자 대기 완료: %s", result_dialog_appeared)
-        if result_dialog_appeared:
-            dialog_text = self._get_confirm_dialog_text()
-            logger.info("결재 결과 대화상자 텍스트: '%s'", dialog_text)
-            if "종료하시겠습니까" in dialog_text:
-                logger.info("종료 확인 - 분류 종료")
-                self.handle_confirm_dialog()
-                return
-            elif "문서를 처리하겠습니까" in dialog_text or "다음 문서" in dialog_text:
-                logger.info("다음 문서 처리 확인 - 계속 진행")
-                self.handle_confirm_dialog()
-                return
+        # '확인' 대화상자를 찾기 위한 다양한 방법 시도
+        confirm_dialog = self._find_confirm_dialog()
+
+        if not confirm_dialog:
+            logger.warning("확인 대화상자를 찾을 수 없습니다")
+            return
+
+        # 대화상자 내용 분석 및 처리 분기
+        dialog_text = self._analyze_dialog_content(confirm_dialog)
+        # 다음 문서 처리 패턴 확인
+        if "다음 문서를 처리하겠습니까" in dialog_text:
+            logger.info("다음 문서 처리 확인 대화상자 감지")
+            self._click_yes_button(confirm_dialog, "다음 문서 처리")
+            return
+
+        # 다음 문서 처리 패턴 확인
+        if "이전 문서를 처리하겠습니까" in dialog_text:
+            logger.info("이전 문서 처리 확인 대화상자 감지")
+            self._click_yes_button(confirm_dialog, "이전 문서 처리")
+            return
+
+        # 종료 확인 패턴 확인
+        if "종료하시겠습니까" in dialog_text or "남은 결재문서가 없습니다" in dialog_text:
+            logger.info("종료 확인 대화상자 감지 - 프로세스 종료")
+            self._click_yes_button(confirm_dialog, "프로세스 종료")
+            time.sleep(1.0)  # 프로세스 종료 대기
+            return
+
+        # 알려진 패턴이 없는 경우
+        logger.warning("알 수 없는 확인 대화상자 - 기본 처리")
+        logger.warning("대화상자 내용: '%s'", dialog_text)
+        self._click_yes_button(confirm_dialog, "기본")
+
+    def _find_confirm_dialog(self) -> Optional[object]:
+        """다양한 방법으로 확인 대화상자를 찾습니다."""
+        logger.debug("확인 대화상자 검색 시작")
+
+        # 방법 1: 기존 self.dlg 내에서 control_type='Window'로 찾기
+        try:
+            if self._wait_for_condition(
+                lambda: self.dlg.child_window(
+                    title='확인', control_type='Window').exists(),
+                timeout=3.0, interval=0.1
+            ):
+                dialog = self.dlg.child_window(
+                    title='확인', control_type='Window')
+                logger.debug("방법 1로 확인 대화상자 발견 (self.dlg, control_type)")
+                return dialog
+        except Exception as e:
+            logger.debug("방법 1 실패: %s", e)
+
+        # 방법 2: self.dlg 내에서 class_name="#32770"으로 찾기
+        try:
+            if self._wait_for_condition(
+                lambda: self.dlg.child_window(
+                    title='확인', class_name="#32770").exists(),
+                timeout=2.0, interval=0.1
+            ):
+                dialog = self.dlg.child_window(title='확인', class_name="#32770")
+                logger.debug("방법 2로 확인 대화상자 발견 (self.dlg, class_name)")
+                return dialog
+        except Exception as e:
+            logger.debug("방법 2 실패: %s", e)
+
+        # 방법 3: Desktop에서 직접 찾기
+        try:
+            desktop = Desktop(backend="uia")
+            if self._wait_for_condition(
+                lambda: desktop.window(
+                    title='확인', class_name="#32770").exists(),
+                timeout=2.0, interval=0.1
+            ):
+                dialog = desktop.window(title='확인', class_name="#32770")
+                logger.debug("방법 3으로 확인 대화상자 발견 (Desktop)")
+                return dialog
+        except Exception as e:
+            logger.debug("방법 3 실패: %s", e)
+
+        # 방법 4: 전체 데스크톱에서 class_name으로 모든 창 검색
+        try:
+            desktop = Desktop(backend="win32")
+            windows = desktop.windows()
+            for window in windows:
+                try:
+                    if (window.window_text() == '확인' and
+                        window.class_name() == "#32770" and
+                            window.is_visible()):
+                        logger.debug("방법 4로 확인 대화상자 발견 (전체 검색)")
+                        return window
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.debug("방법 4 실패: %s", e)
+
+        logger.warning("모든 방법으로 확인 대화상자를 찾지 못함")
+        return None
+
+    def _analyze_dialog_content(self, confirm_dialog) -> str:
+        """대화상자의 모든 텍스트 내용을 분석합니다."""
+        try:
+            # 모든 Static 컨트롤에서 텍스트 수집
+            static_texts = []
+            try:
+                static_controls = confirm_dialog.children(class_name="Static")
+                for control in static_controls:
+                    try:
+                        text = control.window_text().strip()
+                        if text:  # 빈 텍스트 제외
+                            static_texts.append(text)
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.debug("Static 컨트롤 수집 실패: %s", e)
+
+            # 전체 대화상자 텍스트도 시도
+            try:
+                full_text = confirm_dialog.window_text()
+                if full_text:
+                    static_texts.append(full_text)
+            except Exception:
+                pass
+
+            # 수집된 모든 텍스트 로그 출력
+            combined_text = " | ".join(static_texts)
+            logger.debug("대화상자 텍스트 내용: %s", static_texts)
+            return combined_text
+
+        except Exception as e:
+            logger.warning("대화상자 내용 분석 실패: %s", e)
+            return ""
+
+    def _click_yes_button(self, confirm_dialog, action_type: str) -> None:
+        """확인 대화상자에서 예 버튼을 클릭합니다."""
+        try:
+            time.sleep(0.2)  # 버튼 활성화 대기
+            yes_button = confirm_dialog.child_window(
+                title='예(&Y)', class_name='Button')
+
+            if yes_button.exists() and yes_button.is_enabled():
+                yes_button.click()
+                logger.debug("%s 확인 완료", action_type)
             else:
-                logger.info("일반적인 확인 대화상자 - 기본 처리")
-                self.handle_confirm_dialog()
-        else:
-            logger.info("결재 결과 대화상자가 나타나지 않음 - 처리 완료")
+                logger.warning(
+                    "예 버튼을 찾을 수 없거나 비활성화됨 - 키보드로 시도 (%s)", action_type)
+                keyboard.send_keys('y')
+        except Exception as e:
+            logger.warning("%s 버튼 클릭 실패, 키보드로 재시도: %s", action_type, e)
+            try:
+                keyboard.send_keys('y')
+            except Exception as ke:
+                logger.error("키보드 입력도 실패 (%s): %s", action_type, ke)
 
     def check_document_flow_state(self) -> DocumentFlowState:
         """
@@ -454,57 +628,40 @@ class OfficialCollector:
                 title='확인', control_type='Window')
             if not confirm_window.exists():
                 return DocumentFlowState.CONTINUE
+
             # 창의 텍스트 내용을 확인하여 상태 결정
             window_text = self._get_confirm_dialog_text()
-            if "다음 문서를 처리하겠습니다" in window_text:
-                logger.info("다음 문서 처리 대화상자 감지")
-                return DocumentFlowState.CONTINUE
-            elif "종료하시겠습니까" in window_text:
-                logger.info("종료 확인 대화상자 감지")
-                return DocumentFlowState.EXIT
-            elif "결재를 진행하시겠습니까" in window_text or "결재 진행" in window_text:
-                logger.info("결재 진행 확인 대화상자 감지")
-                return DocumentFlowState.CONTINUE
-            elif "취소 결재를 진행하시겠습니까" in window_text or "취소 결재" in window_text:
-                logger.info("취소 결재 확인 대화상자 감지")
-                return DocumentFlowState.CONTINUE
-            elif "문서를 처리하겠습니까" in window_text or "다음 문서" in window_text:
-                logger.info("다음 문서 처리 대화상자 감지")
-                return DocumentFlowState.CONTINUE
-            elif "다음" in window_text and "문서" in window_text:
-                logger.info("다음 문서 관련 대화상자 감지 (부분 매칭)")
-                return DocumentFlowState.CONTINUE
-            elif "종료" in window_text or "끝" in window_text or "완료" in window_text:
-                logger.info("종료 관련 대화상자 감지 (부분 매칭)")
-                return DocumentFlowState.EXIT
-            elif window_text.strip() == "확인" or not window_text.strip():
+            action = self.dialog_processor.classify_dialog_action(window_text)
+
+            if action == DialogAction.UNKNOWN and (window_text.strip() == "확인" or not window_text.strip()):
                 # 텍스트를 충분히 읽지 못한 경우, 더 자세히 분석
                 logger.warning("대화상자 텍스트가 불완전합니다. 더 상세한 분석을 시도합니다.")
                 detailed_text = self._get_detailed_dialog_text()
                 if detailed_text:
                     logger.info("상세 텍스트 발견: '%s'", detailed_text)
-                    if "다음 문서를 처리하겠습니다" in detailed_text or "다음" in detailed_text:
-                        return DocumentFlowState.CONTINUE
-                    elif "종료하시겠습니다" in detailed_text or "종료" in detailed_text:
-                        return DocumentFlowState.EXIT
-                    elif "결재를 진행하시겠습니까" in detailed_text or "결재 진행" in detailed_text:
-                        logger.info("상세 텍스트에서 결재 진행 확인 대화상자 감지")
-                        return DocumentFlowState.CONTINUE
-                    elif "취소 결재를 진행하시겠습니까" in detailed_text or "취소 결재" in detailed_text:
-                        logger.info("상세 텍스트에서 취소 결재 확인 대화상자 감지")
-                        return DocumentFlowState.CONTINUE
-                    elif "종료하시겠습니까" in detailed_text:
-                        logger.info("상세 텍스트에서 종료 확인 대화상자 감지")
-                        return DocumentFlowState.EXIT
-                    elif "문서를 처리하겠습니까" in detailed_text:
-                        logger.info("상세 텍스트에서 다음 문서 처리 확인 대화상자 감지")
-                        return DocumentFlowState.CONTINUE
-                # 여전히 판단할 수 없는 경우 UNKNOWN으로 처리
-                logger.warning("대화상자 내용을 판단할 수 없습니다")
-                return DocumentFlowState.UNKNOWN
-            else:
-                logger.info("알 수 없는 확인 대화상자: '%s'", window_text)
-                return DocumentFlowState.UNKNOWN
+                    action = self.dialog_processor.classify_dialog_action(
+                        detailed_text)
+
+                if action == DialogAction.UNKNOWN:
+                    logger.warning("대화상자 내용을 판단할 수 없습니다")
+                    return DocumentFlowState.UNKNOWN
+
+            # DialogAction을 DocumentFlowState로 변환
+            flow_state = self._convert_dialog_action_to_flow_state(action)
+
+            # 로깅
+            action_descriptions = {
+                DialogAction.CONTINUE: "다음 문서 처리 대화상자 감지",
+                DialogAction.EXIT: "종료 확인 대화상자 감지",
+                DialogAction.APPROVE: "결재 진행 확인 대화상자 감지",
+                DialogAction.CANCEL_APPROVE: "취소 결재 확인 대화상자 감지",
+                DialogAction.UNKNOWN: "알 수 없는 확인 대화상자"
+            }
+
+            logger.info(action_descriptions.get(
+                action, f"알 수 없는 액션: {action}"))
+            return flow_state
+
         except (AttributeError, RuntimeError, ElementNotFoundError) as e:
             logger.debug("문서 흐름 상태 확인 중 예외: %s", e)
             return DocumentFlowState.CONTINUE
@@ -757,6 +914,7 @@ class OfficialCollector:
         """
         confirm_buttons = ['예(Y)', '확인', '예', 'OK']
         return self._click_dialog_button(confirm_buttons)
+
 
 if __name__ == '__main__':
     pass
