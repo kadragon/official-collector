@@ -6,7 +6,7 @@ import logging
 import time
 import functools
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable, Any, Optional
 from pathlib import Path
 
@@ -16,24 +16,25 @@ _current_log_file = None
 _logger_initialized = False
 
 
-def cleanup_old_logs(log_directory: str = "logs") -> None:
+def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> None:
     """
-    오늘 날짜가 아닌 모든 로그 파일들을 삭제합니다.
+    지정된 보관 기간보다 오래된 로그 파일들을 삭제합니다.
 
     Args:
         log_directory (str): 로그 디렉토리 경로.
+        retention_days (int): 로그 보관 일수.
     """
     if not os.path.exists(log_directory):
         return
 
-    today = datetime.now().date()
+    cutoff_time = datetime.now() - timedelta(days=retention_days)
 
     for filename in os.listdir(log_directory):
         if filename.endswith('.log'):
             file_path = os.path.join(log_directory, filename)
             try:
                 file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-                if file_time.date() != today:
+                if file_time < cutoff_time:
                     os.remove(file_path)
                     print(f"삭제된 오래된 로그 파일: {filename}")
             except (OSError, ValueError):
