@@ -11,7 +11,11 @@ This is a Korean official document automation system built with Python 3.12+ tha
 ### Running the Application
 
 ```bash
+# Standard mode (auto-continue processing)
 uv run ./src/main.py
+
+# Interactive mode (user confirmation for each document)
+uv run ./src/main.py --interactive
 ```
 
 ### Testing the Integration
@@ -23,16 +27,16 @@ Before running the main application, test if Ollama and Chroma are working corre
 uv sync --group dev
 
 # Quick test - check environment and basic connectivity
-pytest tests/test_integration.py::TestEnvironmentConfig tests/test_integration.py::TestOllamaIntegration -v
+pytest tests/integration/test_chroma_integration.py::TestEnvironmentConfig -v
 
 # Full integration tests - comprehensive validation
-pytest tests/test_integration.py -v
+pytest tests/integration/test_chroma_integration.py -v
 
 # Run only integration tests (if you have other test types)
 pytest -m integration -v
 
 # Run with coverage report
-pytest tests/test_integration.py --cov=src --cov-report=html
+pytest tests/integration/ --cov=src --cov-report=html
 
 # Clean up test databases (if they remain after pytest)
 uv run ./cleanup_test_db.py
@@ -194,19 +198,19 @@ Chroma runs as a Python library and requires no additional installation. The vec
 
 3. **AI-Powered Services**:
 
-   - `ReceptionService`: Handles incoming document assignment using vector similarity
-   - `TaskCardService`: Matches documents to task cards using embeddings
-   - `ChromaService`: Manages local vector storage and similarity search
+   - `DocumentProcessor` (`src/services/document_processor.py`): Unified document processing service that handles both reception documents and task card matching using vector similarity
+   - `ChromaService` (`src/services/chroma_service.py`): Manages local vector storage, similarity search, and batch update operations
 
-4. **User Interaction** (`src/services/dialog_service.py`): Provides CLI-based user selection when automated matching isn't confident enough
+4. **User Interaction** (`src/ui/console_interface.py`): Provides CLI-based user selection when automated matching isn't confident enough
 
 ### Data Flow
 
 1. System monitors for new documents in Windows applications
-2. For reception documents: finds appropriate handler and approval chain
-3. For regular documents: matches to existing task cards or prompts user selection
+2. For reception documents: finds appropriate handler and approval chain using vector similarity
+3. For regular documents: matches to existing task cards using embeddings or prompts user selection
 4. Uses vector embeddings for intelligent matching with learning capability
-5. Stores successful matches for future automatic processing
+5. **Batch Processing**: Successful matches are queued in memory during document processing
+6. **Performance Optimization**: All updates are flushed to ChromaDB at the end of processing session to minimize I/O operations
 
 ### Technology Stack
 
@@ -224,7 +228,35 @@ Chroma runs as a Python library and requires no additional installation. The vec
 
 ## Code Structure Notes
 
-- Services follow dependency injection pattern
-- Korean comments and variable names are used throughout
-- Error handling focuses on graceful degradation with user fallback
-- Vector embeddings use consistent UUID generation for deduplication
+- **Unified Architecture**: `DocumentProcessor` consolidates reception and task card processing logic
+- **Batch Update System**: ChromaDB updates are queued in memory and flushed at session end for optimal performance
+- **Services follow dependency injection pattern**
+- **Korean comments and variable names are used throughout**
+- **Error handling focuses on graceful degradation with user fallback**
+- **Vector embeddings use consistent UUID generation for deduplication**
+
+## Performance Optimizations
+
+### Batch Update System
+
+The system implements a batch update mechanism to improve performance:
+
+```python
+# Updates are queued during processing
+document_processor.process_reception_document(title)  # Queues update
+document_processor.process_task_card_matching(title)  # Queues update
+
+# All updates are flushed at the end of processing session
+document_processor.flush_pending_updates()  # Batch upload to ChromaDB
+```
+
+**Benefits:**
+- Reduces I/O blocking during document processing
+- Minimizes network/database connections
+- Improves overall system responsiveness
+- Prevents data loss through automatic flush on session end
+
+**Usage:**
+- Updates are automatically queued during normal operation
+- Manual flush: Call `document_processor.flush_pending_updates()`
+- Check pending updates: `document_processor.get_pending_updates_count()`

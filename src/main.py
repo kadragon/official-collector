@@ -10,7 +10,8 @@ from services.chroma_service import ChromaService
 from services.document_processor import DocumentProcessor
 from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
-from ui.terminal_ui import (
+from ui.console_interface import (
+    ConsoleInterface,
     clear_screen,
     draw_header,
     print_document_info,
@@ -74,6 +75,8 @@ class Main:
             if flow_state == DocumentFlowState.EXIT:
                 print_info("문서 처리를 종료합니다.")
                 self.collector.handle_document_flow_dialog(flow_state)
+                # 종료 전 대기 중인 업데이트 모두 처리
+                self._flush_all_pending_updates()
                 break
             elif flow_state == DocumentFlowState.CONTINUE:
                 if not self.auto_continue:
@@ -83,9 +86,13 @@ class Main:
                         print_info("사용자 요청으로 문서 처리를 종료합니다.")
                         # 대화상자에서 취소 버튼 클릭
                         self.collector.handle_cancel_dialog()
+                        # 종료 전 대기 중인 업데이트 모두 처리
+                        self._flush_all_pending_updates()
                         break
 
                 if not self.collector.handle_document_flow_dialog(flow_state, self.auto_continue):
+                    # 종료 전 대기 중인 업데이트 모두 처리
+                    self._flush_all_pending_updates()
                     break
             elif flow_state == DocumentFlowState.UNKNOWN:
                 print_warning("알 수 없는 대화상자가 나타났습니다.")
@@ -101,11 +108,15 @@ class Main:
                     else:
                         print_info("사용자 선택: 처리 종료")
                         self.collector.handle_cancel_dialog()
+                        # 종료 전 대기 중인 업데이트 모두 처리
+                        self._flush_all_pending_updates()
                         break
                 else:
                     # 자동 모드에서는 안전하게 종료
                     print_warning("자동 모드에서 알 수 없는 대화상자 - 안전하게 처리를 중단합니다.")
                     self.collector.handle_document_flow_dialog(flow_state)
+                    # 종료 전 대기 중인 업데이트 모두 처리
+                    self._flush_all_pending_updates()
                     break
 
             title = self.collector.get_official_title()
@@ -140,6 +151,15 @@ class Main:
                 time.sleep(2)
 
         print_final_result(success_count, processed_count)
+
+    def _flush_all_pending_updates(self):
+        """대기 중인 모든 업데이트를 크로마에 일괄 업로드"""
+        reception_count, card_count = self.document_processor.get_pending_updates_count()
+        
+        if reception_count > 0 or card_count > 0:
+            print_info(f"대기 중인 업데이트를 처리합니다... (접수: {reception_count}개, 카드: {card_count}개)")
+            self.document_processor.flush_pending_updates()
+            print_success("모든 업데이트가 완료되었습니다.")
 
     def _process_approval_document(self, processed_title: str) -> bool:
         """
@@ -192,8 +212,7 @@ class Main:
 def run_deletion_interface():
     """간소화된 삭제 인터페이스를 실행합니다."""
     from services.chroma_service import ChromaService
-    from ui.terminal_ui import print_success, print_error, clear_screen
-    from ui.deletion_menus import DeletionMenuHandler
+    from ui.console_interface import ConsoleInterface, print_success, print_error, clear_screen
     
     # Chroma 서비스 초기화
     task_service = ChromaService(
@@ -210,10 +229,10 @@ def run_deletion_interface():
         collection_name="reception_documents"
     )
     
-    menu_handler = DeletionMenuHandler()
+    console = ConsoleInterface()
     
     while True:
-        choice = menu_handler.show_deletion_menu()
+        choice = console.show_deletion_menu()
         
         if choice == "취소":
             print_success("삭제 작업을 취소했습니다.")
@@ -234,7 +253,7 @@ def _handle_task_card_deletion(service: ChromaService, menu_handler):
     """과제 카드 삭제 처리"""
     try:
         cards = service.list_all_cards()
-        selected_indices = menu_handler.show_items_for_deletion(cards, "과제 카드")
+        selected_indices = console.show_items_for_deletion(cards, "과제 카드")
         
         if selected_indices:
             titles_to_delete = [cards[i][0] for i in selected_indices]
@@ -253,7 +272,7 @@ def _handle_reception_deletion(service: ChromaService, menu_handler):
     """접수 문서 삭제 처리"""
     try:
         receptions = service.list_all_receptions()
-        selected_indices = menu_handler.show_items_for_deletion(receptions, "접수 문서")
+        selected_indices = console.show_items_for_deletion(receptions, "접수 문서")
         
         if selected_indices:
             titles_to_delete = [receptions[i][0] for i in selected_indices]
@@ -271,7 +290,7 @@ def _handle_reception_deletion(service: ChromaService, menu_handler):
 def _handle_individual_deletion(service: ChromaService, menu_handler, item_type: str, service_type: str):
     """개별 항목 삭제 처리"""
     try:
-        title = menu_handler.get_title_for_deletion(item_type)
+        title = console.get_title_for_deletion(item_type)
         if not title:
             return
             
@@ -299,7 +318,7 @@ def _handle_individual_deletion(service: ChromaService, menu_handler, item_type:
 def _handle_bulk_deletion(task_service: ChromaService, reception_service: ChromaService, menu_handler):
     """일괄 삭제 처리"""
     try:
-        if menu_handler.confirm_bulk_deletion():
+        if console.confirm_bulk_deletion():
             task_count = task_service.delete_all_cards()
             reception_count = reception_service.delete_all_receptions()
             print_success(f"모든 데이터가 삭제되었습니다. (과제 카드: {task_count}, 접수 문서: {reception_count})")

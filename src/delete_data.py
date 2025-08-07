@@ -14,7 +14,7 @@ sys.path.insert(0, str(project_root))
 
 # Import from main module now that deletion is integrated
 from main import run_deletion_interface
-from ui.terminal_ui import clear_screen, print_success, print_error
+from ui.console_interface import clear_screen, print_success, print_error
 from utils.error_handler import setup_logger
 
 
