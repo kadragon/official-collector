@@ -12,8 +12,9 @@ from dotenv import load_dotenv
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from services.deletion_service import DeletionService
-from utils.terminal_ui import clear_screen, print_success, print_error
+# Import from main module now that deletion is integrated
+from main import run_deletion_interface
+from ui.console_interface import clear_screen, print_success, print_error
 from utils.error_handler import setup_logger
 
 
@@ -40,9 +41,8 @@ def main():
         print("이 도구를 사용하여 분류된 문서와 과제카드 데이터를 삭제할 수 있습니다.")
         print()
 
-        # 삭제 서비스 초기화 및 실행
-        deletion_service = DeletionService()
-        deletion_service.run_deletion_interface()
+        # 통합된 삭제 인터페이스 실행
+        run_deletion_interface()
 
     except KeyboardInterrupt:
         print_success("\n작업이 사용자에 의해 중단되었습니다.")
