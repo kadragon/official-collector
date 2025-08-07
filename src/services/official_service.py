@@ -462,9 +462,9 @@ class OfficialCollector:
     def _handle_approval_result(self) -> None:
         """결재 결과를 처리합니다 (완료 또는 다음 문서)."""
         logger.debug("결재 결과 대화상자 대기 시작")
-        time.sleep(0.5)
+        time.sleep(0.2)  # 대기 시간 단축
 
-        # '확인' 대화상자를 찾기 위한 다양한 방법 시도
+        # 빠른 대화상자 찾기 - 가장 일반적인 방법부터 시도
         confirm_dialog = self._find_confirm_dialog()
 
         if not confirm_dialog:
@@ -473,92 +473,56 @@ class OfficialCollector:
 
         # 대화상자 내용 분석 및 처리 분기
         dialog_text = self._analyze_dialog_content(confirm_dialog)
-        # 다음 문서 처리 패턴 확인
-        if "다음 문서를 처리하겠습니까" in dialog_text:
+        logger.info("결재 확인 대화상자 텍스트: '%s'", dialog_text)
+
+        # DialogClassifier로 액션 결정
+        action = self.dialog_classifier.classify_dialog_action(dialog_text)
+        
+        if action == DialogAction.CONTINUE:
             logger.info("다음 문서 처리 확인 대화상자 감지")
             self._click_yes_button(confirm_dialog, "다음 문서 처리")
-            return
-
-        # 다음 문서 처리 패턴 확인
-        if "이전 문서를 처리하겠습니까" in dialog_text:
-            logger.info("이전 문서 처리 확인 대화상자 감지")
-            self._click_yes_button(confirm_dialog, "이전 문서 처리")
-            return
-
-        # 종료 확인 패턴 확인
-        if "종료하시겠습니까" in dialog_text or "남은 결재문서가 없습니다" in dialog_text:
+        elif action == DialogAction.EXIT:
             logger.info("종료 확인 대화상자 감지 - 프로세스 종료")
             self._click_yes_button(confirm_dialog, "프로세스 종료")
             time.sleep(1.0)  # 프로세스 종료 대기
-            return
-
-        # 알려진 패턴이 없는 경우
-        logger.warning("알 수 없는 확인 대화상자 - 기본 처리")
-        logger.warning("대화상자 내용: '%s'", dialog_text)
-        self._click_yes_button(confirm_dialog, "기본")
+        else:
+            # 알려진 패턴이 없는 경우
+            logger.warning("예상하지 못한 확인 대화상자: %s", dialog_text)
+            self._click_yes_button(confirm_dialog, "기본")
 
     def _find_confirm_dialog(self) -> Optional[object]:
-        """다양한 방법으로 확인 대화상자를 찾습니다."""
-        logger.debug("확인 대화상자 검색 시작")
+        """빠른 확인 대화상자 찾기 - 성능 최적화된 버전."""
+        logger.debug("확인 대화상자 빠른 검색 시작")
 
-        # 방법 1: 기존 self.dlg 내에서 control_type='Window'로 찾기
+        # 방법 1: 가장 일반적인 방법 - self.dlg 내에서 control_type='Window'로 찾기
         try:
             if self._wait_for_condition(
                 lambda: self.dlg.child_window(
                     title='확인', control_type='Window').exists(),
-                timeout=3.0, interval=0.1
+                timeout=2.0, interval=0.05  # 더 빠른 간격
             ):
                 dialog = self.dlg.child_window(
                     title='확인', control_type='Window')
-                logger.debug("방법 1로 확인 대화상자 발견 (self.dlg, control_type)")
+                logger.debug("빠른 방법으로 확인 대화상자 발견")
                 return dialog
         except Exception as e:
-            logger.debug("방법 1 실패: %s", e)
+            logger.debug("빠른 방법 실패: %s", e)
 
-        # 방법 2: self.dlg 내에서 class_name="#32770"으로 찾기
-        try:
-            if self._wait_for_condition(
-                lambda: self.dlg.child_window(
-                    title='확인', class_name="#32770").exists(),
-                timeout=2.0, interval=0.1
-            ):
-                dialog = self.dlg.child_window(title='확인', class_name="#32770")
-                logger.debug("방법 2로 확인 대화상자 발견 (self.dlg, class_name)")
-                return dialog
-        except Exception as e:
-            logger.debug("방법 2 실패: %s", e)
-
-        # 방법 3: Desktop에서 직접 찾기
+        # 방법 2: Desktop에서 직접 찾기 (백업 방법)
         try:
             desktop = Desktop(backend="uia")
             if self._wait_for_condition(
                 lambda: desktop.window(
                     title='확인', class_name="#32770").exists(),
-                timeout=2.0, interval=0.1
+                timeout=1.5, interval=0.05
             ):
                 dialog = desktop.window(title='확인', class_name="#32770")
-                logger.debug("방법 3으로 확인 대화상자 발견 (Desktop)")
+                logger.debug("Desktop에서 확인 대화상자 발견")
                 return dialog
         except Exception as e:
-            logger.debug("방법 3 실패: %s", e)
+            logger.debug("Desktop 방법 실패: %s", e)
 
-        # 방법 4: 전체 데스크톱에서 class_name으로 모든 창 검색
-        try:
-            desktop = Desktop(backend="win32")
-            windows = desktop.windows()
-            for window in windows:
-                try:
-                    if (window.window_text() == '확인' and
-                        window.class_name() == "#32770" and
-                            window.is_visible()):
-                        logger.debug("방법 4로 확인 대화상자 발견 (전체 검색)")
-                        return window
-                except Exception:
-                    continue
-        except Exception as e:
-            logger.debug("방법 4 실패: %s", e)
-
-        logger.warning("모든 방법으로 확인 대화상자를 찾지 못함")
+        logger.warning("빠른 방법으로 확인 대화상자를 찾지 못함")
         return None
 
     def _analyze_dialog_content(self, confirm_dialog) -> str:
@@ -596,23 +560,40 @@ class OfficialCollector:
             return ""
 
     def _click_yes_button(self, confirm_dialog, action_type: str) -> None:
-        """확인 대화상자에서 예 버튼을 클릭합니다."""
+        """확인 대화상자에서 예 버튼을 빠르게 클릭합니다."""
         try:
-            time.sleep(0.2)  # 버튼 활성화 대기
-            yes_button = confirm_dialog.child_window(
-                title='예(&Y)', class_name='Button')
-
-            if yes_button.exists() and yes_button.is_enabled():
-                yes_button.click()
-                logger.debug("%s 확인 완료", action_type)
-            else:
-                logger.warning(
-                    "예 버튼을 찾을 수 없거나 비활성화됨 - 키보드로 시도 (%s)", action_type)
+            # 여러 버튼 패턴 시도 (우선순위 순)
+            button_patterns = [
+                ('예(&Y)', 'Button'),
+                ('예', 'Button'),
+                ('확인', 'Button'),
+                ('OK', 'Button')
+            ]
+            
+            button_clicked = False
+            for title, class_name in button_patterns:
+                try:
+                    button = confirm_dialog.child_window(
+                        title=title, class_name=class_name)
+                    if button.exists() and button.is_enabled():
+                        button.click()
+                        logger.debug("%s 확인 완료 (버튼: %s)", action_type, title)
+                        button_clicked = True
+                        break
+                except Exception:
+                    continue
+            
+            if not button_clicked:
+                # 버튼을 찾지 못한 경우 키보드로 시도
+                logger.debug("버튼을 찾지 못해 키보드로 시도 (%s)", action_type)
                 keyboard.send_keys('y')
+                time.sleep(0.1)
+                
         except Exception as e:
             logger.warning("%s 버튼 클릭 실패, 키보드로 재시도: %s", action_type, e)
             try:
-                keyboard.send_keys('y')
+                keyboard.send_keys('{ENTER}')
+                time.sleep(0.1)
             except Exception as ke:
                 logger.error("키보드 입력도 실패 (%s): %s", action_type, ke)
 
