@@ -78,13 +78,13 @@ class TestDocumentProcessingWorkflow:
                 if service:
                     try:
                         del service
-                    except:
+                    except Exception:
                         pass
             
             for temp_dir in [self.temp_dir_reception, self.temp_dir_tasks]:
                 try:
                     shutil.rmtree(temp_dir, ignore_errors=True)
-                except:
+                except Exception:
                     pass
     
     def test_reception_document_processing_workflow(self):
@@ -102,9 +102,7 @@ class TestDocumentProcessingWorkflow:
         new_doc = self.test_data[0]  # Use first document as new incoming
         
         result = self.processor.process_reception_document(
-            title=new_doc["title"],
-            approval_list=[doc["expected_approval"] for doc in self.test_data],
-            share_list=[doc["expected_share"] for doc in self.test_data]
+            title=new_doc["title"]
         )
         
         # 3. Verify result
@@ -135,9 +133,8 @@ class TestDocumentProcessingWorkflow:
                 # Mock user selecting first recommendation
                 mock_selection.return_value = (SelectionResult.SELECTED, case["expected_task_card"])
                 
-                result = self.processor.process_task_document(
-                    title=case["document_title"],
-                    task_cards=self.processor.predefined_card_list
+                result = self.processor.process_task_card_matching(
+                    title=case["document_title"]
                 )
                 
                 assert result is not None
@@ -230,7 +227,7 @@ class TestPerformanceWorkflow:
         try:
             del self.service
             shutil.rmtree(self.temp_dir, ignore_errors=True)
-        except:
+        except Exception:
             pass
     
     @pytest.mark.slow
@@ -339,7 +336,7 @@ class TestErrorHandlingWorkflow:
         try:
             del self.service
             shutil.rmtree(self.temp_dir, ignore_errors=True)
-        except:
+        except Exception:
             pass
     
     def test_network_error_handling(self):

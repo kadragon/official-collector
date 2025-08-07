@@ -631,7 +631,7 @@ class OfficialCollector:
 
             # 창의 텍스트 내용을 확인하여 상태 결정
             window_text = self._get_confirm_dialog_text()
-            action = self.dialog_processor.classify_dialog_action(window_text)
+            action = self.dialog_classifier.classify_dialog_action(window_text)
 
             if action == DialogAction.UNKNOWN and (window_text.strip() == "확인" or not window_text.strip()):
                 # 텍스트를 충분히 읽지 못한 경우, 더 자세히 분석
@@ -639,7 +639,7 @@ class OfficialCollector:
                 detailed_text = self._get_detailed_dialog_text()
                 if detailed_text:
                     logger.info("상세 텍스트 발견: '%s'", detailed_text)
-                    action = self.dialog_processor.classify_dialog_action(
+                    action = self.dialog_classifier.classify_dialog_action(
                         detailed_text)
 
                 if action == DialogAction.UNKNOWN:

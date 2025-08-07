@@ -10,7 +10,7 @@ from typing import List, Tuple, Optional, Any
 from services.chroma_service import ChromaService
 from ui.console_interface import (
     SelectionResult, get_user_choice_from_list, get_user_choice_from_recommendations,
-    ConsoleInterface
+    ConsoleInterface, clear_screen, print_selection_menu, get_styled_input, get_valid_selection
 )
 from utils.text_utils import clean_document_title
 from utils.error_handler import setup_logger
@@ -119,10 +119,6 @@ class DocumentProcessor:
     def _manual_reception_selection(self, title: str) -> Tuple[Optional[str], Optional[str]]:
         """수동으로 담당자와 공람 대상자를 선택합니다."""
         try:
-            from ui.console_interface import (
-                clear_screen, print_selection_menu, get_styled_input, get_valid_selection
-            )
-            
             clear_screen()
 
             # 담당자 선택

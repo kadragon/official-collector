@@ -41,15 +41,15 @@ class TestUnifiedConfig:
         assert config.chroma_persist_dir == './test_chroma'
     
     @patch.dict('os.environ', {}, clear=True)  # Clear all env vars
-    def test_default_values_when_no_env_vars(self):
-        """Test default values are used when environment variables are missing."""
-        config = self.config_class()
-        
-        # Should have default values
-        assert config.ollama_base_url is not None
-        assert config.ollama_model is not None
-        assert config.chroma_persist_dir is not None
+    def test_missing_required_env_vars_raises_error(self):
+        """Test that ValueError is raised when required environment variables are missing."""
+        with pytest.raises(ValueError, match="Missing required environment variables"):
+            self.config_class()
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     @patch('builtins.open', mock_open(read_data='{"reception_list": ["테스트담당자"], "share_list": ["테스트팀"], "task_card_list": ["테스트업무"]}'))
     @patch('pathlib.Path.exists', return_value=True)
     def test_base_data_loading(self, mock_exists):
@@ -60,6 +60,10 @@ class TestUnifiedConfig:
         assert "테스트팀" in config.share_list
         assert "테스트업무" in config.task_card_list
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     @patch('builtins.open', side_effect=FileNotFoundError)
     @patch('pathlib.Path.exists', return_value=False)
     def test_base_data_file_not_found(self, mock_exists):
@@ -71,6 +75,10 @@ class TestUnifiedConfig:
         assert isinstance(config.share_list, list)
         assert isinstance(config.task_card_list, list)
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     @patch('builtins.open', mock_open(read_data='invalid json'))
     @patch('pathlib.Path.exists', return_value=True)
     def test_invalid_json_handling(self, mock_exists):
@@ -82,6 +90,10 @@ class TestUnifiedConfig:
         assert isinstance(config.share_list, list)
         assert isinstance(config.task_card_list, list)
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     def test_config_validation(self):
         """Test configuration validation methods."""
         config = self.config_class()
@@ -104,12 +116,14 @@ class TestUnifiedConfig:
     })
     def test_empty_environment_variable_handling(self):
         """Test handling of empty environment variables."""
-        config = self.config_class()
-        
-        # Empty URL should either use default or be handled appropriately
-        assert config.ollama_base_url is not None
-        assert len(config.ollama_base_url) > 0
+        # Empty required variables should be treated as missing and raise ValueError
+        with pytest.raises(ValueError, match="Missing required environment variables"):
+            self.config_class()
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     def test_config_reload_capability(self):
         """Test configuration reload functionality."""
         config = self.config_class()
@@ -123,6 +137,10 @@ class TestUnifiedConfig:
                 # URL should be updated after reload
                 assert config.ollama_base_url == 'http://new:11434'
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     def test_debug_summary(self):
         """Test debug summary functionality."""
         config = self.config_class()
@@ -140,6 +158,10 @@ class TestUnifiedConfig:
 class TestConfigurationPaths:
     """Test configuration file path handling."""
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     def test_base_data_path_resolution(self):
         """Test base data file path resolution."""
         from config import UnifiedConfig
@@ -157,12 +179,20 @@ class TestConfigurationPaths:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_chroma_dir = Path(temp_dir) / "test_chroma"
             
-            with patch.dict('os.environ', {'CHROMA_PERSIST_DIR': str(test_chroma_dir)}):
+            with patch.dict('os.environ', {
+                'OLLAMA_BASE_URL': 'http://test:11434',
+                'OLLAMA_MODEL': 'test-model',
+                'CHROMA_PERSIST_DIR': str(test_chroma_dir)
+            }):
                 config = self.config_class()
                 
                 # Directory path should be set correctly
                 assert str(test_chroma_dir) in config.chroma_persist_dir
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     @patch('pathlib.Path.mkdir')
     def test_directory_creation_on_init(self, mock_mkdir):
         """Test that necessary directories are created on initialization."""
@@ -191,16 +221,21 @@ class TestConfigurationValidation:
     ])
     def test_ollama_url_validation(self, url, should_be_valid):
         """Test Ollama URL validation."""
-        with patch.dict('os.environ', {'OLLAMA_BASE_URL': url}):
-            config = self.config_class()
-            
-            # If config has validation, test it
-            if hasattr(config, 'validate_ollama_url'):
-                result = config.validate_ollama_url()
-                assert result == should_be_valid
-            else:
-                # At minimum, URL should be stored
-                assert config.ollama_base_url == url or config.ollama_base_url != url
+        if not url:  # Empty URL should raise ValueError during config creation
+            with patch.dict('os.environ', {'OLLAMA_BASE_URL': url, 'OLLAMA_MODEL': 'test-model'}):
+                with pytest.raises(ValueError, match="Missing required environment variables"):
+                    self.config_class()
+        else:
+            with patch.dict('os.environ', {'OLLAMA_BASE_URL': url, 'OLLAMA_MODEL': 'test-model'}):
+                config = self.config_class()
+                
+                # If config has validation, test it
+                if hasattr(config, 'validate_ollama_url'):
+                    result = config.validate_ollama_url()
+                    assert result == should_be_valid
+                else:
+                    # At minimum, URL should be stored
+                    assert config.ollama_base_url == url
     
     @pytest.mark.parametrize("model,should_be_valid", [
         ("snowflake-arctic-embed", True),
@@ -213,13 +248,22 @@ class TestConfigurationValidation:
         """Test Ollama model validation."""
         env_value = model if model is not None else ""
         
-        with patch.dict('os.environ', {'OLLAMA_MODEL': env_value}):
-            config = self.config_class()
-            
-            if hasattr(config, 'validate_ollama_model'):
-                result = config.validate_ollama_model()
-                assert result == should_be_valid
+        if not env_value:  # Empty or None model should raise ValueError during config creation
+            with patch.dict('os.environ', {'OLLAMA_BASE_URL': 'http://test:11434', 'OLLAMA_MODEL': env_value}):
+                with pytest.raises(ValueError, match="Missing required environment variables"):
+                    self.config_class()
+        else:
+            with patch.dict('os.environ', {'OLLAMA_BASE_URL': 'http://test:11434', 'OLLAMA_MODEL': env_value}):
+                config = self.config_class()
+                
+                if hasattr(config, 'validate_ollama_model'):
+                    result = config.validate_ollama_model()
+                    assert result == should_be_valid
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     def test_list_validation(self):
         """Test validation of reception/share/task card lists."""
         config = self.config_class()
@@ -245,6 +289,10 @@ class TestConfigurationEdgeCases:
         from config import UnifiedConfig
         self.config_class = UnifiedConfig
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     @patch('builtins.open', mock_open(read_data='{"reception_list": [], "share_list": [], "task_card_list": []}'))
     @patch('pathlib.Path.exists', return_value=True)
     def test_empty_lists_in_base_data(self, mock_exists):
@@ -256,6 +304,10 @@ class TestConfigurationEdgeCases:
         assert config.share_list == []
         assert config.task_card_list == []
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     @patch('builtins.open', mock_open(read_data='{"reception_list": [123, 456]}'))
     @patch('pathlib.Path.exists', return_value=True)
     def test_invalid_data_types_in_lists(self, mock_exists):
@@ -266,6 +318,10 @@ class TestConfigurationEdgeCases:
         # Implementation dependent - could filter out non-strings or convert
         assert isinstance(config.reception_list, list)
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     @patch('builtins.open', side_effect=PermissionError("Access denied"))
     @patch('pathlib.Path.exists', return_value=True) 
     def test_file_permission_error(self, mock_exists):
@@ -277,6 +333,10 @@ class TestConfigurationEdgeCases:
         assert isinstance(config.share_list, list)
         assert isinstance(config.task_card_list, list)
     
+    @patch.dict('os.environ', {
+        'OLLAMA_BASE_URL': 'http://test:11434',
+        'OLLAMA_MODEL': 'test-model'
+    })
     def test_config_immutability(self):
         """Test that configuration values are properly managed."""
         config = self.config_class()

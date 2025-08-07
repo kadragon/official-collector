@@ -297,13 +297,13 @@ class UnifiedDebugManager:
                     'right': rect.right,
                     'bottom': rect.bottom
                 }
-            except:
+            except Exception:
                 pass
             
             # Get text content
             try:
                 dialog_info['text_content'] = self._get_dialog_text_safe(dialog)
-            except:
+            except Exception:
                 pass
             
             # Get child controls info
@@ -317,7 +317,7 @@ class UnifiedDebugManager:
                     }
                     for child in children[:5]  # First 5 controls only
                 ]
-            except:
+            except Exception:
                 pass
             
             return dialog_info
@@ -351,7 +351,7 @@ class UnifiedDebugManager:
                 text = method()
                 if text and text.strip():
                     return text
-            except:
+            except Exception:
                 continue
         
         return ""

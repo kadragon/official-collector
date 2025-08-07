@@ -319,7 +319,7 @@ class TestLoggingIntegration:
             try:
                 # Application code that tries to log
                 logger.error("이 로깅은 실패할 것입니다")
-            except:
+            except Exception:
                 # Fallback: print to console
                 print("Logging failed, using fallback")
         

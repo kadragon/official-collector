@@ -250,18 +250,18 @@ def run_deletion_interface():
             print_success("삭제 작업을 취소했습니다.")
             break
         elif choice == "과제 카드 목록 보기 및 삭제":
-            _handle_task_card_deletion(task_service, menu_handler)
+            _handle_task_card_deletion(task_service, console)
         elif choice == "접수 문서 목록 보기 및 삭제":
-            _handle_reception_deletion(reception_service, menu_handler)
+            _handle_reception_deletion(reception_service, console)
         elif choice == "개별 과제 카드 삭제":
-            _handle_individual_deletion(task_service, menu_handler, "과제 카드", "card")
+            _handle_individual_deletion(task_service, console, "과제 카드", "card")
         elif choice == "개별 접수 문서 삭제":
-            _handle_individual_deletion(reception_service, menu_handler, "접수 문서", "reception")
+            _handle_individual_deletion(reception_service, console, "접수 문서", "reception")
         elif choice == "일괄 삭제":
-            _handle_bulk_deletion(task_service, reception_service, menu_handler)
+            _handle_bulk_deletion(task_service, reception_service, console)
 
 
-def _handle_task_card_deletion(service: ChromaService, menu_handler):
+def _handle_task_card_deletion(service: ChromaService, console):
     """과제 카드 삭제 처리"""
     try:
         cards = service.list_all_cards()
@@ -280,7 +280,7 @@ def _handle_task_card_deletion(service: ChromaService, menu_handler):
     input("엔터를 눌러 계속...")
 
 
-def _handle_reception_deletion(service: ChromaService, menu_handler):
+def _handle_reception_deletion(service: ChromaService, console):
     """접수 문서 삭제 처리"""
     try:
         receptions = service.list_all_receptions()
@@ -299,7 +299,7 @@ def _handle_reception_deletion(service: ChromaService, menu_handler):
     input("엔터를 눌러 계속...")
 
 
-def _handle_individual_deletion(service: ChromaService, menu_handler, item_type: str, service_type: str):
+def _handle_individual_deletion(service: ChromaService, console, item_type: str, service_type: str):
     """개별 항목 삭제 처리"""
     try:
         title = console.get_title_for_deletion(item_type)
@@ -327,7 +327,7 @@ def _handle_individual_deletion(service: ChromaService, menu_handler, item_type:
     input("엔터를 눌러 계속...")
 
 
-def _handle_bulk_deletion(task_service: ChromaService, reception_service: ChromaService, menu_handler):
+def _handle_bulk_deletion(task_service: ChromaService, reception_service: ChromaService, console):
     """일괄 삭제 처리"""
     try:
         if console.confirm_bulk_deletion():

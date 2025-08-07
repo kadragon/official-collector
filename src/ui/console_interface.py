@@ -329,7 +329,7 @@ def activate_cmd_window():
             window.set_focus()
             logger.debug("창 제목으로 CMD 창 포커스 활성화 성공")
             return
-        except:
+        except Exception:
             pass
         
         # 방법 2: 현재 콘솔 창 핸들 사용 (기존 방법)
@@ -379,7 +379,10 @@ class ConsoleInterface:
                 except ValueError as e:
                     print(str(e))
 
-        draw_separator(style='section')
+        # 담당자 선택 완료 메시지 출력
+        print_success(f"{selected_approval} 담당으로 선택 완료")
+        print()
+
         print_selection_menu("공람자 선택", share_list)
         while True:
             try:
