@@ -18,7 +18,8 @@ from ui.console_interface import (
     print_success,
     print_warning,
     print_info,
-    print_final_result
+    print_final_result,
+    activate_cmd_window
 )
 
 logger = setup_logger(__name__)
@@ -80,6 +81,7 @@ class Main:
                 break
             elif flow_state == DocumentFlowState.CONTINUE:
                 if not self.auto_continue:
+                    activate_cmd_window()
                     user_choice = input(
                         "\n다음 문서를 처리하시겠습니까? (y/n): ").lower().strip()
                     if user_choice in ['n', 'no', '아니오']:
@@ -99,6 +101,7 @@ class Main:
 
                 if not self.auto_continue:
                     # 사용자에게 선택권 제공
+                    activate_cmd_window()
                     user_choice = input(
                         "계속 처리하시겠습니까? (y: 계속, n: 종료): ").lower().strip()
                     if user_choice in ['y', 'yes', '예']:
@@ -137,7 +140,11 @@ class Main:
                                 title, approval, shared)
                     self.collector.reception(shared)
                     success_count += 1
-                    time.sleep(1)
+
+                    # 문서 처리 완료 후 잠시 대기하고 화면 정리
+                    print_info("문서 처리가 완료되었습니다. 다음 문서를 준비합니다...")
+                    time.sleep(2)
+                    clear_screen()
             else:
                 # 전자결재 문서 처리
                 processed_title = extract_title_from_approval(title)
@@ -147,15 +154,20 @@ class Main:
                 success = self._process_approval_document(processed_title)
                 if success:
                     success_count += 1
+                    print_info("문서 분류가 완료되었습니다. 다음 문서를 준비합니다...")
+                else:
+                    print_info("문서 분류를 건너뛰었습니다. 다음 문서를 준비합니다...")
 
+                # 문서 처리 완료 후 잠시 대기하고 화면 정리
                 time.sleep(2)
+                clear_screen()
 
         print_final_result(success_count, processed_count)
 
     def _flush_all_pending_updates(self):
         """대기 중인 모든 업데이트를 크로마에 일괄 업로드"""
         reception_count, card_count = self.document_processor.get_pending_updates_count()
-        
+
         if reception_count > 0 or card_count > 0:
             print_info(f"대기 중인 업데이트를 처리합니다... (접수: {reception_count}개, 카드: {card_count}개)")
             self.document_processor.flush_pending_updates()
@@ -164,14 +176,14 @@ class Main:
     def _process_approval_document(self, processed_title: str) -> bool:
         """
         전자결재 문서를 처리합니다.
-        
+
         1순위: 동일한 문서명이 있다면 바로 처리
         2순위: 임베딩을 통해서 유사한 문서명을 추천하여 사용자가 선택
         3순위: 2순위에서 사용자가 목록에 없음을 선택하면 문서카드 목록 전체를 A->Z 순서로 정리해서 보여줌
-        
+
         Args:
             processed_title: 전자결재에서 추출된 문서 제목
-            
+
         Returns:
             bool: 처리 성공 여부
         """
@@ -182,14 +194,14 @@ class Main:
 
             if card_name:
                 logger.info("과제 카드 매칭 성공 - 문서 분류 시작: %s", card_name)
-                
+
                 # 결재 프로세스 실행 (5단계)
                 try:
                     self.collector.document_sort(card_name)
                     print_success(f"문서 분류 완료: {card_name}")
                     logger.info("문서 분류 완료: %s -> %s", processed_title, card_name)
                     return True
-                    
+
                 except Exception as e:
                     logger.error("문서 분류 실행 중 오류 발생: %s", e)
                     print_warning(f"문서 분류 실행 중 오류 발생: {e}")
@@ -198,22 +210,22 @@ class Main:
                 print_warning("과제 카드 매칭 실패로 문서 분류를 건너뜁니다")
                 logger.warning("과제 카드 매칭 실패로 문서 분류를 건너뜁니다: %s", processed_title)
                 return False
-                
+
         except Exception as e:
             logger.error("전자결재 문서 처리 중 예상치 못한 오류: %s", e)
             print_warning(f"전자결재 문서 처리 중 오류 발생: {e}")
             return False
 
 
-# ============================================================================
+# ────────────────────────────────────────────────────────────────────────────
 # 삭제 모듈 (기존 deletion_service.py에서 통합)
-# ============================================================================
+# ────────────────────────────────────────────────────────────────────────────
 
 def run_deletion_interface():
     """간소화된 삭제 인터페이스를 실행합니다."""
     from services.chroma_service import ChromaService
     from ui.console_interface import ConsoleInterface, print_success, print_error, clear_screen
-    
+
     # Chroma 서비스 초기화
     task_service = ChromaService(
         ollama_base_url=config.ollama_base_url,
@@ -221,19 +233,19 @@ def run_deletion_interface():
         chroma_persist_dir=config.chroma_persist_dir,
         collection_name="documents"
     )
-    
+
     reception_service = ChromaService(
         ollama_base_url=config.ollama_base_url,
         ollama_model=config.ollama_model,
         chroma_persist_dir=config.chroma_persist_dir,
         collection_name="reception_documents"
     )
-    
+
     console = ConsoleInterface()
-    
+
     while True:
         choice = console.show_deletion_menu()
-        
+
         if choice == "취소":
             print_success("삭제 작업을 취소했습니다.")
             break
@@ -254,17 +266,17 @@ def _handle_task_card_deletion(service: ChromaService, menu_handler):
     try:
         cards = service.list_all_cards()
         selected_indices = console.show_items_for_deletion(cards, "과제 카드")
-        
+
         if selected_indices:
             titles_to_delete = [cards[i][0] for i in selected_indices]
             deleted_count = service.bulk_delete_cards(titles_to_delete)
             print_success(f"{deleted_count}개의 과제 카드가 삭제되었습니다.")
         else:
             print_success("삭제 작업이 취소되었습니다.")
-            
+
     except Exception as e:
         print_error(f"삭제 처리 중 오류 발생: {e}")
-    
+
     input("엔터를 눌러 계속...")
 
 
@@ -273,17 +285,17 @@ def _handle_reception_deletion(service: ChromaService, menu_handler):
     try:
         receptions = service.list_all_receptions()
         selected_indices = console.show_items_for_deletion(receptions, "접수 문서")
-        
+
         if selected_indices:
             titles_to_delete = [receptions[i][0] for i in selected_indices]
             deleted_count = service.bulk_delete_receptions(titles_to_delete)
             print_success(f"{deleted_count}개의 접수 문서가 삭제되었습니다.")
         else:
             print_success("삭제 작업이 취소되었습니다.")
-            
+
     except Exception as e:
         print_error(f"삭제 처리 중 오류 발생: {e}")
-    
+
     input("엔터를 눌러 계속...")
 
 
@@ -293,7 +305,7 @@ def _handle_individual_deletion(service: ChromaService, menu_handler, item_type:
         title = console.get_title_for_deletion(item_type)
         if not title:
             return
-            
+
         # 존재 여부 확인 및 삭제
         if service_type == "card":
             exists = service.card_exists(title)
@@ -301,17 +313,17 @@ def _handle_individual_deletion(service: ChromaService, menu_handler, item_type:
         else:  # reception
             exists = service.reception_exists(title)
             success = service.delete_reception_by_title(title) if exists else False
-            
+
         if not exists:
             print_error(f"'{title}' {item_type}가 존재하지 않습니다.")
         elif success:
             print_success(f"'{title}' {item_type}가 삭제되었습니다.")
         else:
             print_error(f"'{title}' {item_type} 삭제에 실패했습니다.")
-            
+
     except Exception as e:
         print_error(f"개별 삭제 중 오류 발생: {e}")
-        
+
     input("엔터를 눌러 계속...")
 
 
@@ -326,7 +338,7 @@ def _handle_bulk_deletion(task_service: ChromaService, reception_service: Chroma
             print_success("일괄 삭제가 취소되었습니다.")
     except Exception as e:
         print_error(f"일괄 삭제 중 오류 발생: {e}")
-    
+
     input("엔터를 눌러 계속...")
 
 

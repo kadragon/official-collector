@@ -9,7 +9,8 @@
 from typing import List, Tuple, Optional, Any
 from services.chroma_service import ChromaService
 from ui.console_interface import (
-    SelectionResult, get_user_choice_from_list, get_user_choice_from_recommendations
+    SelectionResult, get_user_choice_from_list, get_user_choice_from_recommendations,
+    ConsoleInterface
 )
 from utils.text_utils import clean_document_title
 from utils.error_handler import setup_logger
@@ -45,6 +46,9 @@ class DocumentProcessor:
         self.approval_name_list = approval_name_list
         self.share_name_list = share_name_list
         self.predefined_card_list = predefined_card_list
+
+        # UI 인터페이스
+        self.console_interface = ConsoleInterface()
 
         # 배치 업데이트를 위한 임시 저장소
         self.pending_reception_updates = []
@@ -185,23 +189,26 @@ class DocumentProcessor:
         if recommendations:
             logger.info("벡터 유사도 기반 추천 과제 카드: %s", recommendations)
             status, value = get_user_choice_from_recommendations(title, recommendations)
+            logger.info(f"추천 선택 결과: status={status}, value={value}")
             if status == SelectionResult.SKIPPED:
                 card_name = None  # 사용자가 '추천 없음' 선택
+                logger.info("추천 없음 선택됨 - 다음 단계로 이동")
             elif status == SelectionResult.SELECTED:
                 card_name = value
                 logger.info("임베딩 추천에서 선택: %s -> %s", title, card_name)
 
         # 3. 추천이 선택되지 않은 경우 미리 정의된 목록 제공
+        logger.info(f"3단계 진입 전 card_name 상태: {card_name}")
         if card_name is None:
-            status, value = get_user_choice_from_list(self.predefined_card_list, allow_skip=True)
+            logger.info("미리 정의된 목록 단계 시작")
+            status, value = self.console_interface.choose_from_predefined_list(title, self.predefined_card_list)
             if status == SelectionResult.SELECTED:
                 card_name = value
                 logger.info("미리 정의된 목록에서 선택: %s -> %s", title, card_name)
             elif status == SelectionResult.SKIPPED:
                 # 전체 정렬된 목록 제공
                 logger.info("전체 목록 단계로 이동: %s", title)
-                sorted_cards = sorted(self.predefined_card_list)
-                status, value = get_user_choice_from_list(sorted_cards, allow_skip=False)
+                status, value = self.console_interface.choose_from_full_list(title, self.predefined_card_list)
                 if status == SelectionResult.SELECTED:
                     card_name = value
                     logger.info("전체 목록에서 선택: %s -> %s", title, card_name)
