@@ -164,6 +164,11 @@ cython_debug/
 /data/*.json
 /data/backup
 
+# Configuration files (use .example files as templates)
+/data/card_list.txt
+/data/reception_list.txt
+/data/share_list.txt
+
 # Claude Code
 .mcp.json
 .claude/

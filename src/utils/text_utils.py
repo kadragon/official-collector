@@ -188,6 +188,24 @@ def extract_keywords(text: str, min_length: int = 2) -> List[str]:
     return [word for word in words if len(word) >= min_length]
 
 
+def remove_numbers_from_title(title: str) -> str:
+    """
+    제목에서 숫자를 제거합니다.
+
+    Args:
+        title (str): 원본 제목.
+
+    Returns:
+        str: 숫자가 제거된 제목.
+    """
+    if not title:
+        return ""
+    
+    # 숫자를 제거하고 연속된 공백을 하나로 정리
+    title_without_numbers = re.sub(r'\d+', '', title)
+    return re.sub(r'\s+', ' ', title_without_numbers).strip()
+
+
 def format_numbered_list(items: List[str], start_num: int = 1, zero_padded: bool = True) -> List[str]:
     """
     항목 목록을 번호가 매겨진 형태로 포맷팅합니다.

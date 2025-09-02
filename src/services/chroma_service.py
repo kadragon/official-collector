@@ -9,7 +9,7 @@ from langchain.storage import LocalFileStore
 from langchain.embeddings import CacheBackedEmbeddings
 import chromadb.errors
 
-from utils.text_utils import generate_document_id, generate_cache_key
+from utils.text_utils import generate_document_id, generate_cache_key, remove_numbers_from_title
 from utils.error_handler import setup_logger, safe_execute
 
 
@@ -109,12 +109,16 @@ class ChromaService:
         """
         과제 카드 제목을 임베딩으로 변환하여 벡터 데이터베이스에 저장합니다.
         기존에 동일한 title이 존재하면 갱신합니다.
+        임베딩을 위해서는 숫자가 제거된 제목을 사용하지만, 원본 제목은 메타데이터에 보존합니다.
         """
+        # 임베딩용으로 숫자를 제거한 제목 생성
+        embedding_title = remove_numbers_from_title(title)
         doc_id = generate_document_id(title)
         document = Document(
-            page_content=title, 
+            page_content=embedding_title,  # 임베딩에는 숫자가 제거된 제목 사용
             metadata={
-                'title': title,
+                'title': title,  # 원본 제목은 메타데이터에 보존
+                'embedding_title': embedding_title,  # 임베딩에 사용된 제목도 저장
                 'taskTitle': task_title,
                 'type': 'card',
                 'registered_at': datetime.now().isoformat()
@@ -153,11 +157,14 @@ class ChromaService:
     def recommend_cards(self, title: str, count: int = 10):
         """
         임베딩 기반 의미적 유사도를 통해 입력된 제목과 유사한 과제 카드를 추천합니다.
+        검색을 위해서는 숫자가 제거된 제목을 사용합니다.
         """
         try:
+            # 검색용으로 숫자를 제거한 제목 생성
+            search_title = remove_numbers_from_title(title)
             # 벡터 유사도 검색
             results = self.vector_store.similarity_search_with_score(
-                title, 
+                search_title, 
                 k=count,
                 filter={"type": "card"}
             )
@@ -180,16 +187,20 @@ class ChromaService:
     def upsert_reception_embedding(self, title: str, approval: str, share: Any):
         """
         접수 문서 정보를 임베딩으로 변환하여 벡터 데이터베이스에 저장합니다.
+        임베딩을 위해서는 숫자가 제거된 제목을 사용하지만, 원본 제목은 메타데이터에 보존합니다.
         """
+        # 임베딩용으로 숫자를 제거한 제목 생성
+        embedding_title = remove_numbers_from_title(title)
         doc_id = generate_document_id(title)
         metadata = {
-            'title': title, 
+            'title': title,  # 원본 제목은 메타데이터에 보존
+            'embedding_title': embedding_title,  # 임베딩에 사용된 제목도 저장
             'approval': approval, 
             'share': share,
             'type': 'reception',
             'registered_at': datetime.now().isoformat()
         }
-        document = Document(page_content=title, metadata=metadata)
+        document = Document(page_content=embedding_title, metadata=metadata)  # 임베딩에는 숫자가 제거된 제목 사용
 
         success = safe_execute(
             lambda: self._add_document_with_dimension_recovery(document, doc_id),
@@ -224,10 +235,13 @@ class ChromaService:
     def recommend_reception(self, title: str, count: int = 5):
         """
         임베딩 기반 의미적 유사도를 통해 입력된 제목과 유사한 접수 정보를 추천합니다.
+        검색을 위해서는 숫자가 제거된 제목을 사용합니다.
         """
         try:
+            # 검색용으로 숫자를 제거한 제목 생성
+            search_title = remove_numbers_from_title(title)
             results = self.vector_store.similarity_search_with_score(
-                title, 
+                search_title, 
                 k=count,
                 filter={"type": "reception"}
             )

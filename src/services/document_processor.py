@@ -90,7 +90,7 @@ class DocumentProcessor:
             if recommendations:
                 recommendation_options = [f"{rec['approval']} (공람: {rec['share']})" for rec in recommendations]
                 status, value = get_user_choice_from_recommendations(
-                    processed_title,
+                    title,  # 사용자에게는 원본 제목(숫자 포함) 표시
                     recommendation_options
                 )
                 if status == SelectionResult.SELECTED:
@@ -105,7 +105,7 @@ class DocumentProcessor:
 
         # 3. 수동 선택 단계
         logger.info("수동 선택 단계로 이동: %s", processed_title)
-        approval, shared = self._manual_reception_selection(processed_title)
+        approval, shared = self._manual_reception_selection(title)  # 사용자에게는 원본 제목 표시
         
         if approval and shared:
             # 성공한 매칭을 배치 업데이트 리스트에 추가
@@ -180,11 +180,11 @@ class DocumentProcessor:
             logger.info("정확한 제목 매칭 발견: %s -> %s", title, card_name)
             return card_name
 
-        # 2. 임베딩 기반 의미적 유사도로 추천 생성
+        # 2. 임베딩 기반 의미적 유사도로 추천 생성 (임베딩 검색은 숫자 제거된 제목 사용)
         recommendations = self.task_card_chroma.recommend_cards(title, count=5)
         if recommendations:
             logger.info("벡터 유사도 기반 추천 과제 카드: %s", recommendations)
-            status, value = get_user_choice_from_recommendations(title, recommendations)
+            status, value = get_user_choice_from_recommendations(title, recommendations)  # 사용자에게는 원본 제목 표시
             logger.info(f"추천 선택 결과: status={status}, value={value}")
             if status == SelectionResult.SKIPPED:
                 card_name = None  # 사용자가 '추천 없음' 선택

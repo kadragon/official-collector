@@ -12,6 +12,7 @@ from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
 from pywinauto.findwindows import ElementNotFoundError
 from utils.error_handler import setup_logger, handle_connection_error
 from dialogs.dialog_classifier import DialogClassifier, DialogAction
+from utils.text_utils import remove_numbers_from_title
 logger = setup_logger(__name__)
 
 
@@ -334,13 +335,14 @@ class OfficialCollector:
 
     def get_official_title(self) -> str:
         """
-        공문의 제목을 반환합니다.
+        공문의 제목을 반환합니다 (숫자 제거).
         Returns:
-            str: 공문 제목.
+            str: 공문 제목 (숫자가 제거된 상태).
         """
         if self.dlg:
             texts = self.dlg.texts()
-            return texts[0] if texts else ""
+            raw_title = texts[0] if texts else ""
+            return remove_numbers_from_title(raw_title)
         logger.error("대상 창이 연결되어 있지 않습니다.")
         return ""
 

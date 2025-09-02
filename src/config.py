@@ -69,35 +69,32 @@ class UnifiedConfig:
         self.cache_dir.mkdir(exist_ok=True)
         
         # 주요 파일 경로
-        self.base_data_file = self.data_dir / "base_data.json"
+        self.card_list_file = self.data_dir / "card_list.txt"
+        self.reception_list_file = self.data_dir / "reception_list.txt"
+        self.share_list_file = self.data_dir / "share_list.txt"
     
     def _load_base_data(self):
         """기본 데이터 로드"""
         try:
-            with open(self.base_data_file, 'r', encoding='utf-8') as file:
-                data = json.load(file)
-            
-            # 필수 데이터 구조 검증
-            required_keys = ['card_list', 'reception_list', 'share_list']
-            missing_keys = [key for key in required_keys if key not in data]
-            
-            if missing_keys:
-                raise ValueError(f"Missing required data keys: {', '.join(missing_keys)}")
-            
-            # 데이터 할당
-            self.card_list: List[str] = data['card_list']
-            self.reception_list: List[str] = data['reception_list']  
-            self.share_list: List[str] = data['share_list']
+            # 각 TXT 파일에서 데이터 로드
+            self.card_list = self._load_txt_file(self.card_list_file)
+            self.reception_list = self._load_txt_file(self.reception_list_file)
+            self.share_list = self._load_txt_file(self.share_list_file)
             
             logger.info("Base data loaded successfully")
             logger.info(f"Loaded {len(self.card_list)} cards, {len(self.reception_list)} receptions, {len(self.share_list)} share options")
             
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Base data file not found: {self.base_data_file}")
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON format in base data file: {e}")
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Base data file not found: {e}")
         except Exception as e:
             raise RuntimeError(f"Error loading base data: {e}")
+    
+    def _load_txt_file(self, file_path: Path) -> List[str]:
+        """TXT 파일에서 목록 데이터 로드"""
+        with open(file_path, 'r', encoding='utf-8') as file:
+            lines = file.read().strip().split('\n')
+            # 빈 줄과 공백 제거
+            return [line.strip() for line in lines if line.strip()]
     
     def _setup_logging_config(self):
         """로깅 관련 설정"""
