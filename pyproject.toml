@@ -12,6 +12,8 @@ dependencies = [
     "langchain-ollama",
     "langchain-chroma",
     "chromadb",
+    "supabase>=2.18.1",
+    "openai>=1.102.0",
 ]
 
 [dependency-groups]

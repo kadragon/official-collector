@@ -27,21 +27,28 @@
   - 비용 효율성 및 성능 균형
 - [ ] 요청 제한 및 비용 관리 설정
 
-## Phase 2: Service Layer Development
+## Phase 2: Service Layer Development ✅ COMPLETED
 
 ### Supabase Service 개발
-- [ ] `SupabaseService` 클래스 생성 (`src/services/supabase_service.py`)
-  - [ ] 연결 설정 및 인증
-  - [ ] CRUD 연산 메서드
-  - [ ] 벡터 유사도 검색 구현
-  - [ ] 배치 업데이트 기능
+- [x] `SupabaseService` 클래스 생성 (`src/services/supabase_service.py`) ✅
+  - [x] 연결 설정 및 인증 ✅
+  - [x] CRUD 연산 메서드 ✅
+  - [x] 벡터 유사도 검색 구현 ✅
+  - [x] 배치 업데이트 기능 ✅
 
 ### OpenAI Embedding Service 개발
-- [ ] `OpenAIEmbeddingService` 클래스 생성 (`src/services/openai_embedding_service.py`)
-  - [ ] 텍스트 임베딩 생성
-  - [ ] 배치 임베딩 처리
-  - [ ] 에러 핸들링 및 재시도 로직
-  - [ ] 비용 추적 기능
+- [x] `OpenAIEmbeddingService` 클래스 생성 (`src/services/openai_embedding_service.py`) ✅
+  - [x] 텍스트 임베딩 생성 ✅
+  - [x] 배치 임베딩 처리 ✅
+  - [x] 에러 핸들링 및 재시도 로직 ✅
+  - [x] 비용 추적 기능 ✅
+
+**Phase 2 완료 상세:**
+- SupabaseService: CRUD, 벡터 검색, 배치 처리, RLS 지원
+- OpenAIEmbeddingService: 단일/배치 임베딩, 재시도 로직, 비용 추적
+- 통합 테스트 작성: `test_supabase_integration.py`
+- Supabase 연결 테스트 성공 ✅
+- **주의**: 유효한 OpenAI API 키 필요
 
 ## Phase 3: Data Migration
 
