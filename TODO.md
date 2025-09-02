@@ -21,8 +21,10 @@
 - 마이그레이션 기록: enable_vector_extension, create_*_table, enable_rls_policies
 
 ### OpenAI API 설정
-- [ ] OpenAI API 키 발급 및 설정
-- [ ] 임베딩 모델 선택 (text-embedding-3-small/large)
+- [x] OpenAI API 키 발급 및 설정 ✅ (기존 .env 파일에 설정됨)
+- [x] 임베딩 모델 선택 ✅ **최종 결정: text-embedding-3-small (1536차원)**
+  - pgvector 인덱스 호환성 (HNSW 지원)
+  - 비용 효율성 및 성능 균형
 - [ ] 요청 제한 및 비용 관리 설정
 
 ## Phase 2: Service Layer Development
@@ -125,7 +127,10 @@
 
 ### 임베딩 차원 변경
 - **기존**: Ollama snowflake-arctic-embed (차원: 384)
-- **신규**: OpenAI text-embedding-3-small (1536) 또는 text-embedding-3-large (3072)
+- **신규**: OpenAI text-embedding-3-small (1536차원) ✅ **최종 결정**
+- **선택 이유**: 
+  - pgvector HNSW 인덱스 호환 (2000차원 제한)
+  - text-embedding-3-large (3072차원)는 인덱스 미지원으로 제외
 - **주의사항**: 모든 기존 임베딩을 재계산해야 함
 
 ### 데이터 무결성 보장
