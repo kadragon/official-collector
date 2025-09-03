@@ -1,0 +1,23 @@
+{
+  "supabase_connected": true,
+  "task_cards_count": 161,
+  "reception_documents_count": 0,
+  "migration_log": [
+    {
+      "type": "task_cards",
+      "success_count": 161,
+      "total_count": 161,
+      "timestamp": "2025-09-02T17:47:47.021554"
+    }
+  ],
+  "cost_summary": {
+    "model": "text-embedding-3-small",
+    "total_requests": 9,
+    "total_tokens": 7085,
+    "total_cost_usd": 0.000142,
+    "average_tokens_per_request": 787,
+    "duration_seconds": 11.1848,
+    "start_time": "2025-09-02T17:47:35.971420"
+  },
+  "verification_timestamp": "2025-09-02T17:47:47.156233"
+}
