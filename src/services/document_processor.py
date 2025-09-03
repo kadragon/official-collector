@@ -79,10 +79,10 @@ class DocumentProcessor:
             logger.info("정확한 제목 매칭 발견: %s -> %s/%s", processed_title, approval, shared)
             return approval, shared
 
-        # 2. 임베딩 기반 의미적 유사도로 담당자 추천
+        # 2. OpenAI 임베딩 기반 의미적 유사도로 담당자 추천
         if processed_title:
             recommendations = self.supabase_service.recommend_reception(processed_title, count=3)
-            logger.info("벡터 유사도 기반 담당자 추천: %s", recommendations)
+            logger.info("pgvector 유사도 기반 담당자 추천: %s", recommendations)
 
             if recommendations:
                 recommendation_options = [f"{rec['approval']} (공람: {rec['share']})" for rec in recommendations]
@@ -177,10 +177,10 @@ class DocumentProcessor:
             logger.info("정확한 제목 매칭 발견: %s -> %s", title, card_name)
             return card_name
 
-        # 2. 임베딩 기반 의미적 유사도로 추천 생성 (임베딩 검색은 숫자 제거된 제목 사용)
+        # 2. OpenAI 임베딩 기반 의미적 유사도로 추천 생성
         recommendations = self.supabase_service.recommend_cards(title, count=5)
         if recommendations:
-            logger.info("벡터 유사도 기반 추천 과제 카드: %s", recommendations)
+            logger.info("pgvector 유사도 기반 추천 과제 카드: %s", recommendations)
             status, value = get_user_choice_from_recommendations(title, recommendations)  # 사용자에게는 원본 제목 표시
             logger.info(f"추천 선택 결과: status={status}, value={value}")
             if status == SelectionResult.SKIPPED:

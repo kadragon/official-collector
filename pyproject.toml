@@ -9,11 +9,9 @@ dependencies = [
     "pywinauto>=0.6.9",
     "langchain-community",
     "langchain-core",
-    "langchain-ollama",
-    "langchain-chroma",
-    "chromadb",
     "supabase>=2.18.1",
     "openai>=1.102.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [dependency-groups]
