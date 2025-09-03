@@ -7,7 +7,7 @@
 """
 
 from typing import List, Tuple, Optional, Any
-from services.chroma_service import ChromaService
+from services.supabase_service import SupabaseService
 from ui.console_interface import (
     SelectionResult, get_user_choice_from_list, get_user_choice_from_recommendations,
     ConsoleInterface, clear_screen, print_selection_menu, get_styled_input, get_valid_selection
@@ -26,8 +26,7 @@ class DocumentProcessor:
     """
 
     def __init__(self,
-                 reception_chroma: ChromaService,
-                 task_card_chroma: ChromaService,
+                 supabase_service: SupabaseService,
                  approval_name_list: List[str],
                  share_name_list: List[str],
                  predefined_card_list: List[str]):
@@ -35,14 +34,12 @@ class DocumentProcessor:
         초기화
 
         Args:
-            reception_chroma: 접수 문서용 Chroma 서비스
-            task_card_chroma: 과제 카드용 Chroma 서비스
+            supabase_service: Supabase 데이터베이스 서비스 (통합)
             approval_name_list: 담당자 목록
             share_name_list: 공람 대상자 목록
             predefined_card_list: 미리 정의된 카드 목록
         """
-        self.reception_chroma = reception_chroma
-        self.task_card_chroma = task_card_chroma
+        self.supabase_service = supabase_service
         self.approval_name_list = approval_name_list
         self.share_name_list = share_name_list
         self.predefined_card_list = predefined_card_list
@@ -77,14 +74,14 @@ class DocumentProcessor:
         logger.info("임베딩 기반 접수 문서 처리 시작: %s", processed_title)
 
         # 1. 정확한 제목 매칭을 먼저 시도
-        approval, shared = self.reception_chroma.retrieve_reception_by_title(processed_title)
+        approval, shared = self.supabase_service.retrieve_reception_by_title(processed_title)
         if approval:
             logger.info("정확한 제목 매칭 발견: %s -> %s/%s", processed_title, approval, shared)
             return approval, shared
 
         # 2. 임베딩 기반 의미적 유사도로 담당자 추천
         if processed_title:
-            recommendations = self.reception_chroma.recommend_reception(processed_title, count=3)
+            recommendations = self.supabase_service.recommend_reception(processed_title, count=3)
             logger.info("벡터 유사도 기반 담당자 추천: %s", recommendations)
 
             if recommendations:
@@ -173,7 +170,7 @@ class DocumentProcessor:
         logger.info("임베딩 기반 과제 카드 매칭 시작: %s", title)
 
         # 1. 정확한 제목 매칭을 먼저 시도
-        card_name = self.task_card_chroma.retrieve_card_by_title(title)
+        card_name = self.supabase_service.retrieve_card_by_title(title)
         is_exact_match = card_name is not None
 
         if is_exact_match:
@@ -181,7 +178,7 @@ class DocumentProcessor:
             return card_name
 
         # 2. 임베딩 기반 의미적 유사도로 추천 생성 (임베딩 검색은 숫자 제거된 제목 사용)
-        recommendations = self.task_card_chroma.recommend_cards(title, count=5)
+        recommendations = self.supabase_service.recommend_cards(title, count=5)
         if recommendations:
             logger.info("벡터 유사도 기반 추천 과제 카드: %s", recommendations)
             status, value = get_user_choice_from_recommendations(title, recommendations)  # 사용자에게는 원본 제목 표시
@@ -225,7 +222,7 @@ class DocumentProcessor:
     def get_reception_statistics(self) -> dict:
         """접수 처리 통계 정보 반환"""
         try:
-            count = self.reception_chroma.get_document_count()
+            count = self.supabase_service.get_document_count('reception')
             return {
                 'total_receptions': count,
                 'approval_options': len(self.approval_name_list),
@@ -238,7 +235,7 @@ class DocumentProcessor:
     def get_task_card_statistics(self) -> dict:
         """과제 카드 통계 정보 반환"""
         try:
-            count = self.task_card_chroma.get_document_count()
+            count = self.supabase_service.get_document_count('task_card')
             return {
                 'total_cards': count,
                 'predefined_options': len(self.predefined_card_list)
@@ -276,7 +273,7 @@ class DocumentProcessor:
         logger.debug("과제 카드 업데이트 큐에 추가: %s", title)
     
     def flush_pending_updates(self):
-        """대기 중인 모든 업데이트를 크로마에 일괄 업로드"""
+        """대기 중인 모든 업데이트를 Supabase에 일괄 업로드"""
         reception_count = len(self.pending_reception_updates)
         card_count = len(self.pending_card_updates)
         
@@ -290,7 +287,7 @@ class DocumentProcessor:
         success_count = 0
         for update in self.pending_reception_updates:
             try:
-                self.reception_chroma.upsert_reception_embedding(
+                self.supabase_service.upsert_reception_embedding(
                     update['title'], 
                     update['approval'], 
                     update['shared']
@@ -305,7 +302,7 @@ class DocumentProcessor:
         success_count = 0
         for update in self.pending_card_updates:
             try:
-                self.task_card_chroma.upsert_card_embedding(
+                self.supabase_service.upsert_card_embedding(
                     update['title'],
                     update['card_name']
                 )

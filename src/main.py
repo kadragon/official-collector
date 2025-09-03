@@ -6,7 +6,7 @@ from typing import List
 
 from config import config
 from services.official_service import OfficialCollector, DocumentFlowState
-from services.chroma_service import ChromaService
+from services.supabase_service import SupabaseService
 from services.document_processor import DocumentProcessor
 from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
@@ -36,26 +36,12 @@ class Main:
 
         self.collector = OfficialCollector()
 
-        # Reception을 위한 Chroma 서비스
-        reception_chroma_service = ChromaService(
-            ollama_base_url=config.ollama_base_url,
-            ollama_model=config.ollama_model,
-            chroma_persist_dir=config.chroma_persist_dir,
-            collection_name="reception_documents"
-        )
-
-        # Task Card를 위한 Chroma 서비스
-        task_card_chroma_service = ChromaService(
-            ollama_base_url=config.ollama_base_url,
-            ollama_model=config.ollama_model,
-            chroma_persist_dir=config.chroma_persist_dir,
-            collection_name="documents"
-        )
+        # Supabase 서비스 (통합)
+        supabase_service = SupabaseService()
 
         # 통합된 문서 처리기
         self.document_processor = DocumentProcessor(
-            reception_chroma=reception_chroma_service,
-            task_card_chroma=task_card_chroma_service,
+            supabase_service=supabase_service,
             approval_name_list=self.approval_name_list,
             share_name_list=self.share_name_list,
             predefined_card_list=config.card_list
@@ -165,7 +151,7 @@ class Main:
         print_final_result(success_count, processed_count)
 
     def _flush_all_pending_updates(self):
-        """대기 중인 모든 업데이트를 크로마에 일괄 업로드"""
+        """대기 중인 모든 업데이트를 Supabase에 일괄 업로드"""
         reception_count, card_count = self.document_processor.get_pending_updates_count()
 
         if reception_count > 0 or card_count > 0:

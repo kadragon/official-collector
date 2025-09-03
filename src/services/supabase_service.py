@@ -12,6 +12,7 @@ from datetime import datetime
 
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from .openai_embedding_service import OpenAIEmbeddingService
 
 # 환경변수 로드
 load_dotenv()
@@ -31,7 +32,11 @@ class SupabaseService:
             raise ValueError("SUPABASE_URL과 SUPABASE_KEY 환경변수가 필요합니다")
         
         self.client: Client = create_client(self.url, self.key)
-        logger.info("Supabase 클라이언트 초기화 완료")
+        
+        # OpenAI 임베딩 서비스 초기화
+        self.embedding_service = OpenAIEmbeddingService()
+        
+        logger.info("Supabase 클라이언트 및 OpenAI 임베딩 서비스 초기화 완료")
     
     # Reception Documents 관련 메서드
     def create_reception_document(self, title: str, content: str = None, 
@@ -248,16 +253,198 @@ class SupabaseService:
             logger.error(f"{document_type} 배치 업데이트 실패: {e}")
             return False
     
+    # 새로운 매핑 테이블 메서드 (단순화된 구조)
+    def retrieve_reception_by_title(self, title: str) -> Tuple[Optional[str], Optional[str]]:
+        """제목으로 접수 문서 매핑 조회"""
+        try:
+            result = self.client.table('reception_mappings').select('handler', 'share_target').eq('title', title).execute()
+            if result.data:
+                data = result.data[0]
+                return data['handler'], data['share_target']
+            return None, None
+        except Exception as e:
+            logger.error(f"접수 문서 제목 조회 실패: {e}")
+            return None, None
+    
+    def recommend_reception(self, title: str, count: int = 3) -> List[Dict[str, Any]]:
+        """벡터 유사도 기반 접수 문서 추천"""
+        try:
+            # 1. 쿼리 텍스트 임베딩 생성
+            embedding_response = self.embedding_service.create_embedding(title, f"query_{title}")
+            if not embedding_response:
+                logger.warning(f"임베딩 생성 실패: {title}")
+                return []
+            
+            query_embedding = embedding_response.embedding
+            
+            # 2. pgvector 코사인 유사도 검색 수행
+            try:
+                result = self.client.rpc('search_reception_mappings', {
+                    'query_embedding': query_embedding,
+                    'similarity_threshold': 0.5,
+                    'match_count': count
+                }).execute()
+                
+                recommendations = []
+                if result.data:
+                    for item in result.data:
+                        recommendations.append({
+                            'approval': item['handler'],
+                            'share': item['share_target'] or '공람없음',
+                            'similarity': item.get('similarity', 0),
+                            'title': item['title']
+                        })
+                
+                logger.info(f"접수 문서 추천 완료: {len(recommendations)}개")
+                return recommendations
+                
+            except Exception as e:
+                logger.error(f"벡터 검색 실패: {e}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"접수 문서 추천 실패: {e}")
+            return []
+    
+    
+    def retrieve_card_by_title(self, title: str) -> Optional[str]:
+        """제목으로 업무카드 매핑 조회"""
+        try:
+            result = self.client.table('task_card_mappings').select('task_title').eq('title', title).execute()
+            if result.data:
+                return result.data[0]['task_title']
+            return None
+        except Exception as e:
+            logger.error(f"업무카드 제목 조회 실패: {e}")
+            return None
+    
+    def recommend_cards(self, title: str, count: int = 5) -> List[str]:
+        """벡터 유사도 기반 업무카드 추천"""
+        try:
+            # 1. 쿼리 텍스트 임베딩 생성
+            embedding_response = self.embedding_service.create_embedding(title, f"query_{title}")
+            if not embedding_response:
+                logger.warning(f"임베딩 생성 실패: {title}")
+                return []
+            
+            query_embedding = embedding_response.embedding
+            
+            # 2. pgvector 코사인 유사도 검색 수행
+            try:
+                result = self.client.rpc('search_task_card_mappings', {
+                    'query_embedding': query_embedding,
+                    'similarity_threshold': 0.5,
+                    'match_count': count
+                }).execute()
+                
+                recommendations = []
+                if result.data:
+                    for item in result.data:
+                        recommendations.append(item['task_title'])
+                
+                logger.info(f"업무카드 추천 완료: {len(recommendations)}개")
+                return recommendations
+                
+            except Exception as e:
+                logger.error(f"벡터 검색 실패: {e}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"업무카드 추천 실패: {e}")
+            return []
+    
+    
+    def upsert_reception_embedding(self, title: str, handler: str, share_target: str):
+        """접수 문서 매핑 업서트 (임베딩 포함)"""
+        try:
+            # 1. 임베딩 생성
+            embedding_response = self.embedding_service.create_embedding(title, f"reception_{title}")
+            if not embedding_response:
+                logger.warning(f"임베딩 생성 실패, 임베딩 없이 저장: {title}")
+                embedding = None
+            else:
+                embedding = embedding_response.embedding
+            
+            # 2. 기존 데이터 확인
+            existing = self.client.table('reception_mappings').select('id').eq('title', title).execute()
+            
+            data = {
+                'title': title,
+                'handler': handler,
+                'share_target': share_target,
+                'embedding': embedding,
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            
+            if existing.data:
+                # 업데이트
+                result = self.client.table('reception_mappings').update(data).eq('title', title).execute()
+                logger.info(f"접수 문서 매핑 업데이트: {title} -> {handler}/{share_target}")
+            else:
+                # 삽입
+                result = self.client.table('reception_mappings').insert(data).execute()
+                logger.info(f"접수 문서 매핑 생성: {title} -> {handler}/{share_target}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"접수 문서 매핑 업서트 실패: {e}")
+            return False
+    
+    def upsert_card_embedding(self, title: str, task_title: str):
+        """업무카드 매핑 업서트 (임베딩 포함)"""
+        try:
+            # 1. 임베딩 생성
+            embedding_response = self.embedding_service.create_embedding(title, f"task_card_{title}")
+            if not embedding_response:
+                logger.warning(f"임베딩 생성 실패, 임베딩 없이 저장: {title}")
+                embedding = None
+            else:
+                embedding = embedding_response.embedding
+            
+            # 2. 기존 데이터 확인
+            existing = self.client.table('task_card_mappings').select('id').eq('title', title).execute()
+            
+            data = {
+                'title': title,
+                'task_title': task_title,
+                'embedding': embedding,
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            
+            if existing.data:
+                # 업데이트
+                result = self.client.table('task_card_mappings').update(data).eq('title', title).execute()
+                logger.info(f"업무카드 매핑 업데이트: {title} -> {task_title}")
+            else:
+                # 삽입
+                result = self.client.table('task_card_mappings').insert(data).execute()
+                logger.info(f"업무카드 매핑 생성: {title} -> {task_title}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"업무카드 매핑 업서트 실패: {e}")
+            return False
+    
+    def get_document_count(self, table_type: str = 'task_card') -> int:
+        """문서 개수 조회"""
+        try:
+            table_name = 'task_card_mappings' if table_type == 'task_card' else 'reception_mappings'
+            result = self.client.table(table_name).select('*', count='exact').limit(0).execute()
+            return result.count if result.count is not None else 0
+        except Exception as e:
+            logger.error(f"문서 개수 조회 실패: {e}")
+            return 0
+
     # 유틸리티 메서드
     def get_connection_status(self) -> Dict[str, Any]:
         """연결 상태 확인"""
         try:
-            # 간단한 쿼리로 연결 테스트
-            result = self.client.table('reception_documents').select('count', count='exact').limit(0).execute()
+            # 간단한 쿼리로 연결 테스트 (새 테이블 구조 사용)
+            result = self.client.table('task_card_mappings').select('count', count='exact').limit(0).execute()
             return {
                 'connected': True,
                 'url': self.url,
-                'tables': ['reception_documents', 'task_cards', 'document_embeddings']
+                'tables': ['task_card_mappings', 'reception_mappings']
             }
         except Exception as e:
             return {
