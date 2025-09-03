@@ -209,23 +209,15 @@ class Main:
 
 def run_deletion_interface():
     """간소화된 삭제 인터페이스를 실행합니다."""
-    from services.chroma_service import ChromaService
     from ui.console_interface import ConsoleInterface, print_success, print_error, clear_screen
-
-    # Chroma 서비스 초기화
-    task_service = ChromaService(
-        ollama_base_url=config.ollama_base_url,
-        ollama_model=config.ollama_model,
-        chroma_persist_dir=config.chroma_persist_dir,
-        collection_name="documents"
-    )
-
-    reception_service = ChromaService(
-        ollama_base_url=config.ollama_base_url,
-        ollama_model=config.ollama_model,
-        chroma_persist_dir=config.chroma_persist_dir,
-        collection_name="reception_documents"
-    )
+    
+    try:
+        # Supabase 서비스 초기화 (통합)
+        supabase_service = SupabaseService()
+    except Exception as e:
+        print_error(f"Supabase 서비스 초기화 실패: {e}")
+        print_error("삭제 기능을 사용하려면 Supabase 환경변수가 필요합니다.")
+        return
 
     console = ConsoleInterface()
 
@@ -236,18 +228,18 @@ def run_deletion_interface():
             print_success("삭제 작업을 취소했습니다.")
             break
         elif choice == "과제 카드 목록 보기 및 삭제":
-            _handle_task_card_deletion(task_service, console)
+            _handle_task_card_deletion(supabase_service, console)
         elif choice == "접수 문서 목록 보기 및 삭제":
-            _handle_reception_deletion(reception_service, console)
+            _handle_reception_deletion(supabase_service, console)
         elif choice == "개별 과제 카드 삭제":
-            _handle_individual_deletion(task_service, console, "과제 카드", "card")
+            _handle_individual_deletion(supabase_service, console, "과제 카드", "card")
         elif choice == "개별 접수 문서 삭제":
-            _handle_individual_deletion(reception_service, console, "접수 문서", "reception")
+            _handle_individual_deletion(supabase_service, console, "접수 문서", "reception")
         elif choice == "일괄 삭제":
-            _handle_bulk_deletion(task_service, reception_service, console)
+            _handle_bulk_deletion(supabase_service, console)
 
 
-def _handle_task_card_deletion(service: ChromaService, console):
+def _handle_task_card_deletion(service: SupabaseService, console):
     """과제 카드 삭제 처리"""
     try:
         cards = service.list_all_cards()
@@ -266,7 +258,7 @@ def _handle_task_card_deletion(service: ChromaService, console):
     input("엔터를 눌러 계속...")
 
 
-def _handle_reception_deletion(service: ChromaService, console):
+def _handle_reception_deletion(service: SupabaseService, console):
     """접수 문서 삭제 처리"""
     try:
         receptions = service.list_all_receptions()
@@ -285,7 +277,7 @@ def _handle_reception_deletion(service: ChromaService, console):
     input("엔터를 눌러 계속...")
 
 
-def _handle_individual_deletion(service: ChromaService, console, item_type: str, service_type: str):
+def _handle_individual_deletion(service: SupabaseService, console, item_type: str, service_type: str):
     """개별 항목 삭제 처리"""
     try:
         title = console.get_title_for_deletion(item_type)
@@ -313,12 +305,12 @@ def _handle_individual_deletion(service: ChromaService, console, item_type: str,
     input("엔터를 눌러 계속...")
 
 
-def _handle_bulk_deletion(task_service: ChromaService, reception_service: ChromaService, console):
+def _handle_bulk_deletion(service: SupabaseService, console):
     """일괄 삭제 처리"""
     try:
         if console.confirm_bulk_deletion():
-            task_count = task_service.delete_all_cards()
-            reception_count = reception_service.delete_all_receptions()
+            task_count = service.delete_all_cards()
+            reception_count = service.delete_all_receptions()
             print_success(f"모든 데이터가 삭제되었습니다. (과제 카드: {task_count}, 접수 문서: {reception_count})")
         else:
             print_success("일괄 삭제가 취소되었습니다.")

@@ -281,7 +281,7 @@ class SupabaseService:
             try:
                 result = self.client.rpc('search_reception_mappings', {
                     'query_embedding': query_embedding,
-                    'similarity_threshold': 0.5,
+                    'similarity_threshold': 0.3,  # 임계값을 0.5에서 0.3으로 낮춤
                     'match_count': count
                 }).execute()
                 
@@ -333,7 +333,7 @@ class SupabaseService:
             try:
                 result = self.client.rpc('search_task_card_mappings', {
                     'query_embedding': query_embedding,
-                    'similarity_threshold': 0.5,
+                    'similarity_threshold': 0.3,  # 임계값을 0.5에서 0.3으로 낮춤
                     'match_count': count
                 }).execute()
                 
@@ -455,11 +455,121 @@ class SupabaseService:
     def clear_all_data(self) -> bool:
         """모든 데이터 삭제 (개발/테스트용)"""
         try:
-            self.client.table('document_embeddings').delete().neq('id', '').execute()
-            self.client.table('reception_documents').delete().neq('id', '').execute()
-            self.client.table('task_cards').delete().neq('id', '').execute()
+            self.client.table('task_card_mappings').delete().neq('id', '').execute()
+            self.client.table('reception_mappings').delete().neq('id', '').execute()
             logger.warning("모든 데이터 삭제 완료")
             return True
         except Exception as e:
             logger.error(f"데이터 삭제 실패: {e}")
             return False
+    
+    # 삭제 인터페이스용 메서드들 (기존 ChromaService 호환성)
+    def list_all_cards(self) -> List[Tuple[str, str, str]]:
+        """모든 업무카드 매핑 목록 조회 (title, task_title, created_at)"""
+        try:
+            result = self.client.table('task_card_mappings').select('title', 'task_title', 'created_at').execute()
+            return [(item['title'], item['task_title'], item['created_at']) for item in result.data]
+        except Exception as e:
+            logger.error(f"업무카드 목록 조회 실패: {e}")
+            return []
+    
+    def list_all_receptions(self) -> List[Tuple[str, str, str, str]]:
+        """모든 접수 문서 매핑 목록 조회 (title, handler, share_target, created_at)"""
+        try:
+            result = self.client.table('reception_mappings').select('title', 'handler', 'share_target', 'created_at').execute()
+            return [(item['title'], item['handler'], item['share_target'], item['created_at']) for item in result.data]
+        except Exception as e:
+            logger.error(f"접수 문서 목록 조회 실패: {e}")
+            return []
+    
+    def bulk_delete_cards(self, titles: List[str]) -> int:
+        """업무카드 일괄 삭제"""
+        try:
+            deleted_count = 0
+            for title in titles:
+                result = self.client.table('task_card_mappings').delete().eq('title', title).execute()
+                if result.data:
+                    deleted_count += len(result.data)
+            logger.info(f"업무카드 일괄 삭제 완료: {deleted_count}개")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"업무카드 일괄 삭제 실패: {e}")
+            return 0
+    
+    def bulk_delete_receptions(self, titles: List[str]) -> int:
+        """접수 문서 일괄 삭제"""
+        try:
+            deleted_count = 0
+            for title in titles:
+                result = self.client.table('reception_mappings').delete().eq('title', title).execute()
+                if result.data:
+                    deleted_count += len(result.data)
+            logger.info(f"접수 문서 일괄 삭제 완료: {deleted_count}개")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"접수 문서 일괄 삭제 실패: {e}")
+            return 0
+    
+    def card_exists(self, title: str) -> bool:
+        """업무카드 존재 여부 확인"""
+        try:
+            result = self.client.table('task_card_mappings').select('id').eq('title', title).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            logger.error(f"업무카드 존재 확인 실패: {e}")
+            return False
+    
+    def reception_exists(self, title: str) -> bool:
+        """접수 문서 존재 여부 확인"""
+        try:
+            result = self.client.table('reception_mappings').select('id').eq('title', title).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            logger.error(f"접수 문서 존재 확인 실패: {e}")
+            return False
+    
+    def delete_card_by_title(self, title: str) -> bool:
+        """제목으로 업무카드 삭제"""
+        try:
+            result = self.client.table('task_card_mappings').delete().eq('title', title).execute()
+            success = len(result.data) > 0
+            if success:
+                logger.info(f"업무카드 삭제 완료: {title}")
+            return success
+        except Exception as e:
+            logger.error(f"업무카드 삭제 실패: {e}")
+            return False
+    
+    def delete_reception_by_title(self, title: str) -> bool:
+        """제목으로 접수 문서 삭제"""
+        try:
+            result = self.client.table('reception_mappings').delete().eq('title', title).execute()
+            success = len(result.data) > 0
+            if success:
+                logger.info(f"접수 문서 삭제 완료: {title}")
+            return success
+        except Exception as e:
+            logger.error(f"접수 문서 삭제 실패: {e}")
+            return False
+    
+    def delete_all_cards(self) -> int:
+        """모든 업무카드 삭제"""
+        try:
+            result = self.client.table('task_card_mappings').delete().neq('id', '').execute()
+            deleted_count = len(result.data) if result.data else 0
+            logger.warning(f"모든 업무카드 삭제 완료: {deleted_count}개")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"모든 업무카드 삭제 실패: {e}")
+            return 0
+    
+    def delete_all_receptions(self) -> int:
+        """모든 접수 문서 삭제"""
+        try:
+            result = self.client.table('reception_mappings').delete().neq('id', '').execute()
+            deleted_count = len(result.data) if result.data else 0
+            logger.warning(f"모든 접수 문서 삭제 완료: {deleted_count}개")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"모든 접수 문서 삭제 실패: {e}")
+            return 0
