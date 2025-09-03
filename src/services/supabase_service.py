@@ -286,16 +286,35 @@ class SupabaseService:
                 }).execute()
                 
                 recommendations = []
+                seen_combinations = {}  # 중복 제거를 위한 딕셔너리
+                
                 if result.data:
                     for item in result.data:
-                        recommendations.append({
-                            'approval': item['handler'],
-                            'share': item['share_target'] or '공람없음',
-                            'similarity': item.get('similarity', 0),
-                            'title': item['title']
-                        })
+                        approval = item['handler']
+                        share = item['share_target'] or '공람없음'
+                        similarity = item.get('similarity', 0)
+                        title = item['title']
+                        
+                        # approval + share 조합을 키로 사용
+                        combo_key = f"{approval}|{share}"
+                        
+                        # 새로운 조합이거나 더 높은 유사도인 경우만 추가/업데이트
+                        if combo_key not in seen_combinations or seen_combinations[combo_key]['similarity'] < similarity:
+                            seen_combinations[combo_key] = {
+                                'approval': approval,
+                                'share': share,
+                                'similarity': similarity,
+                                'title': title
+                            }
+                    
+                    # 딕셔너리 값을 리스트로 변환하고 유사도 순으로 정렬
+                    recommendations = sorted(
+                        seen_combinations.values(),
+                        key=lambda x: x['similarity'],
+                        reverse=True
+                    )[:count]  # 요청된 개수만큼만 반환
                 
-                logger.info(f"접수 문서 추천 완료: {len(recommendations)}개")
+                logger.info(f"접수 문서 추천 완료 (중복 제거 후): {len(recommendations)}개")
                 return recommendations
                 
             except Exception as e:
@@ -338,11 +357,25 @@ class SupabaseService:
                 }).execute()
                 
                 recommendations = []
+                seen_cards = {}  # 중복 제거를 위한 딕셔너리 (카드명 -> 최고 유사도)
+                
                 if result.data:
                     for item in result.data:
-                        recommendations.append(item['task_title'])
+                        task_title = item['task_title']
+                        similarity = item.get('similarity', 0)
+                        
+                        # 새로운 카드이거나 더 높은 유사도인 경우만 추가/업데이트
+                        if task_title not in seen_cards or seen_cards[task_title] < similarity:
+                            seen_cards[task_title] = similarity
+                    
+                    # 유사도 순으로 정렬하여 카드명만 반환
+                    recommendations = sorted(
+                        seen_cards.keys(),
+                        key=lambda x: seen_cards[x],
+                        reverse=True
+                    )[:count]  # 요청된 개수만큼만 반환
                 
-                logger.info(f"업무카드 추천 완료: {len(recommendations)}개")
+                logger.info(f"업무카드 추천 완료 (중복 제거 후): {len(recommendations)}개")
                 return recommendations
                 
             except Exception as e:
