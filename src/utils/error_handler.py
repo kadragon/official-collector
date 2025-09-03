@@ -16,30 +16,38 @@ _current_log_file = None
 _logger_initialized = False
 
 
-def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> None:
+def cleanup_old_logs(log_directory: str = "logs", keep_count: int = 5) -> None:
     """
-    지정된 보관 기간보다 오래된 로그 파일들을 삭제합니다.
+    최근 로그 파일들만 유지하고 나머지를 삭제합니다.
 
     Args:
         log_directory (str): 로그 디렉토리 경로.
-        retention_days (int): 로그 보관 일수.
+        keep_count (int): 유지할 로그 파일 개수.
     """
     if not os.path.exists(log_directory):
         return
 
-    cutoff_time = datetime.now() - timedelta(days=retention_days)
-
+    # .log 파일들을 찾아서 수정 시간으로 정렬
+    log_files = []
     for filename in os.listdir(log_directory):
         if filename.endswith('.log'):
             file_path = os.path.join(log_directory, filename)
             try:
-                file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-                if file_time < cutoff_time:
-                    os.remove(file_path)
-                    print(f"삭제된 오래된 로그 파일: {filename}")
-            except (OSError, ValueError):
-                # 파일 접근 오류나 시간 변환 오류는 무시
+                mtime = os.path.getmtime(file_path)
+                log_files.append((file_path, mtime, filename))
+            except OSError:
                 continue
+
+    # 수정 시간으로 내림차순 정렬 (최신 파일이 먼저)
+    log_files.sort(key=lambda x: x[1], reverse=True)
+
+    # keep_count 개수를 초과하는 파일들을 삭제
+    for file_path, _, filename in log_files[keep_count:]:
+        try:
+            os.remove(file_path)
+            print(f"삭제된 오래된 로그 파일: {filename}")
+        except OSError:
+            continue
 
 
 def initialize_execution_logger() -> str:
