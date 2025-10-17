@@ -198,6 +198,7 @@ class OfficialCollector:
                 continue
         raise PyWinAutoTimeoutError("공문 처리기를 찾을 수 없습니다.")
 
+    @log_execution_time(logger)
     def add_share(self, share_name: str) -> None:
         """
         공람 그룹에 지정된 이름을 추가합니다.
@@ -295,6 +296,7 @@ class OfficialCollector:
             logger.error("접수 처리 중 오류 발생: %s", e)
             raise
 
+    @log_execution_time(logger)
     def _handle_reception_confirmation(self) -> None:
         """4) '문서를 접수하시겠습니까?' 확인 대화상자를 처리합니다."""
         # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
@@ -321,6 +323,7 @@ class OfficialCollector:
         else:
             logger.warning("접수 확인 대화상자가 나타나지 않음")
 
+    @log_execution_time(logger)
     def _handle_circulation_completion(self) -> None:
         """5) '공람지정을 완료하였습니다.' 확인 대화상자를 처리합니다."""
         # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
@@ -347,6 +350,7 @@ class OfficialCollector:
         else:
             logger.debug("공람지정 완료 대화상자가 나타나지 않음")
 
+    @log_execution_time(logger)
     def _handle_reception_result(self) -> None:
         """6) 접수 후 결과 처리 (종료 또는 다음 문서)."""
         result_dialog_appeared = self._wait_for_condition(
@@ -416,6 +420,7 @@ class OfficialCollector:
             logger.error("문서 분류 중 오류 발생: %s", e)
             raise
 
+    @log_execution_time(logger)
     def _perform_task_card_selection(self, document_group_name: str) -> None:
         """문서카드 선택 프로세스를 수행합니다."""
         info_window = self._wait_for_window("결재정보")
@@ -447,6 +452,7 @@ class OfficialCollector:
         else:
             raise Exception("결재 버튼을 찾을 수 없습니다")
 
+    @log_execution_time(logger)
     def _handle_approval_confirmation(self) -> None:
         """'결재를 진행하시겠습니까?' 확인 대화상자를 처리합니다."""
         # 더 정확하고 빠른 대화상자 식별: 특정 Static 텍스트로 직접 확인
@@ -500,6 +506,7 @@ class OfficialCollector:
             else:
                 logger.info("결재 진행 확인 대화상자가 나타나지 않음")
 
+    @log_execution_time(logger)
     def _handle_approval_result(self) -> None:
         """결재 결과를 처리합니다 (완료 또는 다음 문서) - 초고속 최적화 버전."""
         logger.info("결재 결과 대화상자 대기 시작 - _handle_approval_result() 호출됨")
@@ -909,6 +916,7 @@ class OfficialCollector:
             logger.error("문서 흐름 대화상자 처리 중 오류: %s", e)
             return False
 
+    @log_execution_time(logger)
     def _ensure_payment_info_window(self) -> bool:
         """
         결재정보 창이 표시되어 있는지 확인하고, 없으면 열어줍니다.

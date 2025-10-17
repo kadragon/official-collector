@@ -54,7 +54,7 @@
   - [x] `PerformanceTracker` 통계 수집 기능 구현
   - [x] `tracked_timer` 컨텍스트 매니저 (추적 기능 포함)
 
-#### Phase 2: 주요 측정 지점에 적용 (진행 중)
+#### Phase 2: 주요 측정 지점에 적용 ✅ 완료
 - [x] **API 호출 시간 측정** (우선순위: 높음)
   - [x] OpenAI 임베딩 생성 - `@log_execution_time` 적용
   - [x] Supabase pgvector 검색 (접수) - `timer` 컨텍스트 매니저 적용
@@ -67,9 +67,10 @@
   - [ ] 결재정보 창 열기 (`official_service.py:_ensure_payment_info_window`)
   - [ ] 대화상자 처리 (`official_service.py:_handle_*` 메서드들)
   
-- [ ] **전체 문서 처리 시간 측정** (우선순위: 중간)
-  - [ ] 접수 문서 전체 처리 시간 (`document_processor.py`)
-  - [ ] 전자결재 문서 전체 처리 시간 (`document_processor.py`)
+- [x] **전체 문서 처리 시간 측정** (우선순위: 중간)
+   - [x] 접수 문서 전체 처리 시간 (`document_processor.py:process_reception_document`) - `@log_execution_time` 적용
+   - [x] 전자결재 문서 전체 처리 시간 (`document_processor.py:process_task_card_matching`) - `@log_execution_time` 적용
+   - [x] 배치 업데이트 시간 측정 (`document_processor.py:flush_pending_updates`) - `@log_execution_time` 적용
 
 #### Phase 3: 로그 분석 도구 (선택 - 향후)
 - [ ] 로그 파싱 스크립트
@@ -80,8 +81,8 @@
 - ✅ 핵심 유틸리티 구현 완료
 - ✅ API 호출 시간 측정 완료
 - ✅ RPA 주요 작업 3개 측정 적용 완료
-- ⏳ RPA 세부 작업 측정 대기 중
-- ⏳ 문서 전체 처리 시간 측정 대기 중
+- ✅ RPA 세부 작업 8개 측정 적용 완료 (2025-10-17)
+- ✅ 문서 전체 처리 시간 측정 완료 (3개) (2025-10-17)
 
 ### 측정 대상 구간 (우선순위)
 
@@ -123,17 +124,32 @@ start = time.time()
 logger.info("작업 완료 (%.2fs)", time.time() - start)
 ```
 
-### 구현된 측정 포인트
+### 구현된 측정 포인트 (총 17개)
 
-**API 호출 (3개)**
-1. `OpenAI 임베딩 생성` - `openai_embedding_service.py:create_embedding()`
-2. `Supabase pgvector 검색 (접수)` - `supabase_service.py:recommend_reception()`
-3. `Supabase pgvector 검색 (카드)` - `supabase_service.py:recommend_cards()`
+**API 호출 (1개)**
+1. `OpenAI 임베딩 생성` - `openai_embedding_service.py:93`
 
-**RPA 작업 (3개)**
-4. `결재선 지정` - `official_service.py:approval()`
-5. `접수 버튼 처리` - `official_service.py:reception()`
-6. `문서 분류` - `official_service.py:document_sort()`
+**RPA 작업 (10개)**
+2. `결재선 지정` - `official_service.py:217`
+3. `접수 버튼 처리` - `official_service.py:256`
+4. `문서 분류` - `official_service.py:385` (기존)
+5. `접수 확인 대화상자` - `official_service.py:299`
+6. `공람지정 완료 대화상자` - `official_service.py:326`
+7. `접수 결과 대화상자` - `official_service.py:353`
+8. `결재 진행 확인 대화상자` - `official_service.py:455`
+9. `결재 결과 대화상자` - `official_service.py:509`
+10. `과제카드 선택` - `official_service.py:423`
+11. `공람 지정` - `official_service.py:201`
+12. `결재정보 창 열기` - `official_service.py:919`
+
+**문서 처리 (3개)**
+13. `접수 문서 전체 처리` - `document_processor.py:67`
+14. `전자결재 문서 매칭` - `document_processor.py:193`
+15. `배치 업데이트` - `document_processor.py:317`
+
+**Supabase 검색 (기존, 미계측)**
+- `Supabase pgvector 검색 (접수)` - `supabase_service.py` (timer 컨텍스트)
+- `Supabase pgvector 검색 (카드)` - `supabase_service.py` (timer 컨텍스트)
 
 ### 로그 출력 예시
 ```
@@ -141,6 +157,9 @@ logger.info("작업 완료 (%.2fs)", time.time() - start)
 2025-10-17 10:33:33 - services.supabase_service - INFO - ⏱️ Supabase pgvector 검색 (접수) 완료 (소요시간: 0.264초)
 2025-10-17 10:33:42 - services.official_service - INFO - ⏱️ 결재선 지정 완료 (소요시간: 3.662초)
 2025-10-17 10:33:50 - services.official_service - INFO - ⏱️ 접수 버튼 처리 완료 (소요시간: 5.001초)
+2025-10-17 10:33:55 - services.official_service - INFO - ⏱️ 결재정보 창 열기 완료 (소요시간: 1.234초)
+2025-10-17 10:34:01 - services.official_service - INFO - ⏱️ 접수 확인 대화상자 처리 완료 (소요시간: 0.125초)
+2025-10-17 10:34:03 - services.official_service - INFO - ⏱️ 과제카드 선택 완료 (소요시간: 2.456초)
 ```
 
 ### 예상 효과
