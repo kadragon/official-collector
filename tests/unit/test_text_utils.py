@@ -206,7 +206,7 @@ class TestExtractTitleFromApproval:
             "2024년 예산안 검토 요청 공문"
         ),
         (
-            "승인요청 - 신입사원 채용계획", 
+            "승인요청 - 신입사원 채용계획",
             "신입사원 채용계획"
         ),
         (
@@ -216,6 +216,18 @@ class TestExtractTitleFromApproval:
         (
             "제목: 교육훈련 프로그램 운영 계획",
             "교육훈련 프로그램 운영 계획"
+        ),
+        (
+            "전자결재: [ 보안등급 : ] [ 붙임 : ] 년도 중앙행정기관",
+            "년도 중앙행정기관"
+        ),
+        (
+            "전자결재: [ 태그1 : ] [ 태그2 : ] 실제 문서 제목",
+            "실제 문서 제목"
+        ),
+        (
+            "전자결재: [ 태그 : ] 한 개만 있는 경우",
+            "한 개만 있는 경우"
         )
     ])
     def test_title_extraction_patterns(self, approval_text, expected_title):
