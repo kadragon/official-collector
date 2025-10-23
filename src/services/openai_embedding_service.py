@@ -148,83 +148,115 @@ class OpenAIEmbeddingService:
     def create_embeddings_batch(
         self, requests: List[EmbeddingRequest], batch_size: int = 100
     ) -> List[EmbeddingResponse]:
-        """배치 임베딩 생성"""
-        results = []
-        total_batches = len(requests) // batch_size + (
-            1 if len(requests) % batch_size > 0 else 0
+        """Creates embeddings in batches with retry handling."""
+        results: List[EmbeddingResponse] = []
+        if not requests:
+            return results
+
+        total_batches = (len(requests) + batch_size - 1) // batch_size
+        logger.info(
+            "Batch embedding start: %d requests across %d batches", len(requests), total_batches
         )
 
-        logger.info(f"배치 임베딩 시작: {len(requests)}개 요청, {total_batches}개 배치")
+        index = 0
+        while index < len(requests):
+            batch = requests[index : index + batch_size]
+            batch_num = index // batch_size + 1
+            logger.info("Processing batch %d/%d (%d items)", batch_num, total_batches, len(batch))
 
-        for i in range(0, len(requests), batch_size):
-            batch = requests[i : i + batch_size]
-            batch_num = i // batch_size + 1
+            valid_items = [
+                (req, req.text.strip())
+                for req in batch
+                if req.text and req.text.strip()
+            ]
 
-            logger.info(
-                f"배치 {batch_num}/{total_batches} 처리 중... ({len(batch)}개 항목)"
-            )
-
-            try:
-                # 배치 내 텍스트 추출
-                texts = [
-                    req.text.strip() for req in batch if req.text and req.text.strip()
-                ]
-
-                if not texts:
-                    logger.warning(f"배치 {batch_num}에 유효한 텍스트가 없음")
-                    continue
-
-                # OpenAI API 배치 요청
-                response = self.client.embeddings.create(
-                    model=self.model, input=texts, encoding_format="float"
-                )
-
-                # 결과 매핑
-                for j, req in enumerate(batch):
-                    if req.text and req.text.strip():
-                        embedding_data = response.data[j]
-                        token_count = response.usage.total_tokens // len(
-                            texts
-                        )  # 근사치
-
-                        result = EmbeddingResponse(
-                            identifier=req.identifier,
-                            embedding=embedding_data.embedding,
-                            text=req.text,
-                            token_count=token_count,
-                            metadata=req.metadata or {},
-                        )
-                        results.append(result)
-
-                # 비용 추적
-                self.cost_tracker.add_request(response.usage.total_tokens)
-
-                # API 제한 고려한 딜레이
-                if batch_num < total_batches:
-                    time.sleep(0.1)  # 100ms 딜레이
-
-            except openai.RateLimitError as e:
-                logger.warning(f"배치 {batch_num} Rate limit 오류: {e}")
-                # 지수 백오프
-                wait_time = min(60, 2 ** (batch_num % 6))
-                logger.info(f"{wait_time}초 대기 후 재시도")
-                time.sleep(wait_time)
-
-                # 배치를 다시 처리
-                i -= batch_size
+            if not valid_items:
+                logger.warning("Batch %d had no valid text inputs", batch_num)
+                index += len(batch)
                 continue
 
-            except Exception as e:
-                logger.error(f"배치 {batch_num} 처리 중 오류: {e}")
-                # 개별 처리로 폴백
-                for req in batch:
-                    individual_result = self.create_embedding(
-                        req.text, req.identifier, req.metadata
+            attempts = 0
+            while True:
+                try:
+                    response = self.client.embeddings.create(
+                        model=self.model,
+                        input=[text for _, text in valid_items],
+                        encoding_format="float",
                     )
-                    if individual_result:
-                        results.append(individual_result)
 
-        logger.info(f"배치 임베딩 완료: {len(results)}개 성공")
+                    avg_tokens = 0
+                    if response.usage and response.usage.total_tokens:
+                        avg_tokens = response.usage.total_tokens // max(len(valid_items), 1)
+                        self.cost_tracker.add_request(response.usage.total_tokens)
+
+                    for (req, original_text), embedding_data in zip(valid_items, response.data):
+                        results.append(
+                            EmbeddingResponse(
+                                identifier=req.identifier,
+                                embedding=embedding_data.embedding,
+                                text=req.text,
+                                token_count=avg_tokens,
+                                metadata=req.metadata or {},
+                            )
+                        )
+
+                    if batch_num < total_batches:
+                        time.sleep(0.1)
+
+                    index += len(batch)
+                    break
+
+                except openai.RateLimitError as error:
+                    attempts += 1
+                    wait_time = min(60, 2 ** attempts)
+                    logger.warning(
+                        "Batch %d rate limited (attempt %d/%d): %s",
+                        batch_num,
+                        attempts,
+                        self.max_retry,
+                        error,
+                    )
+                    if attempts >= self.max_retry:
+                        logger.error(
+                            "Batch %d exceeded retry limits; falling back to per-request processing",
+                            batch_num,
+                        )
+                        for req, _ in valid_items:
+                            individual_result = self.create_embedding(
+                                req.text, req.identifier, req.metadata
+                            )
+                            if individual_result:
+                                results.append(individual_result)
+                        index += len(batch)
+                        break
+
+                    time.sleep(wait_time)
+
+                except openai.APIError as error:
+                    attempts += 1
+                    logger.error(
+                        "OpenAI API error for batch %d (attempt %d/%d): %s",
+                        batch_num,
+                        attempts,
+                        self.max_retry,
+                        error,
+                    )
+                    if attempts >= self.max_retry:
+                        raise
+                    time.sleep(1)
+
+                except Exception as error:
+                    logger.error(f"Batch {batch_num} processing failed: {error}")
+                    for req, _ in valid_items:
+                        individual_result = self.create_embedding(
+                            req.text, req.identifier, req.metadata
+                        )
+                        if individual_result:
+                            results.append(individual_result)
+                    index += len(batch)
+                    break
+
+        logger.info("Batch embedding complete: %d embeddings generated", len(results))
         return results
 
     def create_embeddings_from_texts(

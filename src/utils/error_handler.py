@@ -16,40 +16,36 @@ _current_log_file = None
 _logger_initialized = False
 
 
-def cleanup_old_logs(log_directory: str = "logs") -> None:
+def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> None:
     """
-    오늘 이전 로그 파일들을 삭제합니다.
+    ���� ���� �α� ���ϵ��� �����մϴ�.
 
     Args:
-        log_directory (str): 로그 디렉토리 경로.
+        log_directory (str): �α� ���丮 ���.
+        retention_days (int): ���� ���ϴ� �α� ���� ��.
     """
     if not os.path.exists(log_directory):
         return
 
-    # 오늘 날짜 (시간은 00:00:00)
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff_time = datetime.now() - timedelta(days=retention_days)
 
-    # .log 파일들을 찾아서 날짜 확인
     deleted_count = 0
     for filename in os.listdir(log_directory):
         if filename.endswith(".log"):
             file_path = os.path.join(log_directory, filename)
             try:
-                # 파일 수정 시간을 datetime으로 변환
-                mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
-
-                # 오늘 이전 파일들을 삭제
-                if mtime < today:
+                file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                if file_time < cutoff_time:
                     os.remove(file_path)
                     deleted_count += 1
-                    print(f"삭제된 오래된 로그 파일: {filename}")
-            except OSError:
+                    print(f"������ ������ �α� ����: {filename}")
+            except (OSError, ValueError):
                 continue
 
     if deleted_count > 0:
-        print(f"총 {deleted_count}개의 오래된 로그 파일이 삭제되었습니다.")
+        print(f"�� {deleted_count}���� ������ �α� ������ �����Ǿ����ϴ�.")
     else:
-        print("삭제할 오래된 로그 파일이 없습니다.")
+        print("������ ������ �α� ������ �����ϴ�.")
 
 
 def initialize_execution_logger() -> str:

@@ -90,10 +90,13 @@ class DialogClassifier:
         normalized_text = dialog_text.strip()
 
         # 디버그 정보 강제 출력 (임시)
-        logger.info("대화상자 텍스트 분석 시작: '%s'", normalized_text)
-        logger.info(
-            f"텍스트 길이: {len(normalized_text)}, 줄바꿈 포함: {'\\n' in normalized_text}"
-        )
+        if self._debug_mode:
+            logger.info("��ȭ���� �ؽ�Ʈ �м� ����: '%s'", normalized_text)
+            logger.info(
+                "�ؽ�Ʈ ����: %d, �ٹٲ� ����: %s",
+                len(normalized_text),
+                '\n' in normalized_text,
+            )
 
         # 패턴 길이 순으로 정렬하여 더 구체적인 패턴이 먼저 매칭되도록 함
         all_patterns = []

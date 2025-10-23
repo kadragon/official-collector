@@ -5,9 +5,11 @@ Tests logging setup, error handling patterns, and log management functionality.
 These tests use mocked logging and file system operations.
 """
 
-import pytest
 import logging
 import tempfile
+import os
+import time
+import pytest
 from unittest.mock import patch, MagicMock, mock_open
 from pathlib import Path
 import sys
@@ -15,7 +17,7 @@ import sys
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from utils.error_handler import setup_logger
+from utils.error_handler import cleanup_old_logs, setup_logger
 
 
 class TestSetupLogger:
@@ -324,3 +326,25 @@ class TestLoggingIntegration:
                 print("Logging failed, using fallback")
         
         # Should handle gracefully without crashing application
+
+class TestCleanupOldLogsRetention:
+    """Ensure log retention logic honours configured days."""
+
+    def test_retention_parameter_controls_deletion(self, tmp_path):
+        """Old logs beyond retention days should be removed while recent ones stay."""
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+
+        old_log = log_dir / "old.log"
+        recent_log = log_dir / "recent.log"
+        old_log.write_text("old")
+        recent_log.write_text("recent")
+
+        old_age_seconds = 10 * 24 * 60 * 60
+        current_time = time.time()
+        os.utime(old_log, (current_time - old_age_seconds, current_time - old_age_seconds))
+
+        cleanup_old_logs(log_directory=str(log_dir), retention_days=7)
+
+        assert not old_log.exists()
+        assert recent_log.exists()
