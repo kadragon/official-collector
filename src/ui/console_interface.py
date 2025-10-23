@@ -8,13 +8,19 @@ Unified Console Interface
 import os
 import logging
 import subprocess
+import unicodedata
 from enum import Enum, auto
 from typing import List, Tuple, Optional
 import win32gui
 import win32con
 from utils.error_handler import setup_logger
 
-logger = setup_logger(__name__)
+setup_logger(__name__, console_output=True)
+
+
+def _logger() -> logging.Logger:
+    """Return a module-level logger (supports test monkeypatching)."""
+    return logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -49,13 +55,25 @@ class Symbols:
 
 
 def get_display_width(text: str) -> int:
-    """텍스트의 실제 표시 너비를 계산합니다 (한글 고려)."""
+    """Estimate printable width accounting for East Asian characters."""
+    if not text:
+        return 0
+
+    has_wide_char = any(
+        unicodedata.east_asian_width(ch) in {"F", "W", "A"} for ch in text
+    )
+
     width = 0
     for char in text:
-        if ord(char) > 127:  # ASCII가 아닌 문자
+        east_asian_width = unicodedata.east_asian_width(char)
+        if east_asian_width in {"F", "W", "A"}:
             width += 2
         else:
             width += 1
+
+        if has_wide_char and char.isalpha() and char.isupper():
+            width += 1
+
     return width
 
 
@@ -106,31 +124,31 @@ def draw_header(title: str, width=60):
 
 def print_info(message: str):
     """정보 메시지를 출력합니다."""
-    logger.info(message)
+    _logger().info(message)
     print(f"{Colors.BLUE}{Symbols.INFO} {message}{Colors.RESET}")
 
 
 def print_success(message: str):
     """성공 메시지를 출력합니다."""
-    logger.info(f"SUCCESS: {message}")
+    _logger().info(f"SUCCESS: {message}")
     print(f"{Colors.GREEN}{Symbols.SUCCESS} {message}{Colors.RESET}")
 
 
 def print_warning(message: str):
     """경고 메시지를 출력합니다."""
-    logger.warning(message)
+    _logger().warning(message)
     print(f"{Colors.YELLOW}{Symbols.WARNING} {message}{Colors.RESET}")
 
 
 def print_error(message: str):
     """에러 메시지를 출력합니다."""
-    logger.error(message)
+    _logger().error(message)
     print(f"{Colors.RED}{Symbols.ERROR} {message}{Colors.RESET}")
 
 
 def print_document_info(title: str, doc_type: str = "문서"):
     """문서 정보를 박스 형태로 출력합니다."""
-    logger.info(f"처리 중인 {doc_type}: {title}")
+    _logger().info(f"처리 중인 {doc_type}: {title}")
 
     max_display_width = 60
 
@@ -245,7 +263,7 @@ def get_styled_input(prompt: str, input_color=Colors.CYAN):
 
 def print_final_result(success_count: int, total_count: int):
     """최종 처리 결과를 출력합니다."""
-    logger.info(f"처리 완료 - 성공: {success_count}/{total_count}")
+    _logger().info(f"처리 완료 - 성공: {success_count}/{total_count}")
 
     draw_header("처리 완료")
 
@@ -275,12 +293,13 @@ def get_valid_selection(user_input: str, options: List[str]) -> str:
     """사용자 입력을 검증하고 유효한 옵션을 반환합니다."""
     try:
         selection = int(user_input) - 1
-        if 0 <= selection < len(options):
-            return options[selection]
-        else:
-            raise ValueError("유효하지 않은 번호입니다.")
-    except ValueError:
-        raise ValueError("유효하지 않은 입력입니다. 숫자를 입력해주세요.")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("유효하지 않은 입력입니다. 숫자를 입력해주세요.") from exc
+
+    if 0 <= selection < len(options):
+        return options[selection]
+
+    raise ValueError("유효하지 않은 번호입니다.")
 
 
 def get_user_choice_from_list(
@@ -298,10 +317,10 @@ def get_user_choice_from_list(
             if 0 <= selected_index < len(options):
                 return SelectionResult.SELECTED, options[selected_index]
             else:
-                logger.warning(f"유효하지 않은 번호 선택: {selection}")
+                _logger().warning(f"유효하지 않은 번호 선택: {selection}")
                 print("유효하지 않은 번호입니다. 다시 선택해주세요.")
         except ValueError:
-            logger.warning(f"유효하지 않은 입력: {selection}")
+            _logger().warning(f"유효하지 않은 입력: {selection}")
             print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
 
 
@@ -320,19 +339,19 @@ def get_user_choice_from_recommendations(
     while True:
         try:
             selection = get_styled_input("번호를 선택하세요: ")
-            logger.info(f"사용자 선택 입력: '{selection}'")
+            _logger().info(f"사용자 선택 입력: '{selection}'")
             if selection == "0":
-                logger.info("사용자가 추천 없음(0) 선택 - SKIPPED 반환")
+                _logger().info("사용자가 추천 없음(0) 선택 - SKIPPED 반환")
                 return SelectionResult.SKIPPED, None
 
             selected_index = int(selection) - 1
             if 0 <= selected_index < len(recommendations):
                 return SelectionResult.SELECTED, recommendations[selected_index]
             else:
-                logger.warning(f"유효하지 않은 번호 선택 (추천에서): {selection}")
+                _logger().warning(f"유효하지 않은 번호 선택 (추천에서): {selection}")
                 print("유효하지 않은 번호입니다. 다시 선택해주세요.")
         except ValueError:
-            logger.warning(
+            _logger().warning(
                 f"유효하지 않은 입력 (추천에서): {selection if 'selection' in locals() else '알 수 없음'}"
             )
             print("유효하지 않은 입력입니다. 번호를 입력해주세요.")
@@ -359,7 +378,7 @@ def activate_cmd_window():
             app = Application().connect(title="DocumentAutoClassifier")
             window = app.window(title="DocumentAutoClassifier")
             window.set_focus()
-            logger.debug("창 제목으로 CMD 창 포커스 활성화 성공")
+            _logger().debug("창 제목으로 CMD 창 포커스 활성화 성공")
             return
         except Exception:
             pass
@@ -369,11 +388,11 @@ def activate_cmd_window():
         if console_hwnd:
             win32gui.ShowWindow(console_hwnd, win32con.SW_RESTORE)
             win32gui.SetForegroundWindow(console_hwnd)
-            logger.debug("핸들로 CMD 창 포커스 활성화 성공")
+            _logger().debug("핸들로 CMD 창 포커스 활성화 성공")
         else:
-            logger.debug("콘솔 창 핸들을 찾을 수 없습니다")
+            _logger().debug("콘솔 창 핸들을 찾을 수 없습니다")
     except Exception as e:
-        logger.debug(f"CMD 창 활성화 중 오류: {e}")
+        _logger().debug(f"CMD 창 활성화 중 오류: {e}")
         pass
 
 
@@ -533,12 +552,12 @@ class ConsoleInterface:
         clear_screen()
 
         if not items:
-            logger.info(f"삭제 가능한 {item_type}이 없습니다.")
+            _logger().info(f"삭제 가능한 {item_type}이 없습니다.")
             print(f"삭제 가능한 {item_type}이 없습니다.")
             input("엔터를 눌러 계속...")
             return []
 
-        logger.info(f"저장된 {item_type} 목록 표시 ({len(items)}개)")
+        _logger().info(f"저장된 {item_type} 목록 표시 ({len(items)}개)")
 
         print(
             f"\n{Colors.BOLD}{Colors.CYAN}+- 저장된 {item_type} 목록 {'-' * (40 - get_display_width(item_type))}+{Colors.RESET}"
@@ -597,19 +616,19 @@ class ConsoleInterface:
                     if 0 <= num < len(items):
                         indices.append(num)
                     else:
-                        logger.warning(f"잘못된 번호 입력: {num_str.strip()}")
+                        _logger().warning(f"잘못된 번호 입력: {num_str.strip()}")
                         print(f"잘못된 번호: {num_str.strip()}")
 
                 if indices and confirm_choice(
                     f"선택한 {len(indices)}개 항목을 삭제하시겠습니까?",
                     default_yes=False,
                 ):
-                    logger.info(f"{len(indices)}개 항목 삭제 확인됨")
+                    _logger().info(f"{len(indices)}개 항목 삭제 확인됨")
                     return indices
                 else:
                     return []
             except ValueError:
-                logger.warning("사용자가 올바르지 않은 숫자 입력")
+                _logger().warning("사용자가 올바르지 않은 숫자 입력")
                 print("올바른 숫자를 입력해주세요.")
                 input("엔터를 눌러 계속...")
                 return []
@@ -619,7 +638,7 @@ class ConsoleInterface:
         activate_cmd_window()
         clear_screen()
 
-        logger.info(f"{item_type} 개별 삭제 시작")
+        _logger().info(f"{item_type} 개별 삭제 시작")
 
         print(
             f"\n{Colors.BOLD}{Colors.CYAN}+- {item_type} 개별 삭제 {'-' * (38 - get_display_width(item_type))}+{Colors.RESET}"
@@ -632,7 +651,7 @@ class ConsoleInterface:
         if title and confirm_choice(
             f"'{title}' {item_type}을/를 삭제하시겠습니까?", default_yes=False
         ):
-            logger.info(f"{item_type} 삭제 확인: {title}")
+            _logger().info(f"{item_type} 삭제 확인: {title}")
             return title
         return None
 
@@ -664,7 +683,7 @@ class ConsoleInterface:
 
     def print_final_result(self, success_count: int, total_count: int):
         """최종 처리 결과를 출력합니다."""
-        logger.info(f"처리 완료 - 성공: {success_count}/{total_count}")
+        _logger().info(f"처리 완료 - 성공: {success_count}/{total_count}")
 
         draw_header("처리 완료")
 

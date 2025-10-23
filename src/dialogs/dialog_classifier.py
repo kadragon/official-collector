@@ -91,9 +91,9 @@ class DialogClassifier:
 
         # 디버그 정보 강제 출력 (임시)
         if self._debug_mode:
-            logger.info("��ȭ���� �ؽ�Ʈ �м� ����: '%s'", normalized_text)
+            logger.info("대화상자 텍스트 분석 시작: '%s'", normalized_text)
             logger.info(
-                "�ؽ�Ʈ ����: %d, �ٹٲ� ����: %s",
+                "텍스트 길이: %d, 줄바꿈 포함: %s",
                 len(normalized_text),
                 '\n' in normalized_text,
             )

@@ -144,8 +144,8 @@ class SupabaseService:
             logger.error(f"업무카드 제목 조회 실패: {e}")
             return None
 
-    def recommend_cards(self, title: str, count: int = 5) -> List[str]:
-        """벡터 유사도 기반 업무카드 추천"""
+    def recommend_cards(self, title: str, count: int = 5) -> List[Dict[str, Any]]:
+        """벡터 유사도 기반 업무카드 추천 (유사도 포함)"""
         try:
             # 1. 쿼리 텍스트 임베딩 생성
             embedding_response = self.embedding_service.create_embedding(
@@ -184,12 +184,13 @@ class SupabaseService:
                         ):
                             seen_cards[task_title] = similarity
 
-                    # 유사도 순으로 정렬하여 카드명만 반환
-                    recommendations = sorted(
-                        seen_cards.keys(), key=lambda x: seen_cards[x], reverse=True
-                    )[
-                        :count
-                    ]  # 요청된 개수만큼만 반환
+                    # 유사도 순으로 정렬하여 카드명과 유사도를 함께 반환
+                    recommendations = [
+                        {"task_title": card, "similarity": seen_cards[card]}
+                        for card in sorted(
+                            seen_cards.keys(), key=lambda x: seen_cards[x], reverse=True
+                        )[:count]
+                    ]
 
                 logger.info(
                     f"업무카드 추천 완료 (중복 제거 후): {len(recommendations)}개"

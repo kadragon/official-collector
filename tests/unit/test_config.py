@@ -66,7 +66,7 @@ class TestUnifiedConfig:
     })
     @patch('builtins.open', side_effect=FileNotFoundError)
     @patch('pathlib.Path.exists', return_value=False)
-    def test_base_data_file_not_found(self, mock_exists):
+    def test_base_data_file_not_found(self, mock_exists, mock_open):
         """Test behavior when base data file is not found."""
         config = self.config_class()
         
@@ -157,6 +157,11 @@ class TestUnifiedConfig:
 
 class TestConfigurationPaths:
     """Test configuration file path handling."""
+
+    def setup_method(self):
+        from config import UnifiedConfig
+
+        self.config_class = UnifiedConfig
     
     @patch.dict('os.environ', {
         'OLLAMA_BASE_URL': 'http://test:11434',
@@ -324,7 +329,7 @@ class TestConfigurationEdgeCases:
     })
     @patch('builtins.open', side_effect=PermissionError("Access denied"))
     @patch('pathlib.Path.exists', return_value=True) 
-    def test_file_permission_error(self, mock_exists):
+    def test_file_permission_error(self, mock_exists, mock_open):
         """Test handling of file permission errors."""
         # Should not crash, should handle gracefully
         config = self.config_class()

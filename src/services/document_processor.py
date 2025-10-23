@@ -104,7 +104,7 @@ class DocumentProcessor:
 
             if recommendations:
                 recommendation_options = [
-                    f"{rec['approval']} (공람: {rec['share']})"
+                    f"{rec['approval']} (공람: {rec['share']}, 유사도: {rec['similarity']:.1%})"
                     for rec in recommendations
                 ]
                 status, value = get_user_choice_from_recommendations(
@@ -220,15 +220,22 @@ class DocumentProcessor:
         recommendations = self.supabase_service.recommend_cards(title, count=5)
         if recommendations:
             logger.info("pgvector 유사도 기반 추천 과제 카드: %s", recommendations)
+            # 유사도 포함한 문자열 리스트로 변환
+            recommendation_options = [
+                f"{rec['task_title']} (유사도: {rec['similarity']:.1%})"
+                for rec in recommendations
+            ]
             status, value = get_user_choice_from_recommendations(
-                title, recommendations
+                title, recommendation_options
             )  # 사용자에게는 원본 제목 표시
             logger.info(f"추천 선택 결과: status={status}, value={value}")
             if status == SelectionResult.SKIPPED:
                 card_name = None  # 사용자가 '추천 없음' 선택
                 logger.info("추천 없음 선택됨 - 다음 단계로 이동")
             elif status == SelectionResult.SELECTED:
-                card_name = value
+                # 유사도 정보 제거하고 실제 카드명만 추출
+                selected_index = recommendation_options.index(value)
+                card_name = recommendations[selected_index]["task_title"]
                 logger.info("임베딩 추천에서 선택: %s -> %s", title, card_name)
 
         # 3. 추천이 선택되지 않은 경우 미리 정의된 목록 제공

@@ -79,55 +79,54 @@ def setup_logger(
     level: int = logging.INFO,
     log_file: Optional[str] = None,
     format_string: Optional[str] = None,
-    console_output: bool = False,
+    console_output: bool = True,
 ) -> logging.Logger:
     """
-    로거를 설정합니다.
+    Create (or retrieve) a configured logger instance.
 
     Args:
-        name (str): 로거 이름.
-        level (int): 로깅 레벨.
-        log_file (Optional[str]): 로그 파일 경로.
-        format_string (Optional[str]): 로그 포맷 문자열.
-        console_output (bool): 콘솔 출력 여부.
+        name (str): Logger name.
+        level (int): Logging level.
+        log_file (Optional[str]): Explicit log file path.
+        format_string (Optional[str]): Log formatting template.
+        console_output (bool): Whether to attach a console handler.
 
     Returns:
-        logging.Logger: 설정된 로거.
+        logging.Logger: Configured logger instance.
     """
     logger = logging.getLogger(name)
-
-    if logger.handlers:  # 이미 설정된 로거인 경우 반환
-        return logger
-
     logger.setLevel(level)
 
-    # 기본 포맷 설정
     if format_string is None:
         format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
     formatter = logging.Formatter(format_string)
 
-    # 로그 파일이 지정되지 않았다면 실행별 로그 파일 사용
-    if log_file is None:
-        log_file = initialize_execution_logger()
+    if not logger.handlers:
+        if log_file is None:
+            log_file = initialize_execution_logger()
 
-    # logs 디렉토리가 없으면 생성
-    log_path = Path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 파일 핸들러 추가
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setLevel(level)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+        try:
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        except OSError as error:
+            logging.getLogger(name).warning("Unable to open log file %s: %s", log_file, error)
+        else:
+            file_handler.setLevel(level)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
 
-    # 콘솔 핸들러 추가 (선택적)
-    if console_output:
+    if console_output and not any(
+        isinstance(handler, logging.StreamHandler) for handler in logger.handlers
+    ):
         console_handler = logging.StreamHandler()
         console_handler.setLevel(level)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
+    logger.propagate = False
     return logger
 
 
