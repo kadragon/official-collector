@@ -17,7 +17,44 @@ dependencies = [
 [dependency-groups]
 dev = [
     "bandit>=1.8.6",
+    "black>=25.9.0",
+    "mypy>=1.0.0",
     "pylint>=3.3.7",
     "pytest>=8.0.0",
     "pytest-mock>=3.14.0",
 ]
+
+[tool.mypy]
+python_version = "3.12"
+namespace_packages = true
+mypy_path = "src"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "src.*",
+    "tests.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pywinauto",
+    "pywinauto.*",
+    "win32gui",
+    "win32con",
+    "pyperclip",
+]
+ignore_missing_imports = true

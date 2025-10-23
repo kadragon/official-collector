@@ -6,7 +6,6 @@
 """
 
 import os
-import json
 from pathlib import Path
 from typing import Dict, List, Any
 from dotenv import load_dotenv
@@ -18,61 +17,55 @@ logger = setup_logger(__name__)
 class UnifiedConfig:
     """
     통합된 애플리케이션 설정 클래스
-    
+
     환경 변수, 기본 데이터, 경로 설정 등을 중앙 집중식으로 관리합니다.
     """
-    
+
     def __init__(self):
         """설정 초기화 및 환경 변수 로드"""
         self._load_environment()
         self._setup_paths()
         self._load_base_data()
         self._setup_logging_config()
-    
+
     def _load_environment(self):
         """환경 변수 로드 및 검증"""
         load_dotenv()
-        
-        # 필수 환경 변수
-        required_vars = ["OLLAMA_BASE_URL", "OLLAMA_MODEL"]
+
+        # 필수 환경 변수 (OpenAI/Supabase)
+        required_vars = ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]
         missing_vars = [var for var in required_vars if not os.environ.get(var)]
-        
+
         if missing_vars:
-            error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
+            error_msg = (
+                f"Missing required environment variables: {', '.join(missing_vars)}"
+            )
             logger.critical(error_msg)
             raise ValueError(error_msg)
-        
-        # Ollama 설정
-        self.ollama_base_url = os.environ.get("OLLAMA_BASE_URL")
-        self.ollama_model = os.environ.get("OLLAMA_MODEL")
-        
-        # Chroma 설정
-        self.chroma_persist_dir = os.environ.get("CHROMA_PERSIST_DIR", "./chroma_db")
-        
-        # 선택적 설정들 (기존 호환성)
+
+        # OpenAI/Supabase 설정
         self.openai_api_key = os.environ.get("OPENAI_API_KEY")
-        self.qdrant_url = os.environ.get("QDRANT_URL")
         self.supabase_url = os.environ.get("SUPABASE_URL")
         self.supabase_key = os.environ.get("SUPABASE_KEY")
         self.supabase_service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    
+
     def _setup_paths(self):
         """경로 설정"""
         self.project_root = Path(__file__).parent.parent
         self.data_dir = self.project_root / "data"
         self.logs_dir = self.project_root / "logs"
         self.cache_dir = self.project_root / ".cache"
-        
+
         # 필요한 디렉토리 생성
         self.data_dir.mkdir(exist_ok=True)
         self.logs_dir.mkdir(exist_ok=True)
         self.cache_dir.mkdir(exist_ok=True)
-        
+
         # 주요 파일 경로
         self.card_list_file = self.data_dir / "card_list.txt"
         self.reception_list_file = self.data_dir / "reception_list.txt"
         self.share_list_file = self.data_dir / "share_list.txt"
-    
+
     def _load_base_data(self):
         """기본 데이터 로드"""
         try:
@@ -80,59 +73,52 @@ class UnifiedConfig:
             self.card_list = self._load_txt_file(self.card_list_file)
             self.reception_list = self._load_txt_file(self.reception_list_file)
             self.share_list = self._load_txt_file(self.share_list_file)
-            
+
             logger.info("Base data loaded successfully")
-            logger.info(f"Loaded {len(self.card_list)} cards, {len(self.reception_list)} receptions, {len(self.share_list)} share options")
-            
+            logger.info(
+                f"Loaded {len(self.card_list)} cards, {len(self.reception_list)} receptions, {len(self.share_list)} share options"
+            )
+
         except FileNotFoundError as e:
             raise FileNotFoundError(f"Base data file not found: {e}")
         except Exception as e:
             raise RuntimeError(f"Error loading base data: {e}")
-    
+
     def _load_txt_file(self, file_path: Path) -> List[str]:
         """TXT 파일에서 목록 데이터 로드"""
-        with open(file_path, 'r', encoding='utf-8') as file:
-            lines = file.read().strip().split('\n')
+        with open(file_path, "r", encoding="utf-8") as file:
+            lines = file.read().strip().split("\n")
             # 빈 줄과 공백 제거
             return [line.strip() for line in lines if line.strip()]
-    
+
     def _setup_logging_config(self):
         """로깅 관련 설정"""
         # 간소화된 로깅 설정
         self.log_level = os.environ.get("LOG_LEVEL", "INFO")
         self.debug_mode = os.environ.get("DEBUG_MODE", "false").lower() == "true"
-        
+
         # 로그 보관 정책 (간소화)
         self.log_retention_days = int(os.environ.get("LOG_RETENTION_DAYS", "7"))
-    
-    def get_chroma_collection_name(self, collection_type: str) -> str:
-        """Chroma 컬렉션 이름 생성"""
-        collection_names = {
-            'reception': 'reception_documents',
-            'task_card': 'documents',
-            'default': 'documents'
-        }
-        return collection_names.get(collection_type, collection_names['default'])
-    
+
     def reload_base_data(self):
         """기본 데이터 다시 로드 (런타임 중 변경 반영용)"""
         self._load_base_data()
         logger.info("Base data reloaded")
-    
+
     def get_config_summary(self) -> Dict[str, Any]:
         """설정 요약 정보 반환 (디버깅용)"""
         return {
-            'ollama_base_url': self.ollama_base_url,
-            'ollama_model': self.ollama_model,
-            'chroma_persist_dir': self.chroma_persist_dir,
-            'project_root': str(self.project_root),
-            'data_counts': {
-                'cards': len(self.card_list),
-                'receptions': len(self.reception_list),
-                'shares': len(self.share_list)
+            "openai_api_key": "***" if self.openai_api_key else None,
+            "supabase_url": self.supabase_url,
+            "supabase_key": "***" if self.supabase_key else None,
+            "project_root": str(self.project_root),
+            "data_counts": {
+                "cards": len(self.card_list),
+                "receptions": len(self.reception_list),
+                "shares": len(self.share_list),
             },
-            'debug_mode': self.debug_mode,
-            'log_level': self.log_level
+            "debug_mode": self.debug_mode,
+            "log_level": self.log_level,
         }
 
 

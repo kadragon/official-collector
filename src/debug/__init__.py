@@ -5,13 +5,13 @@ from .debug_manager import (
     create_debug_manager,
     quick_window_analysis,
     monitor_circulation_dialogs,
-    run_interactive_debug
+    run_interactive_debug,
 )
 
 __all__ = [
-    'UnifiedDebugManager',
-    'create_debug_manager', 
-    'quick_window_analysis',
-    'monitor_circulation_dialogs',
-    'run_interactive_debug'
+    "UnifiedDebugManager",
+    "create_debug_manager",
+    "quick_window_analysis",
+    "monitor_circulation_dialogs",
+    "run_interactive_debug",
 ]

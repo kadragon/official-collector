@@ -11,15 +11,14 @@ from services.document_processor import DocumentProcessor
 from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
 from ui.console_interface import (
-    ConsoleInterface,
-    clear_screen,
     draw_header,
     print_document_info,
     print_success,
     print_warning,
     print_info,
     print_final_result,
-    activate_cmd_window
+    activate_cmd_window,
+    clear_screen
 )
 
 logger = setup_logger(__name__)
@@ -44,11 +43,11 @@ class Main:
             supabase_service=supabase_service,
             approval_name_list=self.approval_name_list,
             share_name_list=self.share_name_list,
-            predefined_card_list=config.card_list
+            predefined_card_list=config.card_list,
         )
 
     def run(self) -> None:
-        """ 메인 로직 """
+        """메인 로직"""
         clear_screen()
         draw_header("공문 자동 분류 시스템")
         print_info("문서 처리를 시작합니다...")
@@ -68,9 +67,10 @@ class Main:
             elif flow_state == DocumentFlowState.CONTINUE:
                 if not self.auto_continue:
                     activate_cmd_window()
-                    user_choice = input(
-                        "\n다음 문서를 처리하시겠습니까? (y/n): ").lower().strip()
-                    if user_choice in ['n', 'no', '아니오']:
+                    user_choice = (
+                        input("\n다음 문서를 처리하시겠습니까? (y/n): ").lower().strip()
+                    )
+                    if user_choice in ["n", "no", "아니오"]:
                         print_info("사용자 요청으로 문서 처리를 종료합니다.")
                         # 대화상자에서 취소 버튼 클릭
                         self.collector.handle_cancel_dialog()
@@ -78,7 +78,9 @@ class Main:
                         self._flush_all_pending_updates()
                         break
 
-                if not self.collector.handle_document_flow_dialog(flow_state, self.auto_continue):
+                if not self.collector.handle_document_flow_dialog(
+                    flow_state, self.auto_continue
+                ):
                     # 종료 전 대기 중인 업데이트 모두 처리
                     self._flush_all_pending_updates()
                     break
@@ -88,9 +90,12 @@ class Main:
                 if not self.auto_continue:
                     # 사용자에게 선택권 제공
                     activate_cmd_window()
-                    user_choice = input(
-                        "계속 처리하시겠습니까? (y: 계속, n: 종료): ").lower().strip()
-                    if user_choice in ['y', 'yes', '예']:
+                    user_choice = (
+                        input("계속 처리하시겠습니까? (y: 계속, n: 종료): ")
+                        .lower()
+                        .strip()
+                    )
+                    if user_choice in ["y", "yes", "예"]:
                         print_info("사용자 선택: 다음 문서 처리 계속")
                         self.collector.handle_confirm_dialog()
                         continue
@@ -102,7 +107,9 @@ class Main:
                         break
                 else:
                     # 자동 모드에서는 안전하게 종료
-                    print_warning("자동 모드에서 알 수 없는 대화상자 - 안전하게 처리를 중단합니다.")
+                    print_warning(
+                        "자동 모드에서 알 수 없는 대화상자 - 안전하게 처리를 중단합니다."
+                    )
                     self.collector.handle_document_flow_dialog(flow_state)
                     # 종료 전 대기 중인 업데이트 모두 처리
                     self._flush_all_pending_updates()
@@ -114,16 +121,19 @@ class Main:
             if is_reception_document(title):
                 print_document_info(title, "접수 문서")
 
-                approval, shared = self.document_processor.process_reception_document(title)
+                approval, shared = self.document_processor.process_reception_document(
+                    title
+                )
 
                 if approval:
                     self.collector.approval(approval)
-                    if shared is not None and shared != '공람없음':
+                    if shared is not None and shared != "공람없음":
                         self.collector.add_share(str(shared))
 
                     print_success(f"접수 처리 완료: {approval} / {shared}")
-                    logger.info("접수 처리 완료: %s -> %s / %s",
-                                title, approval, shared)
+                    logger.info(
+                        "접수 처리 완료: %s -> %s / %s", title, approval, shared
+                    )
                     self.collector.reception(shared)
                     success_count += 1
 
@@ -152,10 +162,14 @@ class Main:
 
     def _flush_all_pending_updates(self):
         """대기 중인 모든 업데이트를 Supabase에 일괄 업로드"""
-        reception_count, card_count = self.document_processor.get_pending_updates_count()
+        reception_count, card_count = (
+            self.document_processor.get_pending_updates_count()
+        )
 
         if reception_count > 0 or card_count > 0:
-            print_info(f"대기 중인 업데이트를 처리합니다... (접수: {reception_count}개, 카드: {card_count}개)")
+            print_info(
+                f"대기 중인 업데이트를 처리합니다... (접수: {reception_count}개, 카드: {card_count}개)"
+            )
             self.document_processor.flush_pending_updates()
             print_success("모든 업데이트가 완료되었습니다.")
 
@@ -175,8 +189,12 @@ class Main:
         """
         try:
             # 문서카드 매칭 (3단계 프로세스)
-            card_name = self.document_processor.process_task_card_matching(processed_title)
-            logger.info("과제 카드 매칭 결과: %s", card_name if card_name else "매칭 실패")
+            card_name = self.document_processor.process_task_card_matching(
+                processed_title
+            )
+            logger.info(
+                "과제 카드 매칭 결과: %s", card_name if card_name else "매칭 실패"
+            )
 
             if card_name:
                 logger.info("과제 카드 매칭 성공 - 문서 분류 시작: %s", card_name)
@@ -185,7 +203,8 @@ class Main:
                 try:
                     self.collector.document_sort(card_name)
                     print_success(f"문서 분류 완료: {card_name}")
-                    logger.info("문서 분류 완료: %s -> %s", processed_title, card_name)
+                    logger.info("문서 분류 완료: %s -> %s",
+                                processed_title, card_name)
                     return True
 
                 except Exception as e:
@@ -194,7 +213,9 @@ class Main:
                     return False
             else:
                 print_warning("과제 카드 매칭 실패로 문서 분류를 건너뜁니다")
-                logger.warning("과제 카드 매칭 실패로 문서 분류를 건너뜁니다: %s", processed_title)
+                logger.warning(
+                    "과제 카드 매칭 실패로 문서 분류를 건너뜁니다: %s", processed_title
+                )
                 return False
 
         except Exception as e:
@@ -207,10 +228,16 @@ class Main:
 # 삭제 모듈 (기존 deletion_service.py에서 통합)
 # ────────────────────────────────────────────────────────────────────────────
 
+
 def run_deletion_interface():
     """간소화된 삭제 인터페이스를 실행합니다."""
-    from ui.console_interface import ConsoleInterface, print_success, print_error, clear_screen
-    
+    from ui.console_interface import (
+        ConsoleInterface,
+        print_success,
+        print_error,
+
+    )
+
     try:
         # Supabase 서비스 초기화 (통합)
         supabase_service = SupabaseService()
@@ -232,9 +259,12 @@ def run_deletion_interface():
         elif choice == "접수 문서 목록 보기 및 삭제":
             _handle_reception_deletion(supabase_service, console)
         elif choice == "개별 과제 카드 삭제":
-            _handle_individual_deletion(supabase_service, console, "과제 카드", "card")
+            _handle_individual_deletion(
+                supabase_service, console, "과제 카드", "card")
         elif choice == "개별 접수 문서 삭제":
-            _handle_individual_deletion(supabase_service, console, "접수 문서", "reception")
+            _handle_individual_deletion(
+                supabase_service, console, "접수 문서", "reception"
+            )
         elif choice == "일괄 삭제":
             _handle_bulk_deletion(supabase_service, console)
 
@@ -277,7 +307,9 @@ def _handle_reception_deletion(service: SupabaseService, console):
     input("엔터를 눌러 계속...")
 
 
-def _handle_individual_deletion(service: SupabaseService, console, item_type: str, service_type: str):
+def _handle_individual_deletion(
+    service: SupabaseService, console, item_type: str, service_type: str
+):
     """개별 항목 삭제 처리"""
     try:
         title = console.get_title_for_deletion(item_type)
@@ -290,7 +322,8 @@ def _handle_individual_deletion(service: SupabaseService, console, item_type: st
             success = service.delete_card_by_title(title) if exists else False
         else:  # reception
             exists = service.reception_exists(title)
-            success = service.delete_reception_by_title(title) if exists else False
+            success = service.delete_reception_by_title(
+                title) if exists else False
 
         if not exists:
             print_error(f"'{title}' {item_type}가 존재하지 않습니다.")
@@ -311,7 +344,9 @@ def _handle_bulk_deletion(service: SupabaseService, console):
         if console.confirm_bulk_deletion():
             task_count = service.delete_all_cards()
             reception_count = service.delete_all_receptions()
-            print_success(f"모든 데이터가 삭제되었습니다. (과제 카드: {task_count}, 접수 문서: {reception_count})")
+            print_success(
+                f"모든 데이터가 삭제되었습니다. (과제 카드: {task_count}, 접수 문서: {reception_count})"
+            )
         else:
             print_success("일괄 삭제가 취소되었습니다.")
     except Exception as e:
@@ -320,10 +355,10 @@ def _handle_bulk_deletion(service: SupabaseService, console):
     input("엔터를 눌러 계속...")
 
 
-if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == '--delete':
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--delete":
         run_deletion_interface()
-    elif len(sys.argv) > 1 and sys.argv[1] == '--interactive':
+    elif len(sys.argv) > 1 and sys.argv[1] == "--interactive":
         main = Main(auto_continue=False)
         main.run()
     else:

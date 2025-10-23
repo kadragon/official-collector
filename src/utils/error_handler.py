@@ -16,38 +16,40 @@ _current_log_file = None
 _logger_initialized = False
 
 
-def cleanup_old_logs(log_directory: str = "logs", keep_count: int = 5) -> None:
+def cleanup_old_logs(log_directory: str = "logs") -> None:
     """
-    최근 로그 파일들만 유지하고 나머지를 삭제합니다.
+    오늘 이전 로그 파일들을 삭제합니다.
 
     Args:
         log_directory (str): 로그 디렉토리 경로.
-        keep_count (int): 유지할 로그 파일 개수.
     """
     if not os.path.exists(log_directory):
         return
 
-    # .log 파일들을 찾아서 수정 시간으로 정렬
-    log_files = []
+    # 오늘 날짜 (시간은 00:00:00)
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # .log 파일들을 찾아서 날짜 확인
+    deleted_count = 0
     for filename in os.listdir(log_directory):
-        if filename.endswith('.log'):
+        if filename.endswith(".log"):
             file_path = os.path.join(log_directory, filename)
             try:
-                mtime = os.path.getmtime(file_path)
-                log_files.append((file_path, mtime, filename))
+                # 파일 수정 시간을 datetime으로 변환
+                mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+
+                # 오늘 이전 파일들을 삭제
+                if mtime < today:
+                    os.remove(file_path)
+                    deleted_count += 1
+                    print(f"삭제된 오래된 로그 파일: {filename}")
             except OSError:
                 continue
 
-    # 수정 시간으로 내림차순 정렬 (최신 파일이 먼저)
-    log_files.sort(key=lambda x: x[1], reverse=True)
-
-    # keep_count 개수를 초과하는 파일들을 삭제
-    for file_path, _, filename in log_files[keep_count:]:
-        try:
-            os.remove(file_path)
-            print(f"삭제된 오래된 로그 파일: {filename}")
-        except OSError:
-            continue
+    if deleted_count > 0:
+        print(f"총 {deleted_count}개의 오래된 로그 파일이 삭제되었습니다.")
+    else:
+        print("삭제할 오래된 로그 파일이 없습니다.")
 
 
 def initialize_execution_logger() -> str:
@@ -81,7 +83,7 @@ def setup_logger(
     level: int = logging.INFO,
     log_file: Optional[str] = None,
     format_string: Optional[str] = None,
-    console_output: bool = False
+    console_output: bool = False,
 ) -> logging.Logger:
     """
     로거를 설정합니다.
@@ -105,7 +107,7 @@ def setup_logger(
 
     # 기본 포맷 설정
     if format_string is None:
-        format_string = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
     formatter = logging.Formatter(format_string)
 
@@ -118,7 +120,7 @@ def setup_logger(
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 파일 핸들러 추가
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -137,7 +139,7 @@ def handle_connection_error(
     operation_name: str,
     logger: logging.Logger,
     max_attempts: int = 10,
-    wait_time: int = 5
+    wait_time: int = 5,
 ) -> Callable:
     """
     연결 에러를 처리하는 데코레이터.
@@ -151,6 +153,7 @@ def handle_connection_error(
     Returns:
         Callable: 데코레이터 함수.
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
@@ -159,17 +162,23 @@ def handle_connection_error(
                     return func(*args, **kwargs)
                 except Exception as e:
                     if attempt == max_attempts - 1:
-                        logger.critical("%s 연결 실패 (최대 시도 횟수 초과): %s", operation_name, e)
+                        logger.critical(
+                            "%s 연결 실패 (최대 시도 횟수 초과): %s", operation_name, e
+                        )
                         raise
 
                     logger.info(
-                        "%s 연결 실패. 재시도 중... (시도 %d/%d)", 
-                        operation_name, attempt + 1, max_attempts
+                        "%s 연결 실패. 재시도 중... (시도 %d/%d)",
+                        operation_name,
+                        attempt + 1,
+                        max_attempts,
                     )
                     time.sleep(wait_time)
 
             return None
+
         return wrapper
+
     return decorator
 
 
@@ -177,7 +186,7 @@ def safe_execute(
     func: Callable,
     default_return: Any = None,
     logger: Optional[logging.Logger] = None,
-    error_message: Optional[str] = None
+    error_message: Optional[str] = None,
 ) -> Any:
     """
     함수를 안전하게 실행하고 예외 발생 시 기본값을 반환합니다.

@@ -35,7 +35,7 @@ def main():
     try:
         logger = setup_logger(__name__)
         logger.info("Chroma 데이터 삭제 도구 시작")
-        
+
         clear_screen()
         print_success("=== Chroma 데이터 삭제 도구 ===")
         print("이 도구를 사용하여 분류된 문서와 과제카드 데이터를 삭제할 수 있습니다.")

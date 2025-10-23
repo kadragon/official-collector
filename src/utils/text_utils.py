@@ -15,6 +15,7 @@ from typing import List
 # ID 생성 및 해시 관련 함수 (기존 id_generator.py)
 # ============================================================================
 
+
 def generate_document_id(title: str, namespace: uuid.UUID = uuid.NAMESPACE_DNS) -> str:
     """
     문서 제목을 기반으로 일관된 UUID를 생성합니다.
@@ -29,7 +30,7 @@ def generate_document_id(title: str, namespace: uuid.UUID = uuid.NAMESPACE_DNS) 
     return str(uuid.uuid5(namespace, title))
 
 
-def generate_cache_key(text: str, encoding: str = 'utf-8') -> str:
+def generate_cache_key(text: str, encoding: str = "utf-8") -> str:
     """
     텍스트를 기반으로 캐시 키용 해시를 생성합니다.
 
@@ -47,6 +48,7 @@ def generate_cache_key(text: str, encoding: str = 'utf-8') -> str:
 # 문자열 처리 및 문서 제목 가공 함수 (기존 string_processor.py)
 # ============================================================================
 
+
 def clean_document_title(title: str) -> str:
     """
     문서 제목에서 불필요한 접두사를 제거하고 정리합니다.
@@ -61,8 +63,8 @@ def clean_document_title(title: str) -> str:
         return ""
 
     # 접수 문서 처리
-    if title.startswith('접수'):
-        return title.replace("접수: ", '').strip()
+    if title.startswith("접수"):
+        return title.replace("접수: ", "").strip()
 
     return title.strip()
 
@@ -77,11 +79,11 @@ def extract_title_from_approval(title: str) -> str:
     Returns:
         str: 추출된 문서 제목.
     """
-    if not title.startswith('전자결재:'):
+    if not title.startswith("전자결재:"):
         return title.strip()
 
     # 정규식을 사용하여 대괄호 부분을 제거하고 실제 제목 추출
-    match = re.search(r'(?:[^]]*]){2}(.*)', title)
+    match = re.search(r"(?:[^]]*]){2}(.*)", title)
     if match:
         return match.group(1).strip()
     else:
@@ -99,7 +101,7 @@ def is_reception_document(title: str) -> bool:
     Returns:
         bool: 접수 문서이면 True, 아니면 False.
     """
-    return title.startswith('접수')
+    return title.startswith("접수")
 
 
 def is_approval_document(title: str) -> bool:
@@ -112,7 +114,7 @@ def is_approval_document(title: str) -> bool:
     Returns:
         bool: 전자결재 문서이면 True, 아니면 False.
     """
-    return title.startswith('전자결재:')
+    return title.startswith("전자결재:")
 
 
 def format_option_display(options: List[str], separator: str = " / ") -> str:
@@ -133,6 +135,7 @@ def format_option_display(options: List[str], separator: str = " / ") -> str:
 # 추가 텍스트 처리 유틸리티 함수들
 # ============================================================================
 
+
 def normalize_text(text: str) -> str:
     """
     텍스트를 정규화합니다 (공백 제거, 소문자 변환 등).
@@ -145,8 +148,8 @@ def normalize_text(text: str) -> str:
     """
     if not text:
         return ""
-    
-    return re.sub(r'\s+', ' ', text.strip())
+
+    return re.sub(r"\s+", " ", text.strip())
 
 
 def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
@@ -163,8 +166,8 @@ def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
     """
     if not text or len(text) <= max_length:
         return text
-    
-    return text[:max_length - len(suffix)] + suffix
+
+    return text[: max_length - len(suffix)] + suffix
 
 
 def extract_keywords(text: str, min_length: int = 2) -> List[str]:
@@ -180,10 +183,10 @@ def extract_keywords(text: str, min_length: int = 2) -> List[str]:
     """
     if not text:
         return []
-    
+
     # 한글, 영문, 숫자만 추출
-    words = re.findall(r'[가-힣a-zA-Z0-9]+', text)
-    
+    words = re.findall(r"[가-힣a-zA-Z0-9]+", text)
+
     # 최소 길이 이상의 단어만 반환
     return [word for word in words if len(word) >= min_length]
 
@@ -200,13 +203,15 @@ def remove_numbers_from_title(title: str) -> str:
     """
     if not title:
         return ""
-    
+
     # 숫자를 제거하고 연속된 공백을 하나로 정리
-    title_without_numbers = re.sub(r'\d+', '', title)
-    return re.sub(r'\s+', ' ', title_without_numbers).strip()
+    title_without_numbers = re.sub(r"\d+", "", title)
+    return re.sub(r"\s+", " ", title_without_numbers).strip()
 
 
-def format_numbered_list(items: List[str], start_num: int = 1, zero_padded: bool = True) -> List[str]:
+def format_numbered_list(
+    items: List[str], start_num: int = 1, zero_padded: bool = True
+) -> List[str]:
     """
     항목 목록을 번호가 매겨진 형태로 포맷팅합니다.
 
@@ -220,10 +225,11 @@ def format_numbered_list(items: List[str], start_num: int = 1, zero_padded: bool
     """
     if not items:
         return []
-    
-    format_str = f"[{{:0{len(str(len(items) + start_num - 1))}d}}] {{}}" if zero_padded else "[{}] {}"
-    
-    return [
-        format_str.format(i + start_num, item) 
-        for i, item in enumerate(items)
-    ]
+
+    format_str = (
+        f"[{{:0{len(str(len(items) + start_num - 1))}d}}] {{}}"
+        if zero_padded
+        else "[{}] {}"
+    )
+
+    return [format_str.format(i + start_num, item) for i, item in enumerate(items)]
