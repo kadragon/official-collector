@@ -57,7 +57,7 @@ class OfficialCollector:
             return DocumentFlowState.UNKNOWN
 
     def _wait_for_element(
-        self, element_selector: Callable, timeout: float = 10.0, interval: float = 0.1
+        self, element_selector: Callable, timeout: float = 3.0, interval: float = 0.05
     ) -> bool:
         """
         요소가 준비될 때까지 대기합니다.
@@ -81,7 +81,7 @@ class OfficialCollector:
             time.sleep(interval)
         return False
 
-    def _wait_for_window(self, title: str, timeout: float = 10.0):
+    def _wait_for_window(self, title: str, timeout: float = 3.0):
         """
         특정 창이 나타날 때까지 대기합니다.
         Args:
@@ -104,8 +104,8 @@ class OfficialCollector:
     def _wait_for_condition(
         self,
         condition: Callable[[], bool],
-        timeout: float = 10.0,
-        interval: float = 0.1,
+        timeout: float = 3.0,
+        interval: float = 0.05,
     ) -> bool:
         """
         조건이 만족될 때까지 대기합니다.
@@ -435,12 +435,12 @@ class OfficialCollector:
         pyperclip.copy(document_group_name)
         keyboard.send_keys("^v")
         keyboard.send_keys("{ENTER}")
-        time.sleep(0.3)
+        time.sleep(0.1)
         keyboard.send_keys("{TAB}")
         keyboard.send_keys("{SPACE}")
         keyboard.send_keys("{TAB 3}")
         keyboard.send_keys("{ENTER}")
-        time.sleep(0.3)
+        time.sleep(0.1)
         keyboard.send_keys("{ENTER}")
         logger.info("문서카드 선택 완료: %s", document_group_name)
 
@@ -1002,7 +1002,7 @@ class OfficialCollector:
         try:
             logger.debug("버튼을 찾지 못해 키보드 ENTER로 시도")
             keyboard.send_keys("{ENTER}")
-            time.sleep(0.5)
+            time.sleep(0.1)
             return True
         except Exception as e:
             logger.warning("키보드 ENTER 시도 실패: %s", e)
