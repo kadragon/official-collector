@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class SupabaseService:
     """Supabase 데이터베이스 서비스"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Supabase 클라이언트 초기화"""
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
@@ -82,7 +82,9 @@ class SupabaseService:
                     ).execute()
 
                 recommendations = []
-                seen_combinations = {}  # 중복 제거를 위한 딕셔너리
+                seen_combinations: dict[str, dict[str, Any]] = (
+                    {}
+                )  # 중복 제거를 위한 딕셔너리
 
                 if result.data:
                     for item in result.data:
@@ -111,13 +113,7 @@ class SupabaseService:
                         seen_combinations.values(),
                         key=lambda x: x["similarity"],
                         reverse=True,
-                    )[
-                        :count
-                    ]  # 요청된 개수만큼만 반환
-
-                logger.info(
-                    f"접수 문서 추천 완료 (중복 제거 후): {len(recommendations)}개"
-                )
+                    )
                 return recommendations
 
             except Exception as e:
@@ -138,7 +134,7 @@ class SupabaseService:
                 .execute()
             )
             if result.data:
-                return result.data[0]["task_title"]
+                return str(result.data[0]["task_title"])
             return None
         except Exception as e:
             logger.error(f"업무카드 제목 조회 실패: {e}")
@@ -170,7 +166,9 @@ class SupabaseService:
                     ).execute()
 
                 recommendations = []
-                seen_cards = {}  # 중복 제거를 위한 딕셔너리 (카드명 -> 최고 유사도)
+                seen_cards: dict[str, float] = (
+                    {}
+                )  # 중복 제거를 위한 딕셔너리 (카드명 -> 최고 유사도)
 
                 if result.data:
                     for item in result.data:
@@ -205,7 +203,9 @@ class SupabaseService:
             logger.error(f"업무카드 추천 실패: {e}")
             return []
 
-    def upsert_reception_embedding(self, title: str, handler: str, share_target: str):
+    def upsert_reception_embedding(
+        self, title: str, handler: str, share_target: str
+    ) -> bool:
         """���� ���� ���� ����Ʈ (�Ӻ��� ����)"""
         try:
             embedding_response = self.embedding_service.create_embedding(
@@ -232,7 +232,7 @@ class SupabaseService:
             logger.error(f"���� ���� ���� ����Ʈ ����: {e}")
             return False
 
-    def upsert_card_embedding(self, title: str, task_title: str):
+    def upsert_card_embedding(self, title: str, task_title: str) -> bool:
         """����ī�� ���� ����Ʈ (�Ӻ��� ����)"""
         try:
             embedding_response = self.embedding_service.create_embedding(
@@ -257,7 +257,6 @@ class SupabaseService:
         except Exception as e:
             logger.error(f"����ī�� ���� ����Ʈ ����: {e}")
             return False
-
 
     def get_document_count(self, table_type: str = "task_card") -> int:
         """문서 개수 조회"""

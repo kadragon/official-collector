@@ -95,7 +95,7 @@ class DialogClassifier:
             logger.info(
                 "텍스트 길이: %d, 줄바꿈 포함: %s",
                 len(normalized_text),
-                '\n' in normalized_text,
+                "\n" in normalized_text,
             )
 
         # 패턴 길이 순으로 정렬하여 더 구체적인 패턴이 먼저 매칭되도록 함

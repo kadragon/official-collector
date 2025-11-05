@@ -84,6 +84,7 @@ class UnifiedConfig:
         is_valid = bool(self.ollama_model)
         logger.debug("Ollama model validation (%s): %s", self.ollama_model, is_valid)
         return is_valid
+
     def get_config_summary(self) -> Dict[str, Any]:
         """Legacy summary helper (human readable)."""
         return {
@@ -95,8 +96,6 @@ class UnifiedConfig:
             "task_card_count": len(self.task_card_list),
             "supabase_url": self.supabase_url,
         }
-
-
 
     def get_debug_summary(self) -> Dict[str, Any]:
         """Return a lightweight diagnostic summary."""
@@ -118,11 +117,9 @@ class UnifiedConfig:
         try:
             load_dotenv()
         except OSError as error:
-            logger.warning('Unable to load .env file: %s', error)
+            logger.warning("Unable to load .env file: %s", error)
 
-        missing = [
-            var for var in self.REQUIRED_ENV_VARS if not self._env_value(var)
-        ]
+        missing = [var for var in self.REQUIRED_ENV_VARS if not self._env_value(var)]
 
         if missing:
             message = f"Missing required environment variables: {', '.join(missing)}"
@@ -131,31 +128,24 @@ class UnifiedConfig:
                 raise ValueError(message)
             logger.warning("%s - using fallback configuration values", message)
 
-        self.ollama_base_url = (
-            self._env_value("OLLAMA_BASE_URL")
-            or (DEFAULT_OLLAMA_BASE_URL if self._allow_fallback else None)
+        self.ollama_base_url = self._env_value("OLLAMA_BASE_URL") or (
+            DEFAULT_OLLAMA_BASE_URL if self._allow_fallback else None
         )
-        self.ollama_model = (
-            self._env_value("OLLAMA_MODEL")
-            or (DEFAULT_OLLAMA_MODEL if self._allow_fallback else None)
+        self.ollama_model = self._env_value("OLLAMA_MODEL") or (
+            DEFAULT_OLLAMA_MODEL if self._allow_fallback else None
         )
         chroma_env = self._env_value("CHROMA_PERSIST_DIR")
-        self.chroma_persist_dir = (
-            chroma_env
-            or (
-                DEFAULT_CHROMA_DIR
-                if self._allow_fallback
-                else self.OPTIONAL_PATH_VARS["CHROMA_PERSIST_DIR"]
-            )
+        self.chroma_persist_dir = chroma_env or (
+            DEFAULT_CHROMA_DIR
+            if self._allow_fallback
+            else self.OPTIONAL_PATH_VARS["CHROMA_PERSIST_DIR"]
         )
 
         # New Supabase/OpenAI settings (optional – do not raise if missing)
         self.openai_api_key = self._env_value("OPENAI_API_KEY")
         self.supabase_url = self._env_value("SUPABASE_URL")
         self.supabase_key = self._env_value("SUPABASE_KEY")
-        self.supabase_service_role_key = self._env_value(
-            "SUPABASE_SERVICE_ROLE_KEY"
-        )
+        self.supabase_service_role_key = self._env_value("SUPABASE_SERVICE_ROLE_KEY")
 
         self._environment_loaded = True
 
@@ -229,11 +219,7 @@ class UnifiedConfig:
         if fallback_path.exists():
             try:
                 with open(fallback_path, "r", encoding="utf-8") as file:
-                    return [
-                        line.strip()
-                        for line in file
-                        if line.strip()
-                    ]
+                    return [line.strip() for line in file if line.strip()]
             except OSError as error:
                 logger.warning("Unable to read %s (%s)", fallback_path, error)
 
@@ -249,9 +235,7 @@ class UnifiedConfig:
             os.environ.get("DEBUG_MODE", "false").strip().lower() == "true"
         )
         try:
-            self.log_retention_days = int(
-                os.environ.get("LOG_RETENTION_DAYS", "7")
-            )
+            self.log_retention_days = int(os.environ.get("LOG_RETENTION_DAYS", "7"))
         except ValueError:
             self.log_retention_days = 7
             logger.warning("Invalid LOG_RETENTION_DAYS value; using 7")
@@ -292,7 +276,6 @@ class UnifiedConfig:
 # ---------------------------------------------------------------------- #
 
 
-
 class _ConfigProxy:
     def __init__(self) -> None:
         self._instance: Optional[UnifiedConfig] = None
@@ -320,16 +303,17 @@ def get_config() -> UnifiedConfig:
 
 
 def reload_config() -> None:
-    config._instance = None  # type: ignore[attr-defined]
+    config._instance = None
 
 
 def load_environment_variables() -> None:
-    config._instance = None  # type: ignore[attr-defined]
+    config._instance = None
     config._get()._load_environment()  # pylint: disable=protected-access
+
 
 if os.environ.get("PYTEST_CURRENT_TEST"):
     try:
-        from tests.unit import test_config as _test_config_module  # type: ignore
+        from tests.unit import test_config as _test_config_module
 
         for _class_name in ("TestConfigurationPaths", "TestConfigurationEdgeCases"):
             _cls = getattr(_test_config_module, _class_name, None)

@@ -20,11 +20,12 @@ class TestWaitTimeOptimization:
         100ms to 50ms for faster UI element detection.
         """
         # Given: An OfficialCollector instance (mock the connection)
-        with patch.object(OfficialCollector, '_connect_to_window'):
+        with patch.object(OfficialCollector, "_connect_to_window"):
             collector = OfficialCollector()
 
         # Given: A condition that becomes True after a short delay
         call_count = 0
+
         def condition():
             nonlocal call_count
             call_count += 1
@@ -60,7 +61,7 @@ class TestMaximumTimeoutOptimization:
         is too long for RPA operations where UI elements should appear quickly.
         """
         # Given: An OfficialCollector instance (mock the connection)
-        with patch.object(OfficialCollector, '_connect_to_window'):
+        with patch.object(OfficialCollector, "_connect_to_window"):
             collector = OfficialCollector()
 
         # Given: An element that never appears
@@ -91,7 +92,7 @@ class TestMaximumTimeoutOptimization:
         aren't met to avoid long blocking times.
         """
         # Given: An OfficialCollector instance (mock the connection)
-        with patch.object(OfficialCollector, '_connect_to_window'):
+        with patch.object(OfficialCollector, "_connect_to_window"):
             collector = OfficialCollector()
 
         # Given: A condition that never becomes True
@@ -116,10 +117,10 @@ class TestMaximumTimeoutOptimization:
 class TestPostActionWaitTimeOptimization:
     """Test suite for post-action wait time reduction (0.3s/0.5s → 0.1s)."""
 
-    @patch('services.official_service.time.sleep')
-    @patch('services.official_service.keyboard')
-    @patch('services.official_service.mouse')
-    @patch('services.official_service.pyperclip')
+    @patch("services.official_service.time.sleep")
+    @patch("services.official_service.keyboard")
+    @patch("services.official_service.mouse")
+    @patch("services.official_service.pyperclip")
     def test_task_card_selection_uses_reduced_sleep(
         self, mock_pyperclip, mock_mouse, mock_keyboard, mock_sleep
     ):
@@ -130,7 +131,7 @@ class TestPostActionWaitTimeOptimization:
         reduced from 300ms to 100ms for faster task card selection.
         """
         # Given: An OfficialCollector instance (mock the connection)
-        with patch.object(OfficialCollector, '_connect_to_window'):
+        with patch.object(OfficialCollector, "_connect_to_window"):
             collector = OfficialCollector()
 
         # Given: Mock window objects
@@ -139,12 +140,16 @@ class TestPostActionWaitTimeOptimization:
         mock_dialog.rectangle.return_value = Mock(right=100, top=50)
 
         # Mock _wait_for_window to return our mocks
-        with patch.object(collector, '_wait_for_window', side_effect=[mock_info_window, mock_dialog]):
+        with patch.object(
+            collector, "_wait_for_window", side_effect=[mock_info_window, mock_dialog]
+        ):
             # When: We perform task card selection
             collector._perform_task_card_selection("test_card")
 
         # Then: time.sleep should be called with 0.1 (not 0.3)
-        sleep_calls = [call[0][0] for call in mock_sleep.call_args_list if call[0][0] in [0.1, 0.3]]
+        sleep_calls = [
+            call[0][0] for call in mock_sleep.call_args_list if call[0][0] in [0.1, 0.3]
+        ]
 
         # We expect 2 sleep calls in this method (after two ENTER keys)
         assert len(sleep_calls) == 2, f"Expected 2 sleep calls, got {len(sleep_calls)}"
@@ -154,6 +159,7 @@ class TestPostActionWaitTimeOptimization:
                 f"Expected 0.1s sleep (optimized), got {sleep_time}s. "
                 "Sleep time should be reduced from 0.3s to 0.1s"
             )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

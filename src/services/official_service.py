@@ -4,7 +4,7 @@ pywinauto를 활용하여 전자결재 및 접수 창과 상호작용합니다.
 """
 
 import time
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 from enum import Enum
 import pyperclip
 import win32gui
@@ -36,8 +36,8 @@ class OfficialCollector:
         """
         OfficialCollector 인스턴스를 초기화하고, 지정된 창에 연결을 시도합니다.
         """
-        self.app: Application = Application(backend="uia")
-        self.dlg: Optional[Application.window] = None
+        self.app: Any = Application(backend="uia")
+        self.dlg: Any = None
         self.dialog_classifier = DialogClassifier()
         self._connect_to_window(debug_mode=True)
 
@@ -81,7 +81,7 @@ class OfficialCollector:
             time.sleep(interval)
         return False
 
-    def _wait_for_window(self, title: str, timeout: float = 3.0):
+    def _wait_for_window(self, title: str, timeout: float = 3.0) -> Any:
         """
         특정 창이 나타날 때까지 대기합니다.
         Args:
@@ -94,6 +94,8 @@ class OfficialCollector:
         """
         try:
             window = self.dlg.child_window(title=title, control_type="Window")
+            if window is None:
+                raise PyWinAutoTimeoutError(f"창 '{title}'을(를) 찾을 수 없습니다.")
             window.wait("visible", timeout=timeout)
             return window
         except Exception:
@@ -302,7 +304,12 @@ class OfficialCollector:
         # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
         reception_dialog_appeared = self._wait_for_condition(
             lambda: (
-                self.dlg.child_window(title="확인", control_type="Window").exists()
+                self.dlg.child_window(title="확인", control_type="Window") is not None
+                and self.dlg.child_window(title="확인", control_type="Window").exists()
+                and self.dlg.child_window(
+                    title="문서를 접수하시겠습니까?", class_name="Static"
+                )
+                is not None
                 and self.dlg.child_window(
                     title="문서를 접수하시겠습니까?", class_name="Static"
                 ).exists()
@@ -538,7 +545,7 @@ class OfficialCollector:
             logger.info("기본 확인 처리")
             self._click_yes_button_fast(confirm_dialog)
 
-    def _find_confirm_dialog(self) -> Optional[object]:
+    def _find_confirm_dialog(self) -> Any:
         """초고속 확인 대화상자 찾기 - 성능 최적화된 버전."""
         logger.debug("확인 대화상자 초고속 검색 시작")
 
@@ -579,7 +586,7 @@ class OfficialCollector:
         logger.debug("초고속 방법으로 확인 대화상자를 찾지 못함")
         return None
 
-    def _analyze_dialog_content(self, confirm_dialog) -> str:
+    def _analyze_dialog_content(self, confirm_dialog: Any) -> str:
         """대화상자의 모든 텍스트 내용을 분석합니다."""
         try:
             # 모든 Static 컨트롤에서 텍스트 수집
@@ -613,7 +620,7 @@ class OfficialCollector:
             logger.warning("대화상자 내용 분석 실패: %s", e)
             return ""
 
-    def _click_yes_button(self, confirm_dialog, action_type: str) -> None:
+    def _click_yes_button(self, confirm_dialog: Any, action_type: str) -> None:
         """확인 대화상자에서 예 버튼을 빠르게 클릭합니다."""
         try:
             # 여러 버튼 패턴 시도 (우선순위 순)
@@ -652,13 +659,13 @@ class OfficialCollector:
             except Exception as ke:
                 logger.error("키보드 입력도 실패 (%s): %s", action_type, ke)
 
-    def _get_quick_dialog_text(self, confirm_dialog) -> str:
+    def _get_quick_dialog_text(self, confirm_dialog: Any) -> str:
         """대화상자 텍스트를 빠르게 가져오는 최적화된 함수."""
         try:
             # 가장 빠른 방법: window_text() 직접 사용
             text = confirm_dialog.window_text()
             if text and text.strip():
-                return text.strip()
+                return str(text.strip())
 
             # 백업: Static 컨트롤에서 빠르게 텍스트 수집
             try:
@@ -667,7 +674,7 @@ class OfficialCollector:
                     try:
                         control_text = control.window_text().strip()
                         if control_text and len(control_text) > 5:  # 의미있는 텍스트만
-                            return control_text
+                            return str(control_text)
                     except Exception:
                         continue
             except Exception:
@@ -678,7 +685,7 @@ class OfficialCollector:
             logger.debug("빠른 텍스트 가져오기 실패: %s", e)
             return ""
 
-    def _click_yes_button_fast(self, confirm_dialog) -> None:
+    def _click_yes_button_fast(self, confirm_dialog: Any) -> None:
         """빠른 Yes 버튼 클릭 - 최적화된 버전."""
         try:
             # 방법 1: 가장 일반적인 예(Y) 버튼 우선 시도
@@ -911,7 +918,6 @@ class OfficialCollector:
                 logger.warning("알 수 없는 대화상자 - 기본 처리")
                 self._click_dialog_button(confirm_buttons)
                 return False
-            return True
         except Exception as e:
             logger.error("문서 흐름 대화상자 처리 중 오류: %s", e)
             return False

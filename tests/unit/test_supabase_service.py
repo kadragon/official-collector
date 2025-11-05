@@ -12,7 +12,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 import services.supabase_service as supabase_module  # pylint: disable=wrong-import-position
-from services.supabase_service import SupabaseService  # pylint: disable=wrong-import-position
+from services.supabase_service import (
+    SupabaseService,
+)  # pylint: disable=wrong-import-position
 
 
 class FakeEmbeddingService:
@@ -75,7 +77,9 @@ def fixture_supabase_service(monkeypatch):
 
     fake_client = FakeClient()
     monkeypatch.setattr(supabase_module, "create_client", lambda url, key: fake_client)
-    monkeypatch.setattr(supabase_module, "OpenAIEmbeddingService", lambda: FakeEmbeddingService())
+    monkeypatch.setattr(
+        supabase_module, "OpenAIEmbeddingService", lambda: FakeEmbeddingService()
+    )
 
     service = SupabaseService()
     service.client = fake_client

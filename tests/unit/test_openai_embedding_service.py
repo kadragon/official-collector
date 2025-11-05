@@ -25,7 +25,9 @@ class DummyEmbeddings:
     def __init__(self):
         self.calls = 0
 
-    def create(self, *, model, input, encoding_format):  # pylint: disable=unused-argument
+    def create(
+        self, *, model, input, encoding_format
+    ):  # pylint: disable=unused-argument
         self.calls += 1
         if self.calls == 1:
             raise openai.RateLimitError()
@@ -41,7 +43,9 @@ class DummyEmbeddings:
 def test_create_embeddings_batch_retries_on_rate_limit(monkeypatch):
     """Ensure batches are retried when a rate limit error occurs."""
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setattr(openai, "RateLimitError", type("FakeRateLimitError", (Exception,), {}))
+    monkeypatch.setattr(
+        openai, "RateLimitError", type("FakeRateLimitError", (Exception,), {})
+    )
 
     dummy_endpoint = DummyEmbeddings()
     dummy_client = types.SimpleNamespace(embeddings=dummy_endpoint)

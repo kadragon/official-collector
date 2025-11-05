@@ -27,7 +27,7 @@ class EmbeddingRequest:
 
     text: str
     identifier: str  # 문서 ID 또는 고유 식별자
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] | None = None
 
 
 @dataclass
@@ -38,7 +38,7 @@ class EmbeddingResponse:
     embedding: List[float]
     text: str
     token_count: int
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] | None = None
 
 
 @dataclass
@@ -48,9 +48,9 @@ class CostTracker:
     total_tokens: int = 0
     total_requests: int = 0
     total_cost: float = 0.0
-    start_time: datetime = None
+    start_time: datetime | None = None
 
-    def add_request(self, token_count: int):
+    def add_request(self, token_count: int) -> None:
         """요청 추가"""
         if self.start_time is None:
             self.start_time = datetime.now()
@@ -92,7 +92,10 @@ class OpenAIEmbeddingService:
 
     @log_execution_time(logger, "OpenAI 임베딩 생성")
     def create_embedding(
-        self, text: str, identifier: str = None, metadata: Dict[str, Any] = None
+        self,
+        text: str,
+        identifier: str | None = None,
+        metadata: Dict[str, Any] | None = None,
     ) -> Optional[EmbeddingResponse]:
         """단일 텍스트 임베딩 생성"""
         if not text or not text.strip():
@@ -155,14 +158,21 @@ class OpenAIEmbeddingService:
 
         total_batches = (len(requests) + batch_size - 1) // batch_size
         logger.info(
-            "Batch embedding start: %d requests across %d batches", len(requests), total_batches
+            "Batch embedding start: %d requests across %d batches",
+            len(requests),
+            total_batches,
         )
 
         index = 0
         while index < len(requests):
             batch = requests[index : index + batch_size]
             batch_num = index // batch_size + 1
-            logger.info("Processing batch %d/%d (%d items)", batch_num, total_batches, len(batch))
+            logger.info(
+                "Processing batch %d/%d (%d items)",
+                batch_num,
+                total_batches,
+                len(batch),
+            )
 
             valid_items = [
                 (req, req.text.strip())
@@ -186,10 +196,14 @@ class OpenAIEmbeddingService:
 
                     avg_tokens = 0
                     if response.usage and response.usage.total_tokens:
-                        avg_tokens = response.usage.total_tokens // max(len(valid_items), 1)
+                        avg_tokens = response.usage.total_tokens // max(
+                            len(valid_items), 1
+                        )
                         self.cost_tracker.add_request(response.usage.total_tokens)
 
-                    for (req, original_text), embedding_data in zip(valid_items, response.data):
+                    for (req, original_text), embedding_data in zip(
+                        valid_items, response.data
+                    ):
                         results.append(
                             EmbeddingResponse(
                                 identifier=req.identifier,
@@ -208,7 +222,7 @@ class OpenAIEmbeddingService:
 
                 except openai.RateLimitError as error:
                     attempts += 1
-                    wait_time = min(60, 2 ** attempts)
+                    wait_time = min(60, 2**attempts)
                     logger.warning(
                         "Batch %d rate limited (attempt %d/%d): %s",
                         batch_num,
@@ -260,7 +274,10 @@ class OpenAIEmbeddingService:
         return results
 
     def create_embeddings_from_texts(
-        self, texts: List[str], identifiers: List[str] = None, batch_size: int = 100
+        self,
+        texts: List[str],
+        identifiers: List[str] | None = None,
+        batch_size: int = 100,
     ) -> List[EmbeddingResponse]:
         """텍스트 목록에서 임베딩 생성"""
         if not texts:
@@ -280,7 +297,7 @@ class OpenAIEmbeddingService:
         self,
         query_text: str,
         embeddings: List[List[float]],
-        texts: List[str] = None,
+        texts: List[str] | None = None,
         top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """임베딩 기반 유사도 검색"""
@@ -303,7 +320,7 @@ class OpenAIEmbeddingService:
             )
 
         # 유사도 기준 정렬
-        similarities.sort(key=lambda x: x["similarity"], reverse=True)
+        similarities.sort(key=lambda x: x["similarity"], reverse=True)  # type: ignore[arg-type,return-value]
 
         return similarities[:top_k]
 
@@ -344,7 +361,7 @@ class OpenAIEmbeddingService:
             ),
         }
 
-    def reset_cost_tracker(self):
+    def reset_cost_tracker(self) -> None:
         """비용 추적기 재설정"""
         self.cost_tracker = CostTracker()
         logger.info("비용 추적기가 재설정되었습니다")

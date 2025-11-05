@@ -77,7 +77,7 @@ def get_display_width(text: str) -> int:
     return width
 
 
-def clear_screen():
+def clear_screen() -> None:
     """화면을 지웁니다."""
     try:
         if os.name == "nt":
@@ -88,7 +88,7 @@ def clear_screen():
         print("\n" * 50)
 
 
-def draw_separator(char="-", width=60, style="simple"):
+def draw_separator(char: str = "-", width: int = 60, style: str = "simple") -> None:
     """구분선을 그립니다."""
     if style == "simple":
         print(f"{Colors.DIM}{char * width}{Colors.RESET}")
@@ -100,7 +100,7 @@ def draw_separator(char="-", width=60, style="simple"):
         print(char * width)
 
 
-def draw_header(title: str, width=60):
+def draw_header(title: str, width: int = 60) -> None:
     """헤더를 그립니다."""
     print()
     print(f"{Colors.BOLD}{Colors.CYAN}{'+' + '-' * (width - 2) + '+'}{Colors.RESET}")
@@ -122,31 +122,31 @@ def draw_header(title: str, width=60):
 # ============================================================================
 
 
-def print_info(message: str):
+def print_info(message: str) -> None:
     """정보 메시지를 출력합니다."""
     _logger().info(message)
     print(f"{Colors.BLUE}{Symbols.INFO} {message}{Colors.RESET}")
 
 
-def print_success(message: str):
+def print_success(message: str) -> None:
     """성공 메시지를 출력합니다."""
     _logger().info(f"SUCCESS: {message}")
     print(f"{Colors.GREEN}{Symbols.SUCCESS} {message}{Colors.RESET}")
 
 
-def print_warning(message: str):
+def print_warning(message: str) -> None:
     """경고 메시지를 출력합니다."""
     _logger().warning(message)
     print(f"{Colors.YELLOW}{Symbols.WARNING} {message}{Colors.RESET}")
 
 
-def print_error(message: str):
+def print_error(message: str) -> None:
     """에러 메시지를 출력합니다."""
     _logger().error(message)
     print(f"{Colors.RED}{Symbols.ERROR} {message}{Colors.RESET}")
 
 
-def print_document_info(title: str, doc_type: str = "문서"):
+def print_document_info(title: str, doc_type: str = "문서") -> None:
     """문서 정보를 박스 형태로 출력합니다."""
     _logger().info(f"처리 중인 {doc_type}: {title}")
 
@@ -198,7 +198,9 @@ def print_document_info(title: str, doc_type: str = "문서"):
     print()
 
 
-def print_numbered_list(items: List[str], start_index=1, highlight_color=Colors.CYAN):
+def print_numbered_list(
+    items: List[str], start_index: int = 1, highlight_color: str = Colors.CYAN
+) -> None:
     """번호가 매겨진 목록을 예쁘게 출력합니다."""
     for idx, item in enumerate(items):
         number = f"[{idx + start_index:02d}]"
@@ -229,8 +231,11 @@ def print_numbered_list(items: List[str], start_index=1, highlight_color=Colors.
 
 
 def print_selection_menu(
-    title: str, items: List[str], allow_skip=False, skip_text="목록에 없음"
-):
+    title: str,
+    items: List[str],
+    allow_skip: bool = False,
+    skip_text: str = "목록에 없음",
+) -> None:
     """선택 메뉴를 출력합니다."""
     print()
     print(
@@ -249,7 +254,7 @@ def print_selection_menu(
     print()
 
 
-def get_styled_input(prompt: str, input_color=Colors.CYAN):
+def get_styled_input(prompt: str, input_color: str = Colors.CYAN) -> str:
     """스타일이 적용된 입력을 받습니다."""
     try:
         return input(f"{input_color}{Symbols.ARROW} {prompt}{Colors.RESET}")
@@ -261,7 +266,7 @@ def get_styled_input(prompt: str, input_color=Colors.CYAN):
         exit(0)
 
 
-def print_final_result(success_count: int, total_count: int):
+def print_final_result(success_count: int, total_count: int) -> None:
     """최종 처리 결과를 출력합니다."""
     _logger().info(f"처리 완료 - 성공: {success_count}/{total_count}")
 
@@ -368,7 +373,7 @@ def confirm_choice(message: str, default_yes: bool = True) -> bool:
     return confirm.lower() == "y"
 
 
-def activate_cmd_window():
+def activate_cmd_window() -> None:
     """CMD 창을 활성화합니다 (사용자 상호작용 전)."""
     try:
         from pywinauto import Application
@@ -404,7 +409,7 @@ def activate_cmd_window():
 class ConsoleInterface:
     """통합된 콘솔 사용자 인터페이스."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """초기화."""
         pass
 
@@ -681,7 +686,7 @@ class ConsoleInterface:
     # 기타 유틸리티 메서드
     # ========================================================================
 
-    def print_final_result(self, success_count: int, total_count: int):
+    def print_final_result(self, success_count: int, total_count: int) -> None:
         """최종 처리 결과를 출력합니다."""
         _logger().info(f"처리 완료 - 성공: {success_count}/{total_count}")
 
@@ -695,6 +700,6 @@ class ConsoleInterface:
 
         print()
 
-    def wait_for_enter(self, message="계속하려면 Enter를 누르세요..."):
+    def wait_for_enter(self, message: str = "계속하려면 Enter를 누르세요...") -> None:
         """Enter 키 대기."""
         input(f"\n{Colors.DIM}{message}{Colors.RESET}")

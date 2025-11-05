@@ -18,7 +18,7 @@ from ui.console_interface import clear_screen, print_success, print_error
 from utils.error_handler import setup_logger
 
 
-def main():
+def main() -> None:
     """메인 실행 함수"""
     # 환경 변수 로드
     load_dotenv()

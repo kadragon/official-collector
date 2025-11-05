@@ -62,11 +62,19 @@ def clean_document_title(title: str) -> str:
 
 def extract_title_from_approval(title: str) -> str:
     """Extract the human friendly portion from an approval/reception text."""
-    if title is None:
-        return ""
     if title.strip() == "":
         return title
 
+    # Handle 전자결재 format: "전자결재: [ tag : ] [ tag : ] actual title"
+    if title.startswith("전자결재:"):
+        # Try regex to skip two bracket pairs and extract the rest
+        match = re.search(r"(?:[^\]]*\]){2}(.*)", title)
+        if match:
+            return match.group(1).strip()
+        # Fallback: return content after last ]
+        return title.split("]")[-1].strip()
+
+    # Try other approval prefix patterns
     for pattern in _APPROVAL_PREFIXES:
         match = re.match(pattern, title)
         if match:

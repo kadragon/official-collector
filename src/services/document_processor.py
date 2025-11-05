@@ -57,8 +57,8 @@ class DocumentProcessor:
         self.console_interface = ConsoleInterface()
 
         # 배치 업데이트를 위한 임시 저장소
-        self.pending_reception_updates = []
-        self.pending_card_updates = []
+        self.pending_reception_updates: list[dict[str, Any]] = []
+        self.pending_card_updates: list[dict[str, Any]] = []
 
     # ============================================================================
     # 접수 문서 처리 (기존 ReceptionService)
@@ -112,6 +112,7 @@ class DocumentProcessor:
                     recommendation_options,
                 )
                 if status == SelectionResult.SELECTED:
+                    assert value is not None
                     selected_recommendation = recommendations[
                         recommendation_options.index(value)
                     ]
@@ -234,6 +235,7 @@ class DocumentProcessor:
                 logger.info("추천 없음 선택됨 - 다음 단계로 이동")
             elif status == SelectionResult.SELECTED:
                 # 유사도 정보 제거하고 실제 카드명만 추출
+                assert value is not None
                 selected_index = recommendation_options.index(value)
                 card_name = recommendations[selected_index]["task_title"]
                 logger.info("임베딩 추천에서 선택: %s -> %s", title, card_name)
@@ -298,7 +300,7 @@ class DocumentProcessor:
 
     def reload_configuration(
         self, approval_list: List[str], share_list: List[str], card_list: List[str]
-    ):
+    ) -> None:
         """런타임 중 설정 다시 로드"""
         self.approval_name_list = approval_list
         self.share_name_list = share_list
@@ -309,20 +311,20 @@ class DocumentProcessor:
     # 배치 업데이트 메서드들
     # ============================================================================
 
-    def _queue_reception_update(self, title: str, approval: str, shared: Any):
+    def _queue_reception_update(self, title: str, approval: str, shared: Any) -> None:
         """접수 문서 업데이트를 큐에 추가"""
         self.pending_reception_updates.append(
             {"title": title, "approval": approval, "shared": shared}
         )
         logger.debug("접수 문서 업데이트 큐에 추가: %s", title)
 
-    def _queue_card_update(self, title: str, card_name: str):
+    def _queue_card_update(self, title: str, card_name: str) -> None:
         """과제 카드 업데이트를 큐에 추가"""
         self.pending_card_updates.append({"title": title, "card_name": card_name})
         logger.debug("과제 카드 업데이트 큐에 추가: %s", title)
 
     @log_execution_time(logger)
-    def flush_pending_updates(self):
+    def flush_pending_updates(self) -> None:
         """대기 중인 모든 업데이트를 Supabase에 일괄 업로드"""
         reception_count = len(self.pending_reception_updates)
         card_count = len(self.pending_card_updates)

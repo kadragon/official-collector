@@ -49,7 +49,7 @@ class UnifiedDebugManager:
         if not hasattr(logger, "handlers") or not logger.handlers:
             self._setup_logging()
 
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """로깅 설정"""
         logging.basicConfig(
             level=logging.INFO,
@@ -84,7 +84,7 @@ class UnifiedDebugManager:
                 self.app = Application(backend="win32").connect(
                     title_re=f".*{pattern}.*"
                 )
-                self.dlg = self.app.top_window()
+                self.dlg = self.app.top_window()  # type: ignore[attr-defined]
                 logger.info(
                     f"Successfully connected to application with pattern: {pattern}"
                 )
@@ -112,7 +112,7 @@ class UnifiedDebugManager:
             logger.error("No dialog connected. Call connect_to_app() first.")
             return ""
 
-        try:
+        try:  # type: ignore[unreachable]
             logger.info("=== Getting window structure ===")
 
             # Capture the output by redirecting to a string
@@ -209,7 +209,7 @@ class UnifiedDebugManager:
             logger.error("No dialog connected. Call connect_to_app() first.")
             return [] if not self.interactive else None
 
-        logger.info(
+        logger.info(  # type: ignore[unreachable]
             f"Starting dialog monitoring for {duration} seconds (interval: {interval}s)"
         )
         start_time = time.time()
@@ -253,11 +253,11 @@ class UnifiedDebugManager:
         dialogs = []
         try:
             # Look for windows with title '확인'
-            confirm_dialogs = self.app.windows(title="확인", control_type="Window")
+            confirm_dialogs = self.app.windows(title="확인", control_type="Window")  # type: ignore[attr-defined]
             dialogs.extend(confirm_dialogs)
 
             # Also look for any popup dialogs
-            popup_dialogs = self.app.windows(control_type="Window", class_name="#32770")
+            popup_dialogs = self.app.windows(control_type="Window", class_name="#32770")  # type: ignore[attr-defined]
             dialogs.extend(popup_dialogs)
 
         except Exception as e:
@@ -265,7 +265,7 @@ class UnifiedDebugManager:
 
         return dialogs
 
-    def _print_dialog_structure(self, dialog):
+    def _print_dialog_structure(self, dialog: Any) -> None:
         """
         Print structure of a specific dialog (interactive mode)
 
@@ -287,7 +287,7 @@ class UnifiedDebugManager:
         except Exception as e:
             logger.error(f"Failed to print dialog structure: {e}")
 
-    def _analyze_dialog(self, dialog, iteration: int) -> Dict[str, Any]:
+    def _analyze_dialog(self, dialog: Any, iteration: int) -> Dict[str, Any]:
         """
         Analyze dialog for programmatic use
 
@@ -299,7 +299,7 @@ class UnifiedDebugManager:
             Dict containing dialog analysis
         """
         try:
-            dialog_info = {
+            dialog_info: Dict[str, Any] = {
                 "iteration": iteration,
                 "timestamp": datetime.now().isoformat(),
                 "title": getattr(dialog, "window_text", lambda: "Unknown")(),
@@ -353,7 +353,7 @@ class UnifiedDebugManager:
                 "error": str(e),
             }
 
-    def _get_dialog_text_safe(self, dialog) -> str:
+    def _get_dialog_text_safe(self, dialog: Any) -> str:
         """
         Safely extract dialog text
 
@@ -373,7 +373,7 @@ class UnifiedDebugManager:
             try:
                 text = method()
                 if text and text.strip():
-                    return text
+                    return str(text)
             except Exception:
                 continue
 
@@ -395,7 +395,7 @@ class UnifiedDebugManager:
             logger.error("No active connection.")
             return None
 
-        start_time = time.time()
+        start_time = time.time()  # type: ignore[unreachable]
 
         while time.time() - start_time < timeout:
             try:
@@ -424,7 +424,7 @@ class UnifiedDebugManager:
         logger.info("No circulation completion dialog found within timeout")
         return None
 
-    def debug_circulation_completion_flow(self):
+    def debug_circulation_completion_flow(self) -> None:
         """Debug the circulation completion flow with monitoring"""
         logger.info("=== Starting circulation completion flow debugging ===")
 
@@ -444,7 +444,7 @@ class UnifiedDebugManager:
 
         logger.info("=== Circulation completion flow debugging completed ===")
 
-    def run_interactive_session(self):
+    def run_interactive_session(self) -> None:
         """Run interactive debugging session"""
         if not self.interactive:
             logger.warning("Interactive session called in non-interactive mode")
@@ -548,10 +548,11 @@ def monitor_circulation_dialogs(duration: float = 10.0) -> List[Dict[str, Any]]:
         return []
 
     # Monitor dialogs
-    return manager.monitor_dialogs(duration=duration, interval=0.5)
+    result = manager.monitor_dialogs(duration=duration, interval=0.5)
+    return result if result is not None else []
 
 
-def run_interactive_debug():
+def run_interactive_debug() -> None:
     """Run interactive debugging session"""
     manager = UnifiedDebugManager(interactive=True)
     manager.run_interactive_session()

@@ -11,14 +11,16 @@ from services.document_processor import DocumentProcessor
 from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
 from ui.console_interface import (
+    ConsoleInterface,
     draw_header,
     print_document_info,
     print_success,
     print_warning,
     print_info,
+    print_error,
     print_final_result,
     activate_cmd_window,
-    clear_screen
+    clear_screen,
 )
 
 logger = setup_logger(__name__)
@@ -160,7 +162,7 @@ class Main:
 
         print_final_result(success_count, processed_count)
 
-    def _flush_all_pending_updates(self):
+    def _flush_all_pending_updates(self) -> None:
         """대기 중인 모든 업데이트를 Supabase에 일괄 업로드"""
         reception_count, card_count = (
             self.document_processor.get_pending_updates_count()
@@ -203,8 +205,7 @@ class Main:
                 try:
                     self.collector.document_sort(card_name)
                     print_success(f"문서 분류 완료: {card_name}")
-                    logger.info("문서 분류 완료: %s -> %s",
-                                processed_title, card_name)
+                    logger.info("문서 분류 완료: %s -> %s", processed_title, card_name)
                     return True
 
                 except Exception as e:
@@ -229,13 +230,12 @@ class Main:
 # ────────────────────────────────────────────────────────────────────────────
 
 
-def run_deletion_interface():
+def run_deletion_interface() -> None:
     """간소화된 삭제 인터페이스를 실행합니다."""
     from ui.console_interface import (
         ConsoleInterface,
         print_success,
         print_error,
-
     )
 
     try:
@@ -259,8 +259,7 @@ def run_deletion_interface():
         elif choice == "접수 문서 목록 보기 및 삭제":
             _handle_reception_deletion(supabase_service, console)
         elif choice == "개별 과제 카드 삭제":
-            _handle_individual_deletion(
-                supabase_service, console, "과제 카드", "card")
+            _handle_individual_deletion(supabase_service, console, "과제 카드", "card")
         elif choice == "개별 접수 문서 삭제":
             _handle_individual_deletion(
                 supabase_service, console, "접수 문서", "reception"
@@ -269,7 +268,9 @@ def run_deletion_interface():
             _handle_bulk_deletion(supabase_service, console)
 
 
-def _handle_task_card_deletion(service: SupabaseService, console):
+def _handle_task_card_deletion(
+    service: SupabaseService, console: ConsoleInterface
+) -> None:
     """과제 카드 삭제 처리"""
     try:
         cards = service.list_all_cards()
@@ -288,7 +289,9 @@ def _handle_task_card_deletion(service: SupabaseService, console):
     input("엔터를 눌러 계속...")
 
 
-def _handle_reception_deletion(service: SupabaseService, console):
+def _handle_reception_deletion(
+    service: SupabaseService, console: ConsoleInterface
+) -> None:
     """접수 문서 삭제 처리"""
     try:
         receptions = service.list_all_receptions()
@@ -308,8 +311,11 @@ def _handle_reception_deletion(service: SupabaseService, console):
 
 
 def _handle_individual_deletion(
-    service: SupabaseService, console, item_type: str, service_type: str
-):
+    service: SupabaseService,
+    console: ConsoleInterface,
+    item_type: str,
+    service_type: str,
+) -> None:
     """개별 항목 삭제 처리"""
     try:
         title = console.get_title_for_deletion(item_type)
@@ -322,8 +328,7 @@ def _handle_individual_deletion(
             success = service.delete_card_by_title(title) if exists else False
         else:  # reception
             exists = service.reception_exists(title)
-            success = service.delete_reception_by_title(
-                title) if exists else False
+            success = service.delete_reception_by_title(title) if exists else False
 
         if not exists:
             print_error(f"'{title}' {item_type}가 존재하지 않습니다.")
@@ -338,7 +343,7 @@ def _handle_individual_deletion(
     input("엔터를 눌러 계속...")
 
 
-def _handle_bulk_deletion(service: SupabaseService, console):
+def _handle_bulk_deletion(service: SupabaseService, console: ConsoleInterface) -> None:
     """일괄 삭제 처리"""
     try:
         if console.confirm_bulk_deletion():

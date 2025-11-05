@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 # Global variable to store the current execution's log file path
-_current_log_file = None
+_current_log_file: Optional[str] = None
 _logger_initialized = False
 
 
@@ -71,6 +71,7 @@ def initialize_execution_logger() -> str:
 
         _logger_initialized = True
 
+    assert _current_log_file is not None
     return _current_log_file
 
 
@@ -110,9 +111,11 @@ def setup_logger(
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            file_handler = logging.FileHandler(log_file, encoding="utf-8")
         except OSError as error:
-            logging.getLogger(name).warning("Unable to open log file %s: %s", log_file, error)
+            logging.getLogger(name).warning(
+                "Unable to open log file %s: %s", log_file, error
+            )
         else:
             file_handler.setLevel(level)
             file_handler.setFormatter(formatter)
@@ -135,7 +138,7 @@ def handle_connection_error(
     logger: logging.Logger,
     max_attempts: int = 10,
     wait_time: int = 5,
-) -> Callable:
+) -> Callable[[Callable], Callable]:
     """
     연결 에러를 처리하는 데코레이터.
 
@@ -151,7 +154,7 @@ def handle_connection_error(
 
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)

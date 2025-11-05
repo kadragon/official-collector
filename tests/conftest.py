@@ -1,6 +1,7 @@
 """
 Pytest configuration and shared fixtures
 """
+
 import shutil
 import pytest
 import time
@@ -19,10 +20,7 @@ def cleanup_test_databases():
     This runs once per test session and ensures test databases are removed.
     """
     # Before tests - clean up any leftover test databases
-    test_db_paths = [
-        "./.chroma_db_test",
-        ".chroma_db_test"
-    ]
+    test_db_paths = ["./.chroma_db_test", ".chroma_db_test"]
 
     for db_path in test_db_paths:
         if Path(db_path).exists():
@@ -47,5 +45,4 @@ def cleanup_test_databases():
                     if attempt < 4:
                         time.sleep(0.5 * (attempt + 1))  # Exponential backoff
                     else:
-                        print(
-                            f"Warning: Could not remove test database {db_path}: {e}")
+                        print(f"Warning: Could not remove test database {db_path}: {e}")
