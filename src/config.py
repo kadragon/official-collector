@@ -256,6 +256,7 @@ class UnifiedConfig:
                 return False
             if not all(isinstance(item, str) for item in values):
                 logger.warning("%s contains non-string items", name)
+                return False
         return True
 
     # ------------------------------------------------------------------ #
