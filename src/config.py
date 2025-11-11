@@ -65,6 +65,7 @@ class UnifiedConfig:
         validators = [
             self.validate_ollama_url,
             self.validate_ollama_model,
+            self.validate_supabase_credentials,
             self._validate_lists,
         ]
         for validator in validators:
@@ -83,6 +84,24 @@ class UnifiedConfig:
         """Ensure the Ollama model name is non-empty."""
         is_valid = bool(self.ollama_model)
         logger.debug("Ollama model validation (%s): %s", self.ollama_model, is_valid)
+        return is_valid
+
+    def validate_supabase_credentials(self) -> bool:
+        """Ensure Supabase credentials are configured correctly."""
+        has_url = bool(self.supabase_url)
+        has_key = bool(self.supabase_key)
+        has_openai_key = bool(self._env_value("OPENAI_API_KEY"))
+
+        is_valid = has_url and has_key and has_openai_key
+
+        if not has_url:
+            logger.warning("SUPABASE_URL 환경변수가 설정되지 않았습니다")
+        if not has_key:
+            logger.warning("SUPABASE_KEY 환경변수가 설정되지 않았습니다")
+        if not has_openai_key:
+            logger.warning("OPENAI_API_KEY 환경변수가 설정되지 않았습니다")
+
+        logger.debug("Supabase 자격증명 검증: %s", is_valid)
         return is_valid
 
     def get_config_summary(self) -> Dict[str, Any]:
@@ -251,10 +270,10 @@ class UnifiedConfig:
             ("share_list", self.share_list),
             ("task_card_list", self.task_card_list),
         ):
-            if not isinstance(values, list):
+            if not isinstance(values, list):  # type: ignore[arg-type]
                 logger.error("%s is not a list", name)
                 return False
-            if not all(isinstance(item, str) for item in values):
+            if not all(isinstance(item, str) for item in values):  # type: ignore[arg-type]
                 logger.warning("%s contains non-string items", name)
                 return False
         return True

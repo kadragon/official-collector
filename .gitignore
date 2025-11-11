@@ -31,6 +31,9 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+# Trace: SPEC-governance-doc-structure-1 / TASK-001
+!.spec/
+!.spec/**
 
 # Installer logs
 pip-log.txt

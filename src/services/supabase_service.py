@@ -12,6 +12,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from .openai_embedding_service import OpenAIEmbeddingService
 from utils.performance_logger import log_execution_time, timer
+from utils.config_manager import get_vector_similarity_threshold
 
 # 환경변수 로드
 load_dotenv()
@@ -35,6 +36,9 @@ class SupabaseService:
         # OpenAI 임베딩 서비스 초기화
         self.embedding_service = OpenAIEmbeddingService()
 
+        # 벡터 유사도 임계값 설정
+        self.similarity_threshold = get_vector_similarity_threshold()
+
         logger.info("Supabase 클라이언트 및 OpenAI 임베딩 서비스 초기화 완료")
 
     def retrieve_reception_by_title(
@@ -53,7 +57,7 @@ class SupabaseService:
                 return data["handler"], data["share_target"]
             return None, None
         except Exception as e:
-            logger.error(f"접수 문서 제목 조회 실패: {e}")
+            logger.error("접수 문서 제목 조회 실패: %s", e)
             return None, None
 
     def recommend_reception(self, title: str, count: int = 3) -> List[Dict[str, Any]]:
@@ -64,7 +68,7 @@ class SupabaseService:
                 title, f"query_{title}"
             )
             if not embedding_response:
-                logger.warning(f"임베딩 생성 실패: {title}")
+                logger.warning("임베딩 생성 실패: %s", title)
                 return []
 
             query_embedding = embedding_response.embedding
@@ -76,7 +80,7 @@ class SupabaseService:
                         "search_reception_mappings",
                         {
                             "query_embedding": query_embedding,
-                            "similarity_threshold": 0.3,  # 임계값을 0.5에서 0.3으로 낮춤
+                            "similarity_threshold": self.similarity_threshold,
                             "match_count": count,
                         },
                     ).execute()
@@ -91,7 +95,7 @@ class SupabaseService:
                         approval = item["handler"]
                         share = item["share_target"] or "공람없음"
                         similarity = item.get("similarity", 0)
-                        title = item["title"]
+                        item_title = item["title"]
 
                         # approval + share 조합을 키로 사용
                         combo_key = f"{approval}|{share}"
@@ -105,7 +109,7 @@ class SupabaseService:
                                 "approval": approval,
                                 "share": share,
                                 "similarity": similarity,
-                                "title": title,
+                                "title": item_title,
                             }
 
                     # 딕셔너리 값을 리스트로 변환하고 유사도 순으로 정렬
@@ -117,11 +121,11 @@ class SupabaseService:
                 return recommendations
 
             except Exception as e:
-                logger.error(f"벡터 검색 실패: {e}")
+                logger.error("벡터 검색 실패: %s", e)
                 return []
 
         except Exception as e:
-            logger.error(f"접수 문서 추천 실패: {e}")
+            logger.error("접수 문서 추천 실패: %s", e)
             return []
 
     def retrieve_card_by_title(self, title: str) -> Optional[str]:
@@ -137,7 +141,7 @@ class SupabaseService:
                 return str(result.data[0]["task_title"])
             return None
         except Exception as e:
-            logger.error(f"업무카드 제목 조회 실패: {e}")
+            logger.error("업무카드 제목 조회 실패: %s", e)
             return None
 
     def recommend_cards(self, title: str, count: int = 5) -> List[Dict[str, Any]]:
@@ -148,7 +152,7 @@ class SupabaseService:
                 title, f"query_{title}"
             )
             if not embedding_response:
-                logger.warning(f"임베딩 생성 실패: {title}")
+                logger.warning("임베딩 생성 실패: %s", title)
                 return []
 
             query_embedding = embedding_response.embedding
@@ -160,7 +164,7 @@ class SupabaseService:
                         "search_task_card_mappings",
                         {
                             "query_embedding": query_embedding,
-                            "similarity_threshold": 0.3,  # 임계값을 0.5에서 0.3으로 낮춤
+                            "similarity_threshold": self.similarity_threshold,
                             "match_count": count,
                         },
                     ).execute()
@@ -191,22 +195,22 @@ class SupabaseService:
                     ]
 
                 logger.info(
-                    f"업무카드 추천 완료 (중복 제거 후): {len(recommendations)}개"
+                    "업무카드 추천 완료 (중복 제거 후): %d개", len(recommendations)
                 )
                 return recommendations
 
             except Exception as e:
-                logger.error(f"벡터 검색 실패: {e}")
+                logger.error("벡터 검색 실패: %s", e)
                 return []
 
         except Exception as e:
-            logger.error(f"업무카드 추천 실패: {e}")
+            logger.error("업무카드 추천 실패: %s", e)
             return []
 
     def upsert_reception_embedding(
         self, title: str, handler: str, share_target: str
     ) -> bool:
-        """���� ���� ���� ����Ʈ (�Ӻ��� ����)"""
+        """접수 문서 정규 매핑 (선택적 업데이트)"""
         try:
             embedding_response = self.embedding_service.create_embedding(
                 title, f"reception_{title}"
@@ -226,14 +230,16 @@ class SupabaseService:
                 .upsert(data, on_conflict="title")
                 .execute()
             )
-            logger.info(f"���� ���� ���� ����: {title} -> {handler}/{share_target}")
+            logger.info(
+                "접수 문서 정규 매핑: %s -> %s/%s", title, handler, share_target
+            )
             return True
         except Exception as e:
-            logger.error(f"���� ���� ���� ����Ʈ ����: {e}")
+            logger.error("접수 문서 정규 매핑 실패: %s", e)
             return False
 
     def upsert_card_embedding(self, title: str, task_title: str) -> bool:
-        """����ī�� ���� ����Ʈ (�Ӻ��� ����)"""
+        """업무카드 정규 매핑 (선택적 업데이트)"""
         try:
             embedding_response = self.embedding_service.create_embedding(
                 title, f"task_card_{title}"
@@ -252,10 +258,10 @@ class SupabaseService:
                 .upsert(data, on_conflict="title")
                 .execute()
             )
-            logger.info(f"����ī�� ���� ����: {title} -> {task_title}")
+            logger.info("업무카드 정규 매핑: %s -> %s", title, task_title)
             return True
         except Exception as e:
-            logger.error(f"����ī�� ���� ����Ʈ ����: {e}")
+            logger.error("업무카드 정규 매핑 실패: %s", e)
             return False
 
     def get_document_count(self, table_type: str = "task_card") -> int:
@@ -274,7 +280,7 @@ class SupabaseService:
             )
             return result.count if result.count is not None else 0
         except Exception as e:
-            logger.error(f"문서 개수 조회 실패: {e}")
+            logger.error("문서 개수 조회 실패: %s", e)
             return 0
 
     # 유틸리티 메서드
@@ -298,22 +304,30 @@ class SupabaseService:
 
     def clear_all_data(self) -> bool:
         """모든 데이터 삭제 (개발/테스트용)"""
+        # 프로덕션 환경에서는 데이터 삭제 금지
+        if os.getenv("ENVIRONMENT", "development") == "production":
+            logger.error("프로덕션 환경에서는 데이터 삭제를 수행할 수 없습니다")
+            return False
+
         try:
             self.client.table("task_card_mappings").delete().neq("id", "").execute()
             self.client.table("reception_mappings").delete().neq("id", "").execute()
             logger.warning("모든 데이터 삭제 완료")
             return True
         except Exception as e:
-            logger.error(f"데이터 삭제 실패: {e}")
+            logger.error("데이터 삭제 실패: %s", e)
             return False
 
     # 삭제 인터페이스용 메서드들 (기존 ChromaService 호환성)
-    def list_all_cards(self) -> List[Tuple[str, str, str]]:
+    def list_all_cards(
+        self, limit: int = 1000, offset: int = 0
+    ) -> List[Tuple[str, str, str]]:
         """모든 업무카드 매핑 목록 조회 (title, task_title, created_at)"""
         try:
             result = (
                 self.client.table("task_card_mappings")
                 .select("title", "task_title", "created_at")
+                .range(offset, offset + limit - 1)
                 .execute()
             )
             return [
@@ -321,15 +335,18 @@ class SupabaseService:
                 for item in result.data
             ]
         except Exception as e:
-            logger.error(f"업무카드 목록 조회 실패: {e}")
+            logger.error("업무카드 목록 조회 실패: %s", e)
             return []
 
-    def list_all_receptions(self) -> List[Tuple[str, str, str, str]]:
+    def list_all_receptions(
+        self, limit: int = 1000, offset: int = 0
+    ) -> List[Tuple[str, str, str, str]]:
         """모든 접수 문서 매핑 목록 조회 (title, handler, share_target, created_at)"""
         try:
             result = (
                 self.client.table("reception_mappings")
                 .select("title", "handler", "share_target", "created_at")
+                .range(offset, offset + limit - 1)
                 .execute()
             )
             return [
@@ -342,7 +359,7 @@ class SupabaseService:
                 for item in result.data
             ]
         except Exception as e:
-            logger.error(f"접수 문서 목록 조회 실패: {e}")
+            logger.error("접수 문서 목록 조회 실패: %s", e)
             return []
 
     def bulk_delete_cards(self, titles: List[str]) -> int:
@@ -358,10 +375,10 @@ class SupabaseService:
                 )
                 if result.data:
                     deleted_count += len(result.data)
-            logger.info(f"업무카드 일괄 삭제 완료: {deleted_count}개")
+            logger.info("업무카드 일괄 삭제 완료: %d개", deleted_count)
             return deleted_count
         except Exception as e:
-            logger.error(f"업무카드 일괄 삭제 실패: {e}")
+            logger.error("업무카드 일괄 삭제 실패: %s", e)
             return 0
 
     def bulk_delete_receptions(self, titles: List[str]) -> int:
@@ -377,10 +394,10 @@ class SupabaseService:
                 )
                 if result.data:
                     deleted_count += len(result.data)
-            logger.info(f"접수 문서 일괄 삭제 완료: {deleted_count}개")
+            logger.info("접수 문서 일괄 삭제 완료: %d개", deleted_count)
             return deleted_count
         except Exception as e:
-            logger.error(f"접수 문서 일괄 삭제 실패: {e}")
+            logger.error("접수 문서 일괄 삭제 실패: %s", e)
             return 0
 
     def card_exists(self, title: str) -> bool:
@@ -394,7 +411,7 @@ class SupabaseService:
             )
             return len(result.data) > 0
         except Exception as e:
-            logger.error(f"업무카드 존재 확인 실패: {e}")
+            logger.error("업무카드 존재 확인 실패: %s", e)
             return False
 
     def reception_exists(self, title: str) -> bool:
@@ -408,7 +425,7 @@ class SupabaseService:
             )
             return len(result.data) > 0
         except Exception as e:
-            logger.error(f"접수 문서 존재 확인 실패: {e}")
+            logger.error("접수 문서 존재 확인 실패: %s", e)
             return False
 
     def delete_card_by_title(self, title: str) -> bool:
@@ -422,10 +439,10 @@ class SupabaseService:
             )
             success = len(result.data) > 0
             if success:
-                logger.info(f"업무카드 삭제 완료: {title}")
+                logger.info("업무카드 삭제 완료: %s", title)
             return success
         except Exception as e:
-            logger.error(f"업무카드 삭제 실패: {e}")
+            logger.error("업무카드 삭제 실패: %s", e)
             return False
 
     def delete_reception_by_title(self, title: str) -> bool:
@@ -439,34 +456,44 @@ class SupabaseService:
             )
             success = len(result.data) > 0
             if success:
-                logger.info(f"접수 문서 삭제 완료: {title}")
+                logger.info("접수 문서 삭제 완료: %s", title)
             return success
         except Exception as e:
-            logger.error(f"접수 문서 삭제 실패: {e}")
+            logger.error("접수 문서 삭제 실패: %s", e)
             return False
 
     def delete_all_cards(self) -> int:
         """모든 업무카드 삭제"""
+        # 프로덕션 환경에서는 삭제 금지
+        if os.getenv("ENVIRONMENT", "development") == "production":
+            logger.error("프로덕션 환경에서는 데이터 삭제를 수행할 수 없습니다")
+            return 0
+
         try:
             result = (
                 self.client.table("task_card_mappings").delete().neq("id", "").execute()
             )
             deleted_count = len(result.data) if result.data else 0
-            logger.warning(f"모든 업무카드 삭제 완료: {deleted_count}개")
+            logger.warning("모든 업무카드 삭제 완료: %d개", deleted_count)
             return deleted_count
         except Exception as e:
-            logger.error(f"모든 업무카드 삭제 실패: {e}")
+            logger.error("모든 업무카드 삭제 실패: %s", e)
             return 0
 
     def delete_all_receptions(self) -> int:
         """모든 접수 문서 삭제"""
+        # 프로덕션 환경에서는 삭제 금지
+        if os.getenv("ENVIRONMENT", "development") == "production":
+            logger.error("프로덕션 환경에서는 데이터 삭제를 수행할 수 없습니다")
+            return 0
+
         try:
             result = (
                 self.client.table("reception_mappings").delete().neq("id", "").execute()
             )
             deleted_count = len(result.data) if result.data else 0
-            logger.warning(f"모든 접수 문서 삭제 완료: {deleted_count}개")
+            logger.warning("모든 접수 문서 삭제 완료: %d개", deleted_count)
             return deleted_count
         except Exception as e:
-            logger.error(f"모든 접수 문서 삭제 실패: {e}")
+            logger.error("모든 접수 문서 삭제 실패: %s", e)
             return 0

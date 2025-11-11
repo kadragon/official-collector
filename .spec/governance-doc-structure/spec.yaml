@@ -1,0 +1,26 @@
+# Trace:
+#   spec_id: SPEC-governance-doc-structure-1
+#   task_id: TASK-001
+spec_id: SPEC-governance-doc-structure-1
+title: "SDD/TDD Governance Scaffolding"
+given_when_then:
+  - given: "A new session starts without loaded institutional memory"
+    when: "The agent inspects .governance and .tasks directories"
+    then: "The agent restores coding context, loads the active task, and locates the matching spec before writing code"
+  - given: "Documentation updates are required"
+    when: "Information is captured inside .spec, .tasks, and .governance"
+    then: "Future sessions have a single source of truth with explicit spec_id and task_id traceability"
+  - given: "A task is completed"
+    when: "Progress is recorded in .tasks/done.yaml and lessons summarized in .governance/memory.md"
+    then: "Subsequent work can resume without ambiguity or re-analysis"
+acceptance_tests:
+  - id: TEST-governance-1
+    desc: ".spec/, .tasks/, and .governance/ exist with required seed files (memory, coding-style, patterns, env, backlog, current, done, specs)"
+  - id: TEST-governance-2
+    desc: "Each Markdown or spec artifact includes an explicit Trace block linking spec_id and task_id"
+dependencies:
+  - governance: "coding-style.md"
+  - governance: "patterns.md"
+  - governance: "memory.md"
+linked_tasks:
+  - TASK-001

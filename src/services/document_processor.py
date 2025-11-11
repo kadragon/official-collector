@@ -112,7 +112,8 @@ class DocumentProcessor:
                     recommendation_options,
                 )
                 if status == SelectionResult.SELECTED:
-                    assert value is not None
+                    if value is None:
+                        raise ValueError("추천 선택 결과가 None입니다")
                     selected_recommendation = recommendations[
                         recommendation_options.index(value)
                     ]
@@ -229,19 +230,20 @@ class DocumentProcessor:
             status, value = get_user_choice_from_recommendations(
                 title, recommendation_options
             )  # 사용자에게는 원본 제목 표시
-            logger.info(f"추천 선택 결과: status={status}, value={value}")
+            logger.info("추천 선택 결과: status=%s, value=%s", status, value)
             if status == SelectionResult.SKIPPED:
                 card_name = None  # 사용자가 '추천 없음' 선택
                 logger.info("추천 없음 선택됨 - 다음 단계로 이동")
             elif status == SelectionResult.SELECTED:
                 # 유사도 정보 제거하고 실제 카드명만 추출
-                assert value is not None
+                if value is None:
+                    raise ValueError("추천 선택 결과가 None입니다")
                 selected_index = recommendation_options.index(value)
                 card_name = recommendations[selected_index]["task_title"]
                 logger.info("임베딩 추천에서 선택: %s -> %s", title, card_name)
 
         # 3. 추천이 선택되지 않은 경우 미리 정의된 목록 제공
-        logger.info(f"3단계 진입 전 card_name 상태: {card_name}")
+        logger.info("3단계 진입 전 card_name 상태: %s", card_name)
         if card_name is None:
             logger.info("미리 정의된 목록 단계 시작")
             status, value = self.console_interface.choose_from_predefined_list(

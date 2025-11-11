@@ -912,6 +912,7 @@ dependencies = [
     { name = "openai" },
     { name = "pyperclip" },
     { name = "python-dotenv" },
+    { name = "pywin32" },
     { name = "pywinauto" },
     { name = "supabase" },
 ]
@@ -934,6 +935,7 @@ requires-dist = [
     { name = "openai", specifier = ">=1.102.0" },
     { name = "pyperclip", specifier = ">=1.9.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pywin32", specifier = ">=306" },
     { name = "pywinauto", specifier = ">=0.6.9" },
     { name = "supabase", specifier = ">=2.18.1" },
 ]

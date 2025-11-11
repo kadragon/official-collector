@@ -1,0 +1,26 @@
+# Trace:
+#   spec_id: SPEC-governance-doc-structure-1
+#   task_id: TASK-001
+spec_id: SPEC-performance-observability-1
+title: "Performance Logging & Monitoring"
+given_when_then:
+  - given: "Critical API and RPA routines execute"
+    when: "`@log_execution_time` or `timer()` wrappers decorate them"
+    then: "Execution durations are persisted for Supabase/OpenAI calls, RPA steps, and batch flushes"
+  - given: "Operators need to analyze latency hotspots"
+    when: "Performance logs are exported"
+    then: "They can attribute wait times to API calls, UI automation, or batching, enabling 40%+ throughput gains"
+  - given: "A new instrumentation target is identified"
+    when: "Phase tracking tasks are updated"
+    then: "The backlog enumerates missing timers for payment windows and circulation dialogs"
+acceptance_tests:
+  - id: TEST-performance-1
+    desc: "All documented hotspots (API calls, reception flow, approvals, document sorting) emit execution metrics"
+  - id: TEST-performance-2
+    desc: "Outstanding instrumentation gaps are tracked inside `.tasks/backlog.yaml` with owners and blocking notes"
+dependencies:
+  - governance: "patterns.md"
+linked_tasks:
+  - TASK-003
+  - TASK-100
+  - TASK-101

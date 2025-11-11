@@ -1,0 +1,29 @@
+# Trace:
+#   spec_id: SPEC-governance-doc-structure-1
+#   task_id: TASK-001
+spec_id: SPEC-supabase-migration-1
+title: "Supabase + OpenAI Embedding Platform"
+given_when_then:
+  - given: "Legacy Chroma/Ollama data exists in `./chroma_db` and backups"
+    when: "Migration scripts run"
+    then: "161+ task cards and reception documents are ported into Supabase tables with OpenAI text-embedding-3-small vectors"
+  - given: "A service requests similarity results"
+    when: "`SupabaseService` executes RPC queries"
+    then: "Results return under the configured similarity threshold and deduplicate by document_id"
+  - given: "Environment variables are misconfigured"
+    when: "`config.validate()` runs"
+    then: "The process fails fast if Supabase or OpenAI credentials are missing"
+acceptance_tests:
+  - id: TEST-supabase-1
+    desc: "Migration scripts populate `reception_documents`, `task_cards`, and `document_embeddings` with OpenAI vectors"
+  - id: TEST-supabase-2
+    desc: "`SupabaseService` CRUD and similarity calls succeed with retry and pagination safeguards"
+  - id: TEST-supabase-3
+    desc: "Configuration validation blocks startup without Supabase/OpenAI credentials and surfaces thresholds via config"
+dependencies:
+  - governance: "env.yaml"
+  - governance: "memory.md"
+linked_tasks:
+  - TASK-002
+  - TASK-004
+  - TASK-006

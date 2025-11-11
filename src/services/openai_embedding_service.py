@@ -7,13 +7,14 @@ import os
 import logging
 import time
 from typing import List, Dict, Any, Optional, Union
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import json
 
 import openai
 from dotenv import load_dotenv
 from utils.performance_logger import log_execution_time
+from utils.config_manager import get_openai_embedding_price
 
 # 환경변수 로드
 load_dotenv()
@@ -27,7 +28,7 @@ class EmbeddingRequest:
 
     text: str
     identifier: str  # 문서 ID 또는 고유 식별자
-    metadata: Dict[str, Any] | None = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -38,7 +39,7 @@ class EmbeddingResponse:
     embedding: List[float]
     text: str
     token_count: int
-    metadata: Dict[str, Any] | None = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -48,17 +49,15 @@ class CostTracker:
     total_tokens: int = 0
     total_requests: int = 0
     total_cost: float = 0.0
-    start_time: datetime | None = None
+    start_time: Optional[datetime] = field(default_factory=datetime.now)
 
     def add_request(self, token_count: int) -> None:
         """요청 추가"""
-        if self.start_time is None:
-            self.start_time = datetime.now()
-
         self.total_tokens += token_count
         self.total_requests += 1
-        # text-embedding-3-small 가격: $0.00002 per 1K tokens
-        self.total_cost += (token_count / 1000) * 0.00002
+        # text-embedding-3-small 가격은 config_manager에서 가져옴
+        price_per_1k = get_openai_embedding_price()
+        self.total_cost += (token_count / 1000) * price_per_1k
 
 
 class OpenAIEmbeddingService:
@@ -94,8 +93,8 @@ class OpenAIEmbeddingService:
     def create_embedding(
         self,
         text: str,
-        identifier: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+        identifier: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[EmbeddingResponse]:
         """단일 텍스트 임베딩 생성"""
         if not text or not text.strip():
@@ -276,7 +275,7 @@ class OpenAIEmbeddingService:
     def create_embeddings_from_texts(
         self,
         texts: List[str],
-        identifiers: List[str] | None = None,
+        identifiers: Optional[List[str]] = None,
         batch_size: int = 100,
     ) -> List[EmbeddingResponse]:
         """텍스트 목록에서 임베딩 생성"""
@@ -297,7 +296,7 @@ class OpenAIEmbeddingService:
         self,
         query_text: str,
         embeddings: List[List[float]],
-        texts: List[str] | None = None,
+        texts: Optional[List[str]] = None,
         top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """임베딩 기반 유사도 검색"""
