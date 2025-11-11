@@ -14,6 +14,12 @@ task_id: TASK-001
 - Seeded specs for core automation, Supabase migration, performance observability, and governance scaffolding.
 - Captured backlog/current/done states plus coding-style, patterns, and environment references.
 
+## Session Log (2025-11-11 Bandit hotfix)
+- Completed TASK-007 (SPEC-core-automation-1) to make `clear_screen()` Bandit-compliant by invoking `cmd /c cls` or `clear` without `shell=True` while retaining the newline fallback.
+- Updated `tests/unit/test_console_interface.py` so Windows/Unix expectations assert the safer subprocess arguments, then ran `pytest tests/unit/test_console_interface.py -k clear_screen`.
+- Next session should resume TASK-002 (Supabase deployment readiness) from the backlog now that the hotfix is merged.
+- Completed TASK-008 (SPEC-core-automation-1) by adding debug logging to `debug_manager.py`, `official_service.py`, and the console activation helper so no try/except blocks silently swallow errors; Bandit now only reports unrelated B404/B603/B607/B101 warnings.
+
 ## Risks & Constraints
 - Configuration validation still references Ollama; Supabase credential checks plus similarity thresholds (0.3) must move into `config.py`.
 - Supabase list APIs lack pagination, risking memory pressure once record counts grow beyond current 161 documents.

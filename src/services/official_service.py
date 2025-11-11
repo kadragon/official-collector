@@ -598,7 +598,8 @@ class OfficialCollector:
                         text = control.window_text().strip()
                         if text:  # 빈 텍스트 제외
                             static_texts.append(text)
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug("Static control text read failed: %s", exc)
                         continue
             except Exception as e:
                 logger.debug("Static 컨트롤 수집 실패: %s", e)
@@ -608,8 +609,8 @@ class OfficialCollector:
                 full_text = confirm_dialog.window_text()
                 if full_text:
                     static_texts.append(full_text)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Confirm dialog full text read failed: %s", exc)
 
             # 수집된 모든 텍스트 로그 출력
             combined_text = " | ".join(static_texts)
@@ -642,7 +643,13 @@ class OfficialCollector:
                         logger.debug("%s 확인 완료 (버튼: %s)", action_type, title)
                         button_clicked = True
                         break
-                except Exception:
+                except Exception as exc:
+                    logger.debug(
+                        "Button click attempt failed (%s/%s): %s",
+                        action_type,
+                        title,
+                        exc,
+                    )
                     continue
 
             if not button_clicked:
@@ -675,10 +682,11 @@ class OfficialCollector:
                         control_text = control.window_text().strip()
                         if control_text and len(control_text) > 5:  # 의미있는 텍스트만
                             return str(control_text)
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug("Static control quick text read failed: %s", exc)
                         continue
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Static control enumeration failed: %s", exc)
 
             return ""
         except Exception as e:
@@ -697,8 +705,8 @@ class OfficialCollector:
                     yes_button.click()
                     logger.debug("예(Y) 버튼 클릭 완료")
                     return
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Primary yes button click failed: %s", exc)
 
             # 방법 2: 확인 버튼 시도
             try:
@@ -709,8 +717,8 @@ class OfficialCollector:
                     ok_button.click()
                     logger.debug("확인 버튼 클릭 완료")
                     return
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("OK button click failed: %s", exc)
 
             # 방법 3: 키보드 Y 키로 빠른 처리
             logger.debug("버튼 찾기 실패, 키보드 Y키로 처리")
@@ -721,8 +729,8 @@ class OfficialCollector:
             logger.warning("빠른 버튼 클릭 실패: %s", e)
             try:
                 keyboard.send_keys("{ENTER}")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Fallback ENTER keypress failed: %s", exc)
 
     def check_document_flow_state(self) -> DocumentFlowState:
         """

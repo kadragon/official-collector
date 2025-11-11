@@ -81,9 +81,9 @@ def clear_screen() -> None:
     """화면을 지웁니다."""
     try:
         if os.name == "nt":
-            subprocess.run(["cls"], shell=True, check=True)
+            subprocess.run(["cmd", "/c", "cls"], check=True)
         else:
-            subprocess.run(["clear"], shell=True, check=True)
+            subprocess.run(["clear"], check=True)
     except Exception:
         print("\n" * 50)
 
@@ -385,8 +385,8 @@ def activate_cmd_window() -> None:
             window.set_focus()
             _logger().debug("창 제목으로 CMD 창 포커스 활성화 성공")
             return
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger().debug("Failed to focus DocumentAutoClassifier window: %s", exc)
 
         # 방법 2: 현재 콘솔 창 핸들 사용 (기존 방법)
         console_hwnd = win32gui.GetConsoleWindow()
@@ -398,7 +398,6 @@ def activate_cmd_window() -> None:
             _logger().debug("콘솔 창 핸들을 찾을 수 없습니다")
     except Exception as e:
         _logger().debug(f"CMD 창 활성화 중 오류: {e}")
-        pass
 
 
 # ============================================================================

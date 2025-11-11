@@ -318,14 +318,14 @@ class UnifiedDebugManager:
                     "right": rect.right,
                     "bottom": rect.bottom,
                 }
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to capture dialog rectangle: %s", exc)
 
             # Get text content
             try:
                 dialog_info["text_content"] = self._get_dialog_text_safe(dialog)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to capture dialog text: %s", exc)
 
             # Get child controls info
             try:
@@ -340,8 +340,8 @@ class UnifiedDebugManager:
                     }
                     for child in children[:5]  # First 5 controls only
                 ]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to capture child controls: %s", exc)
 
             return dialog_info
 
@@ -374,7 +374,9 @@ class UnifiedDebugManager:
                 text = method()
                 if text and text.strip():
                     return str(text)
-            except Exception:
+            except Exception as exc:
+                method_name = getattr(method, "__name__", repr(method))
+                logger.debug("Dialog text method %s failed: %s", method_name, exc)
                 continue
 
         return ""

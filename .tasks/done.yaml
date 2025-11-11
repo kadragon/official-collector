@@ -31,3 +31,24 @@
     and achieved 40-50% faster throughput with per-phase execution baselines.
   test_refs:
     - TEST-performance-1
+- task_id: TASK-007
+  spec_id: SPEC-core-automation-1
+  title: "Resolve Bandit B602 on console clear logic"
+  completed_at: "2025-11-11T15:14:33+09:00"
+  outcome: >
+    Hardened `clear_screen()` to call `cmd /c cls` or `clear` without shell=True,
+    refreshed the console interface unit tests, and verified pytest coverage so
+    Bandit no longer reports rule B602.
+  test_refs:
+    - TEST-core-automation-2
+- task_id: TASK-008
+  spec_id: SPEC-core-automation-1
+  title: "Harden exception handling flagged by Bandit B110/B112"
+  completed_at: "2025-11-11T15:24:00+09:00"
+  outcome: >
+    Added debug logging for dialog analysis helpers, button-click fallbacks, and
+    CLI activation so no try/except blocks silently swallow errors, then reran
+    Bandit to confirm B110/B112 are cleared (remaining findings are unrelated B6xx/B101).
+  test_refs:
+    - TEST-core-automation-1
+    - TEST-core-automation-2

@@ -97,14 +97,14 @@ class TestUtilityFunctions:
         """Test clear screen on Windows."""
         with patch("os.name", "nt"):
             clear_screen()
-            mock_subprocess.assert_called_once_with(["cls"], shell=True, check=True)
+            mock_subprocess.assert_called_once_with(["cmd", "/c", "cls"], check=True)
 
     @patch("subprocess.run")
     def test_clear_screen_unix(self, mock_subprocess):
         """Test clear screen on Unix-like systems."""
         with patch("os.name", "posix"):
             clear_screen()
-            mock_subprocess.assert_called_once_with(["clear"], shell=True, check=True)
+            mock_subprocess.assert_called_once_with(["clear"], check=True)
 
     @patch("subprocess.run")
     @patch("builtins.print")

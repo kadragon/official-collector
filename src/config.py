@@ -265,15 +265,17 @@ class UnifiedConfig:
 
     def _validate_lists(self) -> bool:
         """Ensure the loaded lists are iterable collections of strings."""
-        for name, values in (
-            ("reception_list", self.reception_list),
-            ("share_list", self.share_list),
-            ("task_card_list", self.task_card_list),
-        ):
-            if not isinstance(values, list):  # type: ignore[arg-type]
+        list_candidates: Dict[str, Any] = {
+            "reception_list": self.reception_list,
+            "share_list": self.share_list,
+            "task_card_list": self.task_card_list,
+        }
+
+        for name, values in list_candidates.items():
+            if not isinstance(values, list):
                 logger.error("%s is not a list", name)
                 return False
-            if not all(isinstance(item, str) for item in values):  # type: ignore[arg-type]
+            if not all(isinstance(item, str) for item in values):
                 logger.warning("%s contains non-string items", name)
                 return False
         return True
