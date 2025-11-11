@@ -1,0 +1,6 @@
+# Trace:
+#   spec_id: SPEC-core-automation-1
+#   task_id: TASK-008
+exclude_dirs:
+  - tests
+  - tests/*

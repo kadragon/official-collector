@@ -43,7 +43,9 @@ disable=
     unused-variable,
     # Test-specific ignores
     redefined-outer-name,
-    unused-argument
+    unused-argument,
+    # Windows-specific imports may not be available
+    import-error
 
 [REPORTS]
 # Set the output format. Available formats are text, parseable, colorized, json

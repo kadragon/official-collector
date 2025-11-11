@@ -1,0 +1,62 @@
+# Trace:
+#   spec_id: SPEC-governance-doc-structure-1
+#   task_id: TASK-001
+- task_id: TASK-002
+  spec_id: SPEC-supabase-migration-1
+  title: "Finalize Supabase deployment readiness"
+  status: pending
+  priority: 1
+  description: >
+    Complete Phase 6 readiness work: audit logging, monitoring hooks, API quota budgeting,
+    and runbook updates so the Supabase/OpenAI stack can go live safely.
+  test_refs:
+    - TEST-supabase-1
+    - TEST-supabase-2
+  notes:
+    - "Baseline from TODO Phase 6 and CODE_REVIEW sections."
+- task_id: TASK-003
+  spec_id: SPEC-performance-observability-1
+  title: "Complete remaining instrumentation (Phase 3)"
+  status: pending
+  priority: 2
+  description: >
+    Finish the Phase 3 logging plan by instrumenting payment-info windows, circulation dialogs,
+    and log aggregation for Phase 3 analysis scripts.
+  test_refs:
+    - TEST-performance-1
+    - TEST-performance-2
+  blocked_by:
+    - TASK-002
+- task_id: TASK-004
+  spec_id: SPEC-supabase-migration-1
+  title: "Harden configuration validation and vector thresholds"
+  status: pending
+  priority: 2
+  description: >
+    Move hard-coded similarity thresholds (0.3) and OpenAI pricing constants into config.py,
+    add Supabase credential validation, and gate destructive helpers behind environment flags.
+  test_refs:
+    - TEST-supabase-3
+  notes:
+    - "See CODE_REVIEW_PR25.md issues #1-4."
+- task_id: TASK-005
+  spec_id: SPEC-core-automation-1
+  title: "Stabilize DocumentProcessor UX + error handling"
+  status: pending
+  priority: 3
+  description: >
+    Replace bare assertions with explicit error handling, add CLI timeout/backoff for manual selections,
+    and ensure deduplication happens upstream in the database.
+  test_refs:
+    - TEST-core-automation-2
+    - TEST-core-automation-3
+- task_id: TASK-006
+  spec_id: SPEC-supabase-migration-1
+  title: "Paginate Supabase list APIs"
+  status: pending
+  priority: 3
+  description: >
+    Add limit/offset controls to `list_all_cards()`/`list_all_receptions()` and stream data when the record count
+    exceeds safe in-memory limits to avoid production outages.
+  test_refs:
+    - TEST-supabase-2

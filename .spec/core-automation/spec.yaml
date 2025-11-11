@@ -1,0 +1,28 @@
+# Trace:
+#   spec_id: SPEC-governance-doc-structure-1
+#   task_id: TASK-001
+spec_id: SPEC-core-automation-1
+title: "Unified Official-Document Automation"
+given_when_then:
+  - given: "A reception document arrives inside the Windows client"
+    when: "DocumentProcessor ingests it through `process_reception_document`"
+    then: "The system selects the proper handler and approval route using Supabase vector similarity and logs the decision"
+  - given: "A standard electronic document needs task-card routing"
+    when: "The processor runs `process_task_card_matching`"
+    then: "The CLI either auto-selects the best match above the confidence threshold or asks the user interactively with a timeout safeguard"
+  - given: "Pending updates accumulate during a processing batch"
+    when: "`flush_pending_updates` executes"
+    then: "All Supabase updates happen in a single deduplicated transaction"
+acceptance_tests:
+  - id: TEST-core-automation-1
+    desc: "End-to-end reception flow assigns handler/share targets using Supabase vectors and logs the result"
+  - id: TEST-core-automation-2
+    desc: "Task-card matching prefers automatic resolution but falls back to CLI selection with bounded wait time"
+  - id: TEST-core-automation-3
+    desc: "Batch flush deduplicates updates before sending them to Supabase"
+dependencies:
+  - governance: "env.yaml"
+  - governance: "patterns.md"
+linked_tasks:
+  - TASK-002
+  - TASK-005

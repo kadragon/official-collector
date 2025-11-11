@@ -31,6 +31,9 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+# Trace: SPEC-governance-doc-structure-1 / TASK-001
+!.spec/
+!.spec/**
 
 # Installer logs
 pip-log.txt
@@ -163,6 +166,11 @@ cython_debug/
 
 /data/*.json
 /data/backup
+
+# Configuration files (use .example files as templates)
+/data/card_list.txt
+/data/reception_list.txt
+/data/share_list.txt
 
 # Claude Code
 .mcp.json
