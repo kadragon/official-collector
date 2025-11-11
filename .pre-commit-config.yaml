@@ -29,5 +29,5 @@ repos:
         entry: uv run bandit
         language: system
         files: \.(py)$
-        args: [-r, src/]
+        args: [-r, -ll, --configfile, .bandit, src/]
         pass_filenames: false
