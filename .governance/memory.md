@@ -26,7 +26,15 @@ task_id: TASK-001
 - Manual CLI selections can hang indefinitely; need timeout plus better exception handling instead of bare `assert` statements.
 - Remaining instrumentation gaps: payment info window detection and circulation-dialog handling inside `official_service.py`.
 
+## Session Log (2025-11-11 Rich UI Planning)
+- Created SPEC-rich-ui-enhancement-1 with comprehensive 3-phase migration plan from ANSI codes to Rich library.
+- Added TASK-009 (Phase 1: Core Infrastructure), TASK-010 (Phase 2: UI Components), TASK-011 (Phase 3: Advanced Features) to backlog.
+- Documented detailed implementation plan in `.spec/rich-ui-enhancement/implementation-plan.md` with 705 LOC migration strategy.
+- Key insight: Rich library (v14.1.0) already installed; feature flag approach enables gradual rollout with zero-risk rollback.
+- Expected benefits: ~20% LOC reduction, improved CJK handling, built-in input validation, progress visualization.
+
 ## Next Session Targets
-1. Promote Phase 6 deployment-readiness tasks (monitoring, auditing, cost tracking) from backlog.
-2. Finish Phase 3 instrumentation work, focusing on payment info and circulation dialog flows.
-3. Harden configuration and vector-threshold management so prod deployments do not require code edits.
+1. **Rich UI Migration (New Priority)**: Start TASK-009 to create RichConsole singleton and migrate basic message functions.
+2. Promote Phase 6 deployment-readiness tasks (monitoring, auditing, cost tracking) from backlog.
+3. Finish Phase 3 instrumentation work, focusing on payment info and circulation dialog flows.
+4. Harden configuration and vector-threshold management so prod deployments do not require code edits.

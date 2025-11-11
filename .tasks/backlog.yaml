@@ -1,6 +1,71 @@
 # Trace:
 #   spec_id: SPEC-governance-doc-structure-1
 #   task_id: TASK-001
+- task_id: TASK-009
+  spec_id: SPEC-rich-ui-enhancement-1
+  title: "Implement Rich UI Phase 1 - Core Infrastructure"
+  status: pending
+  priority: 2
+  description: >
+    Create RichConsole wrapper singleton, add USE_RICH_UI config flag,
+    migrate message functions (info/success/warning/error) and screen control
+    to use Rich library while maintaining backward compatibility with legacy ANSI mode.
+  test_refs:
+    - TEST-rich-ui-1
+  subtasks:
+    - "Create src/ui/rich_console.py with singleton and theme"
+    - "Add USE_RICH_UI config flag to config.py"
+    - "Migrate print_info/success/warning/error to Rich"
+    - "Migrate clear_screen to console.clear()"
+    - "Create tests/unit/test_rich_console.py"
+    - "Verify all tests pass with USE_RICH_UI=true and false"
+  estimated_hours: 4
+- task_id: TASK-010
+  spec_id: SPEC-rich-ui-enhancement-1
+  title: "Implement Rich UI Phase 2 - UI Components"
+  status: pending
+  priority: 3
+  description: >
+    Replace complex UI components with Rich widgets: document info boxes to Panel,
+    numbered lists to Table, add Progress bar for batch operations, migrate input
+    prompts to IntPrompt/Confirm, and integrate RichHandler for logging.
+  test_refs:
+    - TEST-rich-ui-2
+    - TEST-rich-ui-3
+    - TEST-rich-ui-4
+    - TEST-rich-ui-5
+  subtasks:
+    - "Migrate print_document_info to rich.panel.Panel"
+    - "Migrate print_numbered_list to rich.table.Table"
+    - "Add rich.progress.Progress to main.py batch loop"
+    - "Migrate get_user_choice_from_list to rich.prompt.IntPrompt"
+    - "Integrate rich.logging.RichHandler in error_handler.py"
+    - "Verify CJK character alignment in panels and tables"
+  blocked_by:
+    - TASK-009
+  estimated_hours: 6
+- task_id: TASK-011
+  spec_id: SPEC-rich-ui-enhancement-1
+  title: "Implement Rich UI Phase 3 - Advanced Features"
+  status: pending
+  priority: 4
+  description: >
+    Add advanced visualization: Live status updates during processing, Tree view
+    for final results, enable Rich tracebacks globally, and optional Markdown
+    reports for processing summaries.
+  test_refs:
+    - TEST-rich-ui-1
+    - TEST-rich-ui-2
+  subtasks:
+    - "Add rich.live.Live to document_processor.py"
+    - "Migrate print_final_result to rich.tree.Tree"
+    - "Enable rich.traceback.install() in main.py"
+    - "Create print_processing_summary with Markdown support"
+    - "Run performance benchmarks vs legacy mode"
+    - "Conduct user testing and gather feedback"
+  blocked_by:
+    - TASK-010
+  estimated_hours: 5
 - task_id: TASK-002
   spec_id: SPEC-supabase-migration-1
   title: "Finalize Supabase deployment readiness"
