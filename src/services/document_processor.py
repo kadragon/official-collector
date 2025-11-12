@@ -161,7 +161,7 @@ class DocumentProcessor:
                 while True:
                     try:
                         user_input = console.get_input("번호를 선택하세요")
-                        selected_approval = self._get_valid_selection(
+                        selected_approval = console.validate_selection(
                             user_input, self.approval_name_list
                         )
                         break
@@ -174,7 +174,7 @@ class DocumentProcessor:
             while True:
                 try:
                     user_input = console.get_input("번호를 선택하세요")
-                    selected_share = self._get_valid_selection(
+                    selected_share = console.validate_selection(
                         user_input, self.share_name_list
                     )
                     break
@@ -185,31 +185,6 @@ class DocumentProcessor:
         except Exception as e:
             logger.error("수동 선택 중 오류 발생: %s", e)
             return None, None
-
-    def _get_valid_selection(self, user_input: str, options: List[str]) -> str:
-        """
-        사용자 입력을 검증하고 선택된 항목을 반환합니다.
-
-        Args:
-            user_input: 사용자 입력 (번호)
-            options: 선택 가능한 옵션 리스트
-
-        Returns:
-            str: 선택된 항목
-
-        Raises:
-            ValueError: 입력이 유효하지 않은 경우
-        """
-        try:
-            index = int(user_input) - 1
-            if 0 <= index < len(options):
-                return options[index]
-            else:
-                raise ValueError(f"1부터 {len(options)} 사이의 번호를 입력해주세요.")
-        except ValueError as e:
-            if "invalid literal" in str(e):
-                raise ValueError("올바른 숫자를 입력해주세요.")
-            raise
 
     # ============================================================================
     # 과제 카드 처리 (기존 TaskCardService)

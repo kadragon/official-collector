@@ -197,7 +197,12 @@ class SelectionResult(Enum):
 
 
 def get_valid_selection(user_input: str, options: List[str]) -> str:
-    """사용자 입력을 검증하고 유효한 옵션을 반환합니다."""
+    """
+    사용자 입력을 검증하고 유효한 옵션을 반환합니다.
+
+    Note: This is legacy code. New code should use RichConsole.validate_selection()
+    instead for centralized input validation.
+    """
     try:
         selection = int(user_input) - 1
     except (TypeError, ValueError) as exc:

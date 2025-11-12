@@ -447,3 +447,31 @@ class RichConsole:
         self.console.print()
         self.console.print(panel)
         self.console.print()
+
+    def validate_selection(self, user_input: str, options: List[str]) -> str:
+        """
+        Validate user input and return the selected option.
+
+        This method centralizes input validation logic for menu selections,
+        following the DRY principle.
+
+        Args:
+            user_input: User input (number as string)
+            options: List of available options
+
+        Returns:
+            str: The selected option
+
+        Raises:
+            ValueError: If input is invalid or out of range
+        """
+        try:
+            index = int(user_input) - 1
+            if 0 <= index < len(options):
+                return options[index]
+            else:
+                raise ValueError(f"1부터 {len(options)} 사이의 번호를 입력해주세요.")
+        except ValueError as e:
+            if "invalid literal" in str(e):
+                raise ValueError("올바른 숫자를 입력해주세요.") from e
+            raise
