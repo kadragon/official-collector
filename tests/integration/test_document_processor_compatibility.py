@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from services.document_processor import DocumentProcessor
 from services.supabase_service import SupabaseService
+from ui.console_interface import SelectionResult
 
 
 @pytest.fixture
@@ -67,12 +68,18 @@ class TestDocumentProcessorCompatibility:
             assert isinstance(result, tuple)
             assert len(result) == 2
 
-    def test_process_task_card_matching_interface(self, document_processor):
+    def test_process_task_card_matching_interface(
+        self, document_processor, mock_supabase_service
+    ):
         """과제 카드 매칭 인터페이스 호환성 테스트"""
+        # Mock: 정확한 매칭이 있어서 사용자 입력이 필요 없는 경우
+        mock_supabase_service.retrieve_card_by_title.return_value = "공문관리"
+
         result = document_processor.process_task_card_matching("테스트 문서")
 
-        # 결과는 문자열 또는 None이어야 함
-        assert result is None or isinstance(result, str)
+        # 결과는 문자열이어야 함
+        assert isinstance(result, str)
+        assert result == "공문관리"
 
     def test_flush_pending_updates_interface(self, document_processor):
         """배치 업데이트 인터페이스 호환성 테스트"""
@@ -116,14 +123,36 @@ class TestDocumentProcessorCompatibility:
         assert document_processor.share_name_list == new_share
         assert document_processor.predefined_card_list == new_cards
 
-    def test_batch_update_workflow(self, document_processor, mock_supabase_service):
+    @patch("services.document_processor.get_user_choice_from_recommendations")
+    def test_batch_update_workflow(
+        self,
+        mock_get_choice,
+        document_processor,
+        mock_supabase_service,
+    ):
         """배치 업데이트 워크플로우 테스트"""
-        # Mock 성공적인 매칭을 시뮬레이션
-        mock_supabase_service.retrieve_reception_by_title.return_value = (
-            "김과장",
-            "이과장",
-        )
-        mock_supabase_service.retrieve_card_by_title.return_value = "공문관리"
+        # Mock 설정: 정확한 매칭 없음 -> 추천으로 가서 사용자 선택 -> 큐에 추가
+        mock_supabase_service.retrieve_reception_by_title.return_value = (None, None)
+        mock_supabase_service.recommend_reception.return_value = [
+            {"approval": "김과장", "share": "이과장", "similarity": 0.95}
+        ]
+
+        mock_supabase_service.retrieve_card_by_title.return_value = None
+        mock_supabase_service.recommend_cards.return_value = [
+            {"task_title": "공문관리", "similarity": 0.90}
+        ]
+
+        # 사용자가 첫 번째 추천을 선택 (두 번 호출됨: reception + card)
+        mock_get_choice.side_effect = [
+            (
+                SelectionResult.SELECTED,
+                "김과장 (공람: 이과장, 유사도: 95.0%)",
+            ),  # reception
+            (
+                SelectionResult.SELECTED,
+                "공문관리 (유사도: 90.0%)",
+            ),  # card
+        ]
 
         # 문서 처리 (큐에 추가됨)
         document_processor.process_reception_document("테스트 접수")
