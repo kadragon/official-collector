@@ -31,28 +31,18 @@ class TestUnifiedConfig:
     @patch.dict(
         "os.environ",
         {
-            "OLLAMA_BASE_URL": "http://test:11434",
-            "OLLAMA_MODEL": "test-model",
-            "CHROMA_PERSIST_DIR": "./test_chroma",
+            "CHROMA_PERSIST_DIR": "./.test_chroma",
         },
     )
     def test_environment_variable_loading(self) -> None:
         """Test loading configuration from environment variables."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
-        assert config.ollama_base_url == "http://test:11434"
-        assert config.ollama_model == "test-model"
-        assert config.chroma_persist_dir == "./test_chroma"
-
-    @patch.dict("os.environ", {}, clear=True)  # Clear all env vars
-    def test_missing_required_env_vars_raises_error(self) -> None:
-        """Test that ValueError is raised when required environment variables are missing."""
-        with pytest.raises(ValueError, match="Missing required environment variables"):
-            self.config_class()
+        assert config.chroma_persist_dir == "./.test_chroma"
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {"CHROMA_PERSIST_DIR": "./.test_chroma"},
     )
     @patch(
         "builtins.open",
@@ -63,7 +53,7 @@ class TestUnifiedConfig:
     @patch("pathlib.Path.exists", return_value=True)
     def test_base_data_loading(self, mock_exists: MagicMock) -> None:
         """Test loading base data from JSON file."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         assert "테스트담당자" in config.reception_list
         assert "테스트팀" in config.share_list
@@ -71,7 +61,7 @@ class TestUnifiedConfig:
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     @patch("builtins.open", side_effect=FileNotFoundError)
     @patch("pathlib.Path.exists", return_value=False)
@@ -79,7 +69,7 @@ class TestUnifiedConfig:
         self, mock_exists: MagicMock, mock_open: MagicMock
     ) -> None:
         """Test behavior when base data file is not found."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         # Should use default empty lists or handle gracefully
         assert isinstance(config.reception_list, list)
@@ -88,14 +78,14 @@ class TestUnifiedConfig:
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     @patch("builtins.open", mock_open(read_data="invalid json"))
     @patch("pathlib.Path.exists", return_value=True)
     def test_invalid_json_handling(self, mock_exists: MagicMock) -> None:
         """Test handling of invalid JSON in base data file."""
         # Should not raise exception, but handle gracefully
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         assert isinstance(config.reception_list, list)
         assert isinstance(config.share_list, list)
@@ -103,11 +93,11 @@ class TestUnifiedConfig:
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     def test_config_validation(self) -> None:
         """Test configuration validation methods."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         # Test validate method exists and works
         assert hasattr(config, "validate")
@@ -123,41 +113,36 @@ class TestUnifiedConfig:
     @patch.dict(
         "os.environ",
         {
-            "OLLAMA_BASE_URL": "",  # Empty URL
-            "OLLAMA_MODEL": "test-model",
             "CHROMA_PERSIST_DIR": "./test",
         },
     )
-    def test_empty_environment_variable_handling(self) -> None:
-        """Test handling of empty environment variables."""
-        # Empty required variables should be treated as missing and raise ValueError
-        with pytest.raises(ValueError, match="Missing required environment variables"):
-            self.config_class()
+    def test_chroma_directory_configuration(self) -> None:
+        """Test Chroma directory configuration."""
+        config = self.config_class(allow_fallback=True)
+        assert config.chroma_persist_dir == "./test"
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     def test_config_reload_capability(self) -> None:
         """Test configuration reload functionality."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         if hasattr(config, "reload"):
-            original_url = config.ollama_base_url
-
-            with patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://new:11434"}):
+            with patch.dict("os.environ", {"CHROMA_PERSIST_DIR": "./new_path"}):
                 config.reload()
 
-                # URL should be updated after reload
-                assert config.ollama_base_url == "http://new:11434"
+                # Path should be updated after reload
+                assert config.chroma_persist_dir == "./new_path"
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     def test_debug_summary(self) -> None:
         """Test debug summary functionality."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         if hasattr(config, "get_debug_summary"):
             summary = config.get_debug_summary()
@@ -176,13 +161,13 @@ class TestConfigurationPaths:
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     def test_base_data_path_resolution(self) -> None:
         """Test base data file path resolution."""
         from config import UnifiedConfig
 
-        config = UnifiedConfig()
+        config = UnifiedConfig(allow_fallback=True)
 
         # Should have a method or attribute for base data path
         if hasattr(config, "base_data_path"):
@@ -198,26 +183,24 @@ class TestConfigurationPaths:
             with patch.dict(
                 "os.environ",
                 {
-                    "OLLAMA_BASE_URL": "http://test:11434",
-                    "OLLAMA_MODEL": "test-model",
                     "CHROMA_PERSIST_DIR": str(test_chroma_dir),
                 },
             ):
-                config = self.config_class()
+                config = self.config_class(allow_fallback=True)
 
                 # Directory path should be set correctly
                 assert str(test_chroma_dir) in config.chroma_persist_dir
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     @patch("pathlib.Path.mkdir")
     def test_directory_creation_on_init(self, mock_mkdir: MagicMock) -> None:
         """Test that necessary directories are created on initialization."""
         from config import UnifiedConfig
 
-        config = UnifiedConfig()
+        config = UnifiedConfig(allow_fallback=True)
 
         # Check if directories were created (implementation dependent)
         # This test verifies the pattern rather than specific implementation
@@ -231,86 +214,13 @@ class TestConfigurationValidation:
 
         self.config_class = UnifiedConfig
 
-    @pytest.mark.parametrize(
-        "url,should_be_valid",
-        [
-            ("http://localhost:11434", True),
-            ("https://remote.server.com:11434", True),
-            ("http://127.0.0.1:11434", True),
-            ("", False),
-            ("not-a-url", False),
-            ("ftp://wrong.protocol.com", False),
-        ],
-    )
-    def test_ollama_url_validation(self, url: str, should_be_valid: bool) -> None:
-        """Test Ollama URL validation."""
-        if not url:  # Empty URL should raise ValueError during config creation
-            with patch.dict(
-                "os.environ", {"OLLAMA_BASE_URL": url, "OLLAMA_MODEL": "test-model"}
-            ):
-                with pytest.raises(
-                    ValueError, match="Missing required environment variables"
-                ):
-                    self.config_class()
-        else:
-            with patch.dict(
-                "os.environ", {"OLLAMA_BASE_URL": url, "OLLAMA_MODEL": "test-model"}
-            ):
-                config = self.config_class()
-
-                # If config has validation, test it
-                if hasattr(config, "validate_ollama_url"):
-                    result = config.validate_ollama_url()
-                    assert result == should_be_valid
-                else:
-                    # At minimum, URL should be stored
-                    assert config.ollama_base_url == url
-
-    @pytest.mark.parametrize(
-        "model,should_be_valid",
-        [
-            ("snowflake-arctic-embed", True),
-            ("llama2", True),
-            ("custom-model", True),
-            ("", False),
-            (None, False),
-        ],
-    )
-    def test_ollama_model_validation(
-        self, model: str | None, should_be_valid: bool
-    ) -> None:
-        """Test Ollama model validation."""
-        env_value = model if model is not None else ""
-
-        if (
-            not env_value
-        ):  # Empty or None model should raise ValueError during config creation
-            with patch.dict(
-                "os.environ",
-                {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": env_value},
-            ):
-                with pytest.raises(
-                    ValueError, match="Missing required environment variables"
-                ):
-                    self.config_class()
-        else:
-            with patch.dict(
-                "os.environ",
-                {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": env_value},
-            ):
-                config = self.config_class()
-
-                if hasattr(config, "validate_ollama_model"):
-                    result = config.validate_ollama_model()
-                    assert result == should_be_valid
-
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     def test_list_validation(self) -> None:
         """Test validation of reception/share/task card lists."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         # Lists should be non-empty and contain strings
         assert isinstance(config.reception_list, list)
@@ -336,7 +246,7 @@ class TestConfigurationEdgeCases:
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     @patch(
         "builtins.open",
@@ -347,7 +257,7 @@ class TestConfigurationEdgeCases:
     @patch("pathlib.Path.exists", return_value=True)
     def test_empty_lists_in_base_data(self, mock_exists: MagicMock) -> None:
         """Test handling of empty lists in base data."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         # Should handle empty lists gracefully
         assert config.reception_list == []
@@ -356,13 +266,13 @@ class TestConfigurationEdgeCases:
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     @patch("builtins.open", mock_open(read_data='{"reception_list": [123, 456]}'))
     @patch("pathlib.Path.exists", return_value=True)
     def test_invalid_data_types_in_lists(self, mock_exists: MagicMock) -> None:
         """Test handling of invalid data types in lists."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         # Should handle or convert invalid data types
         # Implementation dependent - could filter out non-strings or convert
@@ -370,7 +280,7 @@ class TestConfigurationEdgeCases:
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     @patch("builtins.open", side_effect=PermissionError("Access denied"))
     @patch("pathlib.Path.exists", return_value=True)
@@ -379,7 +289,7 @@ class TestConfigurationEdgeCases:
     ) -> None:
         """Test handling of file permission errors."""
         # Should not crash, should handle gracefully
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
         assert isinstance(config.reception_list, list)
         assert isinstance(config.share_list, list)
@@ -387,21 +297,21 @@ class TestConfigurationEdgeCases:
 
     @patch.dict(
         "os.environ",
-        {"OLLAMA_BASE_URL": "http://test:11434", "OLLAMA_MODEL": "test-model"},
+        {},
     )
     def test_config_immutability(self) -> None:
         """Test that configuration values are properly managed."""
-        config = self.config_class()
+        config = self.config_class(allow_fallback=True)
 
-        original_url = config.ollama_base_url
+        original_dir = config.chroma_persist_dir
 
         # Try to modify configuration
-        if hasattr(config, "_ollama_base_url"):
+        if hasattr(config, "_chroma_persist_dir"):
             # If using private attributes, they should be managed
             pass
 
         # Configuration should maintain integrity
-        assert config.ollama_base_url == original_url
+        assert config.chroma_persist_dir == original_dir
 
 
 class TestGlobalConfigInstance:
@@ -425,7 +335,7 @@ class TestGlobalConfigInstance:
             from config import config as config2
 
             # Should be the same object or have same values
-            assert config.ollama_base_url == config2.ollama_base_url
+            assert config.chroma_persist_dir == config2.chroma_persist_dir
         except ImportError:
             pytest.skip("Global config instance not implemented")
 
@@ -436,8 +346,6 @@ class TestGlobalConfigInstance:
 
             # Should have all required configuration attributes
             required_attrs = [
-                "ollama_base_url",
-                "ollama_model",
                 "chroma_persist_dir",
                 "reception_list",
                 "share_list",

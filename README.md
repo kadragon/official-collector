@@ -9,7 +9,7 @@ Supabase (pgvector) and OpenAI embeddings power intelligent handler/task-card ma
 ## Architecture At A Glance
 - **Services**: `DocumentProcessor` orchestrates flows; `SupabaseService` handles CRUD/vector search; `OpenAIEmbeddingService` tracks embedding cost and retries.
 - **Data Stores**: Supabase hosts `reception_documents`, `task_cards`, and `document_embeddings`; local caches remain under `./data/` and `.cache/`.
-- **Performance**: `utils/performance_logger.py` instruments OpenAI, Supabase, and RPA hotspots, delivering ~50-70% faster turnaround than the previous Ollama/Chroma stack.
+- **Performance**: `utils/performance_logger.py` instruments OpenAI, Supabase, and RPA hotspots.
 
 ## SDD/TDD Documentation Map
 - `.spec/` - functional truth (see `core-automation`, `supabase-migration`, `performance-observability`, `governance-doc-structure`).

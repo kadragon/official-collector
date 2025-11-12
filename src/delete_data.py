@@ -23,15 +23,6 @@ def main() -> None:
     # 환경 변수 로드
     load_dotenv()
 
-    # 필수 환경 변수 확인
-    required_env_vars = ["OLLAMA_BASE_URL", "OLLAMA_MODEL"]
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-
-    if missing_vars:
-        print_error(f"필수 환경 변수가 설정되지 않았습니다: {', '.join(missing_vars)}")
-        print_error("'.env' 파일을 확인해주세요.")
-        sys.exit(1)
-
     try:
         logger = setup_logger(__name__)
         logger.info("Chroma 데이터 삭제 도구 시작")

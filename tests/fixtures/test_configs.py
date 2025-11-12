@@ -15,9 +15,7 @@ class TestConfigurations:
 
     # 기본 테스트 설정
     DEFAULT_TEST_CONFIG = {
-        "ollama_base_url": "http://localhost:11434",
-        "ollama_model": "snowflake-arctic-embed",
-        "chroma_persist_dir": "./test_chroma_db",
+        "chroma_persist_dir": "./.test_chroma_db",
         "reception_list": ["예산담당자", "인사담당자", "시설담당자", "교육담당자"],
         "share_list": ["기획팀", "총무팀", "관리팀", "인사팀"],
         "task_card_list": [
@@ -30,8 +28,6 @@ class TestConfigurations:
 
     # 최소 설정 (필수 항목만)
     MINIMAL_CONFIG = {
-        "ollama_base_url": "http://localhost:11434",
-        "ollama_model": "snowflake-arctic-embed",
         "chroma_persist_dir": tempfile.mkdtemp(prefix="test_minimal_"),
         "reception_list": ["담당자1"],
         "share_list": ["팀1"],
@@ -40,8 +36,6 @@ class TestConfigurations:
 
     # 확장된 설정 (많은 옵션들)
     EXTENDED_CONFIG = {
-        "ollama_base_url": "http://localhost:11434",
-        "ollama_model": "snowflake-arctic-embed",
         "chroma_persist_dir": tempfile.mkdtemp(prefix="test_extended_"),
         "reception_list": [
             "예산담당자",
@@ -81,24 +75,7 @@ class TestConfigurations:
 
     # 에러 케이스용 잘못된 설정
     INVALID_CONFIGS = {
-        "empty_ollama_url": {
-            "ollama_base_url": "",
-            "ollama_model": "snowflake-arctic-embed",
-            "chroma_persist_dir": "./test_chroma_db",
-        },
-        "invalid_ollama_url": {
-            "ollama_base_url": "invalid-url",
-            "ollama_model": "snowflake-arctic-embed",
-            "chroma_persist_dir": "./test_chroma_db",
-        },
-        "missing_model": {
-            "ollama_base_url": "http://localhost:11434",
-            "ollama_model": "",
-            "chroma_persist_dir": "./test_chroma_db",
-        },
         "invalid_chroma_dir": {
-            "ollama_base_url": "http://localhost:11434",
-            "ollama_model": "snowflake-arctic-embed",
             "chroma_persist_dir": "/invalid/path/that/does/not/exist",
         },
     }
@@ -131,8 +108,6 @@ class TestEnvironmentManager:
 
         # 환경 변수 백업 및 설정
         env_vars = {
-            "OLLAMA_BASE_URL": config["ollama_base_url"],
-            "OLLAMA_MODEL": config["ollama_model"],
             "CHROMA_PERSIST_DIR": config["chroma_persist_dir"],
         }
 

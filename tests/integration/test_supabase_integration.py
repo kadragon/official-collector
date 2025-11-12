@@ -19,7 +19,7 @@ import sys
 import time
 import os
 from pathlib import Path
-from typing import Generator, List, Tuple, Dict, Any
+from typing import Any, Dict, Generator, List, Tuple, cast
 from unittest.mock import patch, MagicMock
 
 # Add src to path
@@ -74,13 +74,13 @@ def temp_supabase_service() -> Generator[SupabaseService, None, None]:
         ("pytest_인사 발령", "pytest_인사관리"),
     ]
 )
-def sample_card_data(request) -> Tuple[str, str]:
+def sample_card_data(request: pytest.FixtureRequest) -> Tuple[str, str]:
     """Parametrized fixture providing sample card test data.
 
     Returns:
         Tuple[str, str]: (document_title, task_card_title)
     """
-    return request.param
+    return cast(Tuple[str, str], request.param)
 
 
 @pytest.fixture(
@@ -90,13 +90,13 @@ def sample_card_data(request) -> Tuple[str, str]:
         ("pytest_예산 승인", "이과장", "박대리,김주임,최사원"),
     ]
 )
-def sample_reception_data(request) -> Tuple[str, str, str]:
+def sample_reception_data(request: pytest.FixtureRequest) -> Tuple[str, str, str]:
     """Parametrized fixture providing sample reception test data.
 
     Returns:
         Tuple[str, str, str]: (title, approval_person, share_persons)
     """
-    return request.param
+    return cast(Tuple[str, str, str], request.param)
 
 
 @pytest.fixture

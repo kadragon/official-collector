@@ -1,10 +1,5 @@
 """
 Configuration module for the official document automation system.
-
-The project recently migrated from an Ollama + Chroma stack to Supabase/OpenAI.
-However, the legacy configuration shape is still exercised by our unit tests.
-This module therefore keeps backward compatibility with the historical fields
-while exposing the newer Supabase settings in a non-breaking way.
 """
 
 from __future__ import annotations
@@ -13,7 +8,6 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -22,15 +16,13 @@ from utils.error_handler import setup_logger
 logger = setup_logger(__name__)
 
 
-DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
-DEFAULT_OLLAMA_MODEL = "snowflake-arctic-embed"
 DEFAULT_CHROMA_DIR = "./.chroma_db"
 
 
 class UnifiedConfig:
     """Unified configuration loader with legacy compatibility."""
 
-    REQUIRED_ENV_VARS = ["OLLAMA_BASE_URL", "OLLAMA_MODEL"]
+    REQUIRED_ENV_VARS: List[str] = []
     OPTIONAL_PATH_VARS = {"CHROMA_PERSIST_DIR": DEFAULT_CHROMA_DIR}
     SUPABASE_VARS = [
         "OPENAI_API_KEY",
@@ -63,8 +55,6 @@ class UnifiedConfig:
     def validate(self) -> bool:
         """Run a set of non-fatal validation checks."""
         validators = [
-            self.validate_ollama_url,
-            self.validate_ollama_model,
             self.validate_supabase_credentials,
             self._validate_lists,
         ]
@@ -72,19 +62,6 @@ class UnifiedConfig:
             if validator() is False:
                 return False
         return True
-
-    def validate_ollama_url(self) -> bool:
-        """Check that the Ollama base URL is a HTTP(S) address."""
-        parsed = urlparse(self.ollama_base_url or "")
-        is_valid = parsed.scheme in {"http", "https"} and bool(parsed.netloc)
-        logger.debug("Ollama URL validation (%s): %s", self.ollama_base_url, is_valid)
-        return is_valid
-
-    def validate_ollama_model(self) -> bool:
-        """Ensure the Ollama model name is non-empty."""
-        is_valid = bool(self.ollama_model)
-        logger.debug("Ollama model validation (%s): %s", self.ollama_model, is_valid)
-        return is_valid
 
     def validate_supabase_credentials(self) -> bool:
         """Ensure Supabase credentials are configured correctly."""
@@ -105,10 +82,8 @@ class UnifiedConfig:
         return is_valid
 
     def get_config_summary(self) -> Dict[str, Any]:
-        """Legacy summary helper (human readable)."""
+        """Return configuration summary (human readable)."""
         return {
-            "ollama_base_url": self.ollama_base_url,
-            "ollama_model": self.ollama_model,
             "chroma_persist_dir": self.chroma_persist_dir,
             "reception_count": len(self.reception_list),
             "share_count": len(self.share_list),
@@ -119,8 +94,6 @@ class UnifiedConfig:
     def get_debug_summary(self) -> Dict[str, Any]:
         """Return a lightweight diagnostic summary."""
         return {
-            "ollama_base_url": self.ollama_base_url,
-            "ollama_model": self.ollama_model,
             "chroma_persist_dir": self.chroma_persist_dir,
             "reception_count": len(self.reception_list),
             "share_count": len(self.share_list),
@@ -147,18 +120,8 @@ class UnifiedConfig:
                 raise ValueError(message)
             logger.warning("%s - using fallback configuration values", message)
 
-        self.ollama_base_url = self._env_value("OLLAMA_BASE_URL") or (
-            DEFAULT_OLLAMA_BASE_URL if self._allow_fallback else None
-        )
-        self.ollama_model = self._env_value("OLLAMA_MODEL") or (
-            DEFAULT_OLLAMA_MODEL if self._allow_fallback else None
-        )
         chroma_env = self._env_value("CHROMA_PERSIST_DIR")
-        self.chroma_persist_dir = chroma_env or (
-            DEFAULT_CHROMA_DIR
-            if self._allow_fallback
-            else self.OPTIONAL_PATH_VARS["CHROMA_PERSIST_DIR"]
-        )
+        self.chroma_persist_dir = chroma_env or DEFAULT_CHROMA_DIR
 
         # New Supabase/OpenAI settings (optional – do not raise if missing)
         self.openai_api_key = self._env_value("OPENAI_API_KEY")

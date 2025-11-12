@@ -9,6 +9,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Callable, Any, Optional
 from pathlib import Path
+from rich.logging import RichHandler
 
 
 # Global variable to store the current execution's log file path
@@ -122,11 +123,18 @@ def setup_logger(
             logger.addHandler(file_handler)
 
     if console_output and not any(
-        isinstance(handler, logging.StreamHandler) for handler in logger.handlers
+        isinstance(handler, (logging.StreamHandler, RichHandler))
+        for handler in logger.handlers
     ):
-        console_handler = logging.StreamHandler()
+        # Use RichHandler for better console output
+        console_handler = RichHandler(
+            rich_tracebacks=True,
+            markup=True,
+            show_time=False,  # Time already in format string
+            show_path=False,  # Keep logs concise
+        )
         console_handler.setLevel(level)
-        console_handler.setFormatter(formatter)
+        # RichHandler has its own formatting
         logger.addHandler(console_handler)
 
     logger.propagate = False
