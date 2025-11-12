@@ -13,16 +13,14 @@ from ui.console_interface import (
     get_user_choice_from_list,
     get_user_choice_from_recommendations,
     ConsoleInterface,
-    clear_screen,
-    print_selection_menu,
-    get_styled_input,
-    get_valid_selection,
 )
+from ui.rich_console import RichConsole
 from utils.text_utils import clean_document_title
 from utils.error_handler import setup_logger
 from utils.performance_logger import log_execution_time
 
 logger = setup_logger(__name__)
+console = RichConsole()
 
 
 class DocumentProcessor:
@@ -152,41 +150,66 @@ class DocumentProcessor:
     ) -> Tuple[Optional[str], Optional[str]]:
         """수동으로 담당자와 공람 대상자를 선택합니다."""
         try:
-            clear_screen()
+            console.clear()
 
             # 담당자 선택
             if len(self.approval_name_list) == 1:
                 selected_approval = self.approval_name_list[0]
-                print(f"담당자 자동 선택: {selected_approval}")
+                console.print_info(f"담당자 자동 선택: {selected_approval}")
             else:
-                print_selection_menu("담당자 선택", self.approval_name_list)
+                console.print_menu("담당자 선택", self.approval_name_list)
                 while True:
                     try:
-                        user_input = get_styled_input("번호를 선택하세요: ")
-                        selected_approval = get_valid_selection(
+                        user_input = console.get_input("번호를 선택하세요")
+                        selected_approval = self._get_valid_selection(
                             user_input, self.approval_name_list
                         )
                         break
                     except ValueError as e:
-                        print(str(e))
+                        console.print_error(str(e))
 
             # 공람자 선택
-            print("\n" + "=" * 50)
-            print_selection_menu("공람자 선택", self.share_name_list)
+            console.print_separator()
+            console.print_menu("공람자 선택", self.share_name_list)
             while True:
                 try:
-                    user_input = get_styled_input("번호를 선택하세요: ")
-                    selected_share = get_valid_selection(
+                    user_input = console.get_input("번호를 선택하세요")
+                    selected_share = self._get_valid_selection(
                         user_input, self.share_name_list
                     )
                     break
                 except ValueError as e:
-                    print(str(e))
+                    console.print_error(str(e))
 
             return selected_approval, selected_share
         except Exception as e:
             logger.error("수동 선택 중 오류 발생: %s", e)
             return None, None
+
+    def _get_valid_selection(self, user_input: str, options: List[str]) -> str:
+        """
+        사용자 입력을 검증하고 선택된 항목을 반환합니다.
+
+        Args:
+            user_input: 사용자 입력 (번호)
+            options: 선택 가능한 옵션 리스트
+
+        Returns:
+            str: 선택된 항목
+
+        Raises:
+            ValueError: 입력이 유효하지 않은 경우
+        """
+        try:
+            index = int(user_input) - 1
+            if 0 <= index < len(options):
+                return options[index]
+            else:
+                raise ValueError(f"1부터 {len(options)} 사이의 번호를 입력해주세요.")
+        except ValueError as e:
+            if "invalid literal" in str(e):
+                raise ValueError("올바른 숫자를 입력해주세요.")
+            raise
 
     # ============================================================================
     # 과제 카드 처리 (기존 TaskCardService)

@@ -129,6 +129,10 @@ class RichConsole:
         """Clear the terminal screen using Rich console."""
         self.console.clear()
 
+    def clear(self) -> None:
+        """Clear the terminal screen (alias for clear_screen)."""
+        self.clear_screen()
+
     def print_document_info(self, title: str, doc_type: str = "문서") -> None:
         """
         Print document information in a styled panel.
@@ -376,3 +380,70 @@ class RichConsole:
         # Render markdown
         markdown = Markdown(markdown_text)
         self.console.print(Panel(markdown, title="📊 상세 리포트", border_style="cyan"))
+
+    def print(self, message: str = "") -> None:
+        """
+        Print a plain message without any styling.
+
+        Args:
+            message: The message to display (default: empty line)
+        """
+        self.console.print(message)
+
+    def print_menu(self, title: str, items: List[str]) -> None:
+        """
+        Print a menu with numbered items (alias for print_selection_menu).
+
+        Args:
+            title: Menu title
+            items: List of items to display
+        """
+        self.print_selection_menu(title, items)
+
+    def print_separator(self, length: int = 50, char: str = "=") -> None:
+        """
+        Print a separator line.
+
+        Args:
+            length: Length of the separator (default: 50)
+            char: Character to use for separation (default: "=")
+        """
+        self.console.print(f"[dim]{char * length}[/dim]")
+
+    def get_input(self, prompt: str, default: str = "") -> str:
+        """
+        Get user input with a styled prompt.
+
+        Args:
+            prompt: The prompt message
+            default: Default value if user just presses Enter
+
+        Returns:
+            str: User input
+        """
+        if default:
+            prompt_text = f"[cyan]❯[/cyan] {prompt} (기본값: {default}): "
+        else:
+            prompt_text = f"[cyan]❯[/cyan] {prompt}: "
+
+        self.console.print(prompt_text, end="")
+        user_input = input()
+        return user_input.strip() if user_input.strip() else default
+
+    def print_header(self, title: str, width: int = 60) -> None:
+        """
+        Print a styled header.
+
+        Args:
+            title: Header title
+            width: Width of the header (default: 60)
+        """
+        panel = Panel(
+            title,
+            style="bold white on blue",
+            border_style="blue",
+            padding=(0, 1),
+        )
+        self.console.print()
+        self.console.print(panel)
+        self.console.print()

@@ -19,15 +19,19 @@ _logger_initialized = False
 
 def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> None:
     """
-    ���� ���� �α� ���ϵ��� �����մϴ�.
+    오래된 로그 파일들을 삭제합니다.
 
     Args:
-        log_directory (str): �α� ���丮 ���.
-        retention_days (int): ���� ���ϴ� �α� ���� ��.
+        log_directory (str): 로그 디렉토리 경로.
+        retention_days (int): 보관 기간 (일).
     """
     if not os.path.exists(log_directory):
         return
 
+    # Import here to avoid circular dependency
+    from ui.rich_console import RichConsole
+
+    console = RichConsole()
     cutoff_time = datetime.now() - timedelta(days=retention_days)
 
     deleted_count = 0
@@ -39,14 +43,16 @@ def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> No
                 if file_time < cutoff_time:
                     os.remove(file_path)
                     deleted_count += 1
-                    print(f"������ ������ �α� ����: {filename}")
+                    console.print_info(f"오래된 로그 파일 삭제: {filename}")
             except (OSError, ValueError):
                 continue
 
     if deleted_count > 0:
-        print(f"�� {deleted_count}���� ������ �α� ������ �����Ǿ����ϴ�.")
+        console.print_success(
+            f"총 {deleted_count}개의 오래된 로그 파일이 삭제되었습니다."
+        )
     else:
-        print("������ ������ �α� ������ �����ϴ�.")
+        console.print_info("삭제할 오래된 로그 파일이 없습니다.")
 
 
 def initialize_execution_logger() -> str:

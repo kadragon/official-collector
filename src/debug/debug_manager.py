@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Optional, Dict, List, Any, Union
 
 from pywinauto import Application
+from ui.rich_console import RichConsole
 
 # Ensure debug log directory exists
 project_root = Path(__file__).parent.parent.parent
@@ -22,6 +23,7 @@ log_dir = project_root / "logs" / "debug"
 log_dir.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger(__name__)
+console = RichConsole()
 
 
 class UnifiedDebugManager:
@@ -128,7 +130,7 @@ class UnifiedDebugManager:
 
             # Print to console only in interactive mode
             if self.interactive:
-                print(output)
+                console.print(output)
 
             # Save to file if requested
             if save_to_file:
@@ -282,7 +284,7 @@ class UnifiedDebugManager:
             output = buffer.getvalue()
 
             if self.interactive:
-                print(output)
+                console.print(output)
 
         except Exception as e:
             logger.error(f"Failed to print dialog structure: {e}")
@@ -452,50 +454,59 @@ class UnifiedDebugManager:
             logger.warning("Interactive session called in non-interactive mode")
             return
 
-        print("Unified Debug Manager - Interactive Mode")
-        print("=" * 40)
+        console.print_header("Unified Debug Manager - Interactive Mode")
 
         # Connect to application
         if not self.connect_to_app():
-            print(
+            console.print_error(
                 "Failed to connect to application. Please ensure the application is running."
             )
             return
 
         while True:
-            print("\nDebugging Options:")
-            print("1. Print current window structure")
-            print("2. Monitor dialog changes")
-            print("3. Debug circulation completion flow")
-            print("4. Find circulation completion dialog")
-            print("5. Exit")
+            console.print("")
+            console.print_info("Debugging Options:")
+            options = [
+                "Print current window structure",
+                "Monitor dialog changes",
+                "Debug circulation completion flow",
+                "Find circulation completion dialog",
+                "Exit",
+            ]
+            for i, option in enumerate(options, 1):
+                console.print(f"{i}. {option}")
 
-            choice = input("\nSelect option (1-5): ").strip()
+            choice = console.get_input("Select option (1-5)")
 
             if choice == "1":
                 self.get_window_structure()
             elif choice == "2":
-                duration = float(
-                    input("Enter monitoring duration (seconds, default 30): ") or "30"
+                duration_input = console.get_input(
+                    "Enter monitoring duration (seconds, default 30)", "30"
                 )
-                interval = float(
-                    input("Enter monitoring interval (seconds, default 1): ") or "1"
+                duration = float(duration_input)
+                interval_input = console.get_input(
+                    "Enter monitoring interval (seconds, default 1)", "1"
                 )
+                interval = float(interval_input)
                 self.monitor_dialogs(duration=duration, interval=interval)
             elif choice == "3":
                 self.debug_circulation_completion_flow()
             elif choice == "4":
-                timeout = float(input("Enter timeout (seconds, default 5): ") or "5")
+                timeout_input = console.get_input(
+                    "Enter timeout (seconds, default 5)", "5"
+                )
+                timeout = float(timeout_input)
                 dialog = self.find_circulation_completion_dialog(timeout=timeout)
                 if dialog:
-                    print(f"Found dialog: {dialog}")
+                    console.print_success(f"Found dialog: {dialog}")
                 else:
-                    print("No circulation completion dialog found")
+                    console.print_warning("No circulation completion dialog found")
             elif choice == "5":
-                print("Exiting...")
+                console.print_info("Exiting...")
                 break
             else:
-                print("Invalid option. Please try again.")
+                console.print_error("Invalid option. Please try again.")
 
 
 # Convenience functions for easy access
