@@ -47,3 +47,269 @@
     exceeds safe in-memory limits to avoid production outages.
   test_refs:
     - TEST-supabase-2
+
+# ================================================================
+# Phase 1: Critical Cleanup (High Priority)
+# ================================================================
+- task_id: TASK-012
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Remove Chroma legacy code"
+  status: pending
+  priority: 1
+  estimated_hours: 1
+  description: >
+    Remove all Chroma-related configuration and references that remain after Supabase migration.
+    This includes config.py constants, environment variables, path setup, and misleading
+    comments/log messages in delete_data.py.
+  changes_required:
+    - "config.py: Remove DEFAULT_CHROMA_DIR, OPTIONAL_PATH_VARS['CHROMA_PERSIST_DIR']"
+    - "config.py: Remove chroma_persist_dir, chroma_persist_path properties"
+    - "config.py: Remove chroma references in get_config_summary(), get_debug_summary()"
+    - "config.py: Remove chroma directory creation in _setup_paths()"
+    - "delete_data.py: Update comments and log messages (Chroma → Supabase)"
+    - "supabase_service.py:321: Update comment about legacy ChromaService compatibility"
+  test_refs:
+    - TEST-cleanup-1
+  acceptance_criteria:
+    - "grep -ri 'chroma' src/ returns no results (case-insensitive)"
+    - "All tests pass after removal"
+    - "No references to .chroma_db or CHROMA_PERSIST_DIR"
+
+- task_id: TASK-013
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Fix dependency injection pattern in SupabaseService"
+  status: pending
+  priority: 1
+  estimated_hours: 0.5
+  description: >
+    Refactor SupabaseService to receive OpenAIEmbeddingService via constructor injection
+    instead of creating it internally. This aligns with governance requirement:
+    "construct services in main.py and pass them downward".
+  changes_required:
+    - "main.py: Create OpenAIEmbeddingService before SupabaseService"
+    - "main.py: Pass embedding_service to SupabaseService constructor"
+    - "supabase_service.py: Add embedding_service parameter to __init__"
+    - "supabase_service.py: Remove self.embedding_service = OpenAIEmbeddingService() line"
+    - "tests/: Update mocks to inject embedding_service"
+  test_refs:
+    - TEST-cleanup-2
+  acceptance_criteria:
+    - "SupabaseService constructor accepts embedding_service parameter"
+    - "No service instantiation inside other services"
+    - "All tests pass with mocked injection"
+  governance_ref: ".governance/coding-style.md line 10"
+
+- task_id: TASK-014
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Convert f-string logging to %s format"
+  status: pending
+  priority: 1
+  estimated_hours: 2
+  description: >
+    Replace all f-string usage in logger calls with %s formatting to comply with
+    governance requirement: "use logger.info('msg %s', arg) instead of f-strings in logging
+    to avoid encoding surprises". This affects ~20 files with multiple violations.
+  changes_required:
+    - "performance_logger.py: 4 logger calls (lines 20, 25, 41, 90)"
+    - "debug_manager.py: 11 logger calls (lines 95, 145, 150, 189, etc.)"
+    - "dialog_classifier.py: 5 logger calls (lines 113, 116, 120, 155, 157)"
+    - "openai_embedding_service.py: 8 logger calls (lines 86, 124, 129-130, 135-136, 143, 262, 376)"
+  test_refs:
+    - TEST-cleanup-3
+  acceptance_criteria:
+    - "grep -r 'logger\\.[a-z]*\\(f\"' src/ returns no results"
+    - "All logger calls use %s, %d, %.3f format strings"
+    - "UTF-8 encoding tests pass without issues"
+  governance_ref: ".governance/coding-style.md line 8"
+
+- task_id: TASK-015
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Add performance instrumentation to Supabase I/O methods"
+  status: pending
+  priority: 1
+  estimated_hours: 0.5
+  description: >
+    Add @log_execution_time decorator to all I/O-heavy methods in SupabaseService that
+    currently lack instrumentation. Governance requirement: "Wrap every I/O heavy function
+    with @log_execution_time".
+  changes_required:
+    - "supabase_service.py:44 retrieve_reception_by_title"
+    - "supabase_service.py:63 recommend_reception"
+    - "supabase_service.py:131 retrieve_card_by_title"
+    - "supabase_service.py:147 recommend_cards"
+    - "supabase_service.py:210 upsert_reception_embedding"
+    - "supabase_service.py:241 upsert_card_embedding"
+    - "supabase_service.py:267 get_document_count"
+  test_refs:
+    - TEST-cleanup-4
+  acceptance_criteria:
+    - "All 7 methods decorated with @log_execution_time"
+    - "Execution time logs appear in test output"
+    - "No performance regression (within 5% baseline)"
+  governance_ref: ".governance/patterns.md line 16"
+
+# ================================================================
+# Phase 2: Structural Refactoring (Medium Priority)
+# ================================================================
+- task_id: TASK-016
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Refactor official_service.py into modular files"
+  status: pending
+  priority: 2
+  estimated_hours: 8
+  description: >
+    Split the 1047-line official_service.py into 4 focused modules following single
+    responsibility principle. This is the largest refactoring task requiring careful
+    import management and comprehensive testing.
+  proposed_structure:
+    - "services/official_service.py: Main orchestrator (~300 lines)"
+    - "services/dialog_handler.py: Dialog analysis and handling (~200 lines)"
+    - "services/button_controller.py: Button click logic (~150 lines)"
+    - "services/window_manager.py: Window connection/focus (~200 lines)"
+  changes_required:
+    - "Create new service files with appropriate classes"
+    - "Move methods to respective modules"
+    - "Update imports across entire codebase"
+    - "Refactor tests to match new structure"
+    - "Update __init__.py exports"
+  test_refs:
+    - TEST-cleanup-5
+  acceptance_criteria:
+    - "official_service.py < 350 lines"
+    - "Each new file < 250 lines"
+    - "All integration tests pass"
+    - "pytest coverage >= 90%"
+    - "No circular dependencies"
+  blocked_by:
+    - TASK-017
+  notes:
+    - "Most complex refactoring task - consider doing last in Phase 2"
+    - "May need to split into sub-tasks"
+
+- task_id: TASK-017
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Unify button click logic and centralize UI patterns"
+  status: pending
+  priority: 2
+  estimated_hours: 2
+  description: >
+    Replace 3 similar button click methods (_click_yes_button, _click_yes_button_fast,
+    _click_dialog_button) with a single unified implementation. Move button patterns
+    to centralized configuration.
+  changes_required:
+    - "config_manager.py: Add DIALOG_BUTTON_PATTERNS dict"
+    - "config_manager.py: Add UIConfig class with button patterns"
+    - "official_service.py: Create _click_dialog_button_unified() method"
+    - "official_service.py: Replace 3 methods with unified implementation"
+    - "Update all call sites to use new unified method"
+  test_refs:
+    - TEST-cleanup-5
+  acceptance_criteria:
+    - "Only one button click method exists"
+    - "~100 lines of duplicated code removed"
+    - "All button patterns in config_manager.py"
+    - "All existing functionality preserved"
+    - "Tests pass with new unified method"
+
+- task_id: TASK-018
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Centralize timeout and UI configuration"
+  status: pending
+  priority: 2
+  estimated_hours: 1
+  description: >
+    Create TimeoutConfig and UIConfig classes to replace hard-coded values scattered
+    throughout official_service.py. This enables environment-specific tuning without
+    code changes.
+  changes_required:
+    - "config_manager.py: Add TimeoutConfig class with named constants"
+    - "config_manager.py: Expand UIConfig with window patterns, button lists"
+    - "official_service.py: Replace hard-coded timeout values (lines 60, 84, 106, 318, etc.)"
+    - "official_service.py: Use UIConfig for window patterns (line 153)"
+    - "openai_embedding_service.py:388: Use get_openai_embedding_price()"
+  test_refs:
+    - TEST-cleanup-5
+  acceptance_criteria:
+    - "No magic numbers for timeouts in official_service.py"
+    - "All UI patterns in centralized config"
+    - "Environment variables can override defaults"
+    - "No hard-coded pricing in services"
+  governance_ref: ".governance/coding-style.md line 9"
+
+# ================================================================
+# Phase 3: Quality Improvements (Low Priority)
+# ================================================================
+- task_id: TASK-019
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Replace broad Exception handling with specific types"
+  status: pending
+  priority: 3
+  estimated_hours: 3
+  description: >
+    Introduce exception handling decorators and replace ~100+ broad "except Exception"
+    statements with specific exception types. This is a gradual improvement task that
+    can be done incrementally.
+  changes_required:
+    - "error_handler.py: Add @handle_supabase_error decorator"
+    - "error_handler.py: Add @handle_pywinauto_error decorator"
+    - "official_service.py: Replace Exception with specific pywinauto exceptions"
+    - "supabase_service.py: Use @handle_supabase_error on methods"
+    - "Document common exception patterns in .governance/patterns.md"
+  test_refs:
+    - TEST-cleanup-5
+  acceptance_criteria:
+    - "Common exception patterns use decorators"
+    - "Critical paths have specific exception types"
+    - "No silent failures (all exceptions logged)"
+    - "Tests verify specific exception handling"
+  notes:
+    - "Can be done incrementally over multiple PRs"
+    - "Focus on high-traffic code paths first"
+
+- task_id: TASK-020
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Complete ANSI code removal from console_interface.py"
+  status: pending
+  priority: 3
+  estimated_hours: 2
+  description: >
+    Finish the Rich UI migration by removing remaining ANSI codes from console_interface.py,
+    particularly in deletion-related functions. Either migrate to RichConsole or deprecate
+    the entire file if all callers can use RichConsole directly.
+  changes_required:
+    - "console_interface.py: Remove Colors class or unused symbols"
+    - "console_interface.py: Migrate show_items_for_deletion() to Rich Table"
+    - "console_interface.py: Migrate deletion confirmation to Rich Panel"
+    - "Update all deletion UI calls to use RichConsole"
+    - "Consider deprecating console_interface.py entirely"
+  test_refs:
+    - TEST-cleanup-5
+  acceptance_criteria:
+    - "No ANSI escape codes in console_interface.py"
+    - "All UI uses Rich library primitives"
+    - "Deletion UI has consistent styling"
+    - "69 UI tests pass"
+  depends_on:
+    - "SPEC-rich-ui-enhancement-1 (completed)"
+
+- task_id: TASK-021
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Complete type hint coverage"
+  status: pending
+  priority: 3
+  estimated_hours: 1
+  description: >
+    Add missing return type hints to ~20 functions, primarily in official_service.py
+    internal methods. Ensure mypy --strict passes on all packages.
+  changes_required:
+    - "official_service.py: Add return type hints to helper methods"
+    - "Add -> None to all procedures without explicit returns"
+    - "Verify mypy --strict compliance on all packages"
+    - "Update .governance/coding-style.md with type hint guidelines"
+  test_refs:
+    - TEST-cleanup-5
+  acceptance_criteria:
+    - "mypy -p services -p dialogs -p ui -p utils --strict passes"
+    - "All public/protected methods have full type hints"
+    - "No # type: ignore comments added"
+  governance_ref: ".governance/coding-style.md line 7"
