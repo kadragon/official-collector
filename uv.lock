@@ -914,6 +914,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pywin32" },
     { name = "pywinauto" },
+    { name = "rich" },
     { name = "supabase" },
 ]
 
@@ -937,6 +938,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pywin32", specifier = ">=306" },
     { name = "pywinauto", specifier = ">=0.6.9" },
+    { name = "rich", specifier = ">=13.0.0" },
     { name = "supabase", specifier = ">=2.18.1" },
 ]
 

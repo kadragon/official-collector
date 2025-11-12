@@ -3,6 +3,10 @@
 import sys
 import time
 from typing import List
+from rich import traceback
+
+# Enable rich tracebacks globally for better error display
+traceback.install(show_locals=True, width=120, theme="monokai")
 
 from config import config
 from services.official_service import OfficialCollector, DocumentFlowState

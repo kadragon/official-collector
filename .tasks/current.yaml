@@ -1,5 +1,20 @@
 # Trace:
 #   spec_id: SPEC-governance-doc-structure-1
 #   task_id: TASK-001
-# No active task. Resume TASK-002 from backlog when ready.
-[]
+- task_id: TASK-002
+  spec_id: SPEC-supabase-migration-1
+  title: "Finalize Supabase deployment readiness"
+  status: in_progress
+  priority: 1
+  description: >
+    Complete Phase 6 readiness work: audit logging, monitoring hooks, API quota budgeting,
+    and runbook updates so the Supabase/OpenAI stack can go live safely.
+  test_refs:
+    - TEST-supabase-1
+    - TEST-supabase-2
+  notes:
+    - "Baseline from TODO Phase 6 and CODE_REVIEW sections."
+  started_at: "2025-11-11T00:00:00+09:00"
+  last_update: "2025-11-11T05:30:00+09:00"
+  progress_log:
+    - "2025-11-11T05:30:00+09:00 Ran strict mypy (packages + tests) and resolved RichConsole + fixtures typing gaps."

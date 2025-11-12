@@ -1,19 +1,6 @@
 # Trace:
 #   spec_id: SPEC-governance-doc-structure-1
 #   task_id: TASK-001
-- task_id: TASK-002
-  spec_id: SPEC-supabase-migration-1
-  title: "Finalize Supabase deployment readiness"
-  status: pending
-  priority: 1
-  description: >
-    Complete Phase 6 readiness work: audit logging, monitoring hooks, API quota budgeting,
-    and runbook updates so the Supabase/OpenAI stack can go live safely.
-  test_refs:
-    - TEST-supabase-1
-    - TEST-supabase-2
-  notes:
-    - "Baseline from TODO Phase 6 and CODE_REVIEW sections."
 - task_id: TASK-003
   spec_id: SPEC-performance-observability-1
   title: "Complete remaining instrumentation (Phase 3)"

@@ -368,7 +368,11 @@ class TestCleanupOldLogsRetention:
             old_log, (current_time - old_age_seconds, current_time - old_age_seconds)
         )
 
-        cleanup_old_logs(log_directory=str(log_dir), retention_days=7)
+        deleted_count, deleted_files = cleanup_old_logs(
+            log_directory=str(log_dir), retention_days=7
+        )
 
+        assert deleted_count == 1
+        assert "old.log" in deleted_files
         assert not old_log.exists()
         assert recent_log.exists()

@@ -9,6 +9,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Callable, Any, Optional
 from pathlib import Path
+from rich.logging import RichHandler
 
 
 # Global variable to store the current execution's log file path
@@ -16,20 +17,28 @@ _current_log_file: Optional[str] = None
 _logger_initialized = False
 
 
-def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> None:
+def cleanup_old_logs(
+    log_directory: str = "logs", retention_days: int = 7
+) -> tuple[int, list[str]]:
     """
-    ���� ���� �α� ���ϵ��� �����մϴ�.
+    오래된 로그 파일들을 삭제합니다.
+
+    이 함수는 순수한 로직만 수행하고, UI 출력은 호출하는 쪽에서 담당합니다.
+    관심사의 분리(Separation of Concerns) 원칙을 따릅니다.
 
     Args:
-        log_directory (str): �α� ���丮 ���.
-        retention_days (int): ���� ���ϴ� �α� ���� ��.
+        log_directory (str): 로그 디렉토리 경로.
+        retention_days (int): 보관 기간 (일).
+
+    Returns:
+        tuple[int, list[str]]: (삭제된 파일 수, 삭제된 파일명 리스트)
     """
     if not os.path.exists(log_directory):
-        return
+        return 0, []
 
     cutoff_time = datetime.now() - timedelta(days=retention_days)
+    deleted_files: list[str] = []
 
-    deleted_count = 0
     for filename in os.listdir(log_directory):
         if filename.endswith(".log"):
             file_path = os.path.join(log_directory, filename)
@@ -37,15 +46,11 @@ def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> No
                 file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
                 if file_time < cutoff_time:
                     os.remove(file_path)
-                    deleted_count += 1
-                    print(f"������ ������ �α� ����: {filename}")
+                    deleted_files.append(filename)
             except (OSError, ValueError):
                 continue
 
-    if deleted_count > 0:
-        print(f"�� {deleted_count}���� ������ �α� ������ �����Ǿ����ϴ�.")
-    else:
-        print("������ ������ �α� ������ �����ϴ�.")
+    return len(deleted_files), deleted_files
 
 
 def initialize_execution_logger() -> str:
@@ -59,7 +64,22 @@ def initialize_execution_logger() -> str:
 
     if not _logger_initialized:
         # 오래된 로그 파일 정리
-        cleanup_old_logs()
+        deleted_count, deleted_files = cleanup_old_logs()
+
+        # UI 출력 (선택적 - 삭제된 파일이 있을 때만)
+        if deleted_count > 0:
+            try:
+                from ui.rich_console import RichConsole
+
+                console = RichConsole()
+                for filename in deleted_files:
+                    console.print_info(f"오래된 로그 파일 삭제: {filename}")
+                console.print_success(
+                    f"총 {deleted_count}개의 오래된 로그 파일이 삭제되었습니다."
+                )
+            except ImportError:
+                # RichConsole을 사용할 수 없는 환경에서는 무시
+                pass
 
         # 현재 실행을 위한 로그 파일 생성
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -122,11 +142,18 @@ def setup_logger(
             logger.addHandler(file_handler)
 
     if console_output and not any(
-        isinstance(handler, logging.StreamHandler) for handler in logger.handlers
+        isinstance(handler, (logging.StreamHandler, RichHandler))
+        for handler in logger.handlers
     ):
-        console_handler = logging.StreamHandler()
+        # Use RichHandler for better console output
+        console_handler = RichHandler(
+            rich_tracebacks=True,
+            markup=True,
+            show_time=False,  # Time already in format string
+            show_path=False,  # Keep logs concise
+        )
         console_handler.setLevel(level)
-        console_handler.setFormatter(formatter)
+        # RichHandler has its own formatting
         logger.addHandler(console_handler)
 
     logger.propagate = False

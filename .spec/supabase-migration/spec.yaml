@@ -4,7 +4,7 @@
 spec_id: SPEC-supabase-migration-1
 title: "Supabase + OpenAI Embedding Platform"
 given_when_then:
-  - given: "Legacy Chroma/Ollama data exists in `./chroma_db` and backups"
+  - given: "Task cards and reception documents need to be stored with vector embeddings"
     when: "Migration scripts run"
     then: "161+ task cards and reception documents are ported into Supabase tables with OpenAI text-embedding-3-small vectors"
   - given: "A service requests similarity results"

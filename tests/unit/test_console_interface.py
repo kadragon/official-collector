@@ -92,53 +92,38 @@ class TestDisplayWidth:
 class TestUtilityFunctions:
     """Test utility functions."""
 
-    @patch("subprocess.run")
-    def test_clear_screen_windows(self, mock_subprocess):
-        """Test clear screen on Windows."""
-        with patch("os.name", "nt"):
-            clear_screen()
-            mock_subprocess.assert_called_once_with(["cmd", "/c", "cls"], check=True)
-
-    @patch("subprocess.run")
-    def test_clear_screen_unix(self, mock_subprocess):
-        """Test clear screen on Unix-like systems."""
-        with patch("os.name", "posix"):
-            clear_screen()
-            mock_subprocess.assert_called_once_with(["clear"], check=True)
-
-    @patch("subprocess.run")
-    @patch("builtins.print")
-    def test_clear_screen_fallback(self, mock_print, mock_subprocess):
-        """Test clear screen fallback when subprocess fails."""
-        mock_subprocess.side_effect = Exception("Command failed")
-
+    @patch("ui.console_interface._rich_console")
+    def test_clear_screen_windows(self, mock_rich_console):
+        """Test clear screen delegates to RichConsole."""
         clear_screen()
+        mock_rich_console.clear_screen.assert_called_once()
 
-        # Should print newlines as fallback
-        assert mock_print.called
-        print_calls = [call[0][0] for call in mock_print.call_args_list if call[0]]
-        assert "\n" * 50 in print_calls
+    @patch("ui.console_interface._rich_console")
+    def test_clear_screen_unix(self, mock_rich_console):
+        """Test clear screen delegates to RichConsole."""
+        clear_screen()
+        mock_rich_console.clear_screen.assert_called_once()
 
-    @patch("builtins.print")
-    @patch("logging.getLogger")
-    def test_print_functions(self, mock_logger, mock_print):
+    @patch("ui.console_interface._rich_console")
+    def test_clear_screen_fallback(self, mock_rich_console):
+        """Test clear screen delegates to RichConsole."""
+        clear_screen()
+        mock_rich_console.clear_screen.assert_called_once()
+
+    @patch("ui.console_interface._rich_console")
+    def test_print_functions(self, mock_rich_console):
         """Test message printing functions."""
-        mock_logger_instance = MagicMock()
-        mock_logger.return_value = mock_logger_instance
-
         # Test each print function
         print_info("정보 메시지")
         print_success("성공 메시지")
         print_warning("경고 메시지")
         print_error("에러 메시지")
 
-        # Verify logging was called
-        assert mock_logger_instance.info.called
-        assert mock_logger_instance.warning.called
-        assert mock_logger_instance.error.called
-
-        # Verify print was called with colored output
-        assert mock_print.call_count >= 4
+        # Verify RichConsole methods were called
+        mock_rich_console.print_info.assert_called_once_with("정보 메시지")
+        mock_rich_console.print_success.assert_called_once_with("성공 메시지")
+        mock_rich_console.print_warning.assert_called_once_with("경고 메시지")
+        mock_rich_console.print_error.assert_called_once_with("에러 메시지")
 
 
 class TestInputValidation:
@@ -470,36 +455,26 @@ class TestIntegrationScenarios:
         """Set up test environment."""
         self.console = ConsoleInterface()
 
-    @patch("builtins.print")
-    def test_print_final_result_all_success(self, mock_print):
+    @patch("ui.console_interface._rich_console")
+    def test_print_final_result_all_success(self, mock_rich_console):
         """Test final result printing - all successful."""
         print_final_result(5, 5)
 
-        # Should print success message
-        assert mock_print.called
-        print_calls = [str(call) for call in mock_print.call_args_list]
-        success_found = any("모든 문서 처리 완료" in call for call in print_calls)
-        assert success_found
+        # Should delegate to RichConsole.print_final_result
+        mock_rich_console.print_final_result.assert_called_once_with(5, 5)
 
-    @patch("builtins.print")
-    def test_print_final_result_partial_success(self, mock_print):
+    @patch("ui.console_interface._rich_console")
+    def test_print_final_result_partial_success(self, mock_rich_console):
         """Test final result printing - partial success."""
         print_final_result(3, 5)
 
-        # Should print warning and error messages
-        assert mock_print.called
-        print_calls = [str(call) for call in mock_print.call_args_list]
-        partial_found = any("일부 문서 처리 완료" in call for call in print_calls)
-        failure_found = any("실패: 2건" in call for call in print_calls)
-        assert partial_found
-        assert failure_found
+        # Should delegate to RichConsole.print_final_result
+        mock_rich_console.print_final_result.assert_called_once_with(3, 5)
 
-    @patch("builtins.print")
-    def test_print_final_result_zero_success(self, mock_print):
+    @patch("ui.console_interface._rich_console")
+    def test_print_final_result_zero_success(self, mock_rich_console):
         """Test final result printing - zero success."""
         print_final_result(0, 3)
 
-        assert mock_print.called
-        print_calls = [str(call) for call in mock_print.call_args_list]
-        failure_found = any("실패: 3건" in call for call in print_calls)
-        assert failure_found
+        # Should delegate to RichConsole.print_final_result
+        mock_rich_console.print_final_result.assert_called_once_with(0, 3)

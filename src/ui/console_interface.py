@@ -5,17 +5,19 @@ Unified Console Interface
 기존의 terminal_ui, user_interaction, deletion_menus 모듈을 하나로 통합한 단일 인터페이스입니다.
 """
 
-import os
 import logging
-import subprocess
 import unicodedata
 from enum import Enum, auto
 from typing import List, Tuple, Optional
 import win32gui
 import win32con
 from utils.error_handler import setup_logger
+from ui.rich_console import RichConsole
 
 setup_logger(__name__, console_output=True)
+
+# Initialize Rich Console singleton
+_rich_console = RichConsole()
 
 
 def _logger() -> logging.Logger:
@@ -79,13 +81,7 @@ def get_display_width(text: str) -> int:
 
 def clear_screen() -> None:
     """화면을 지웁니다."""
-    try:
-        if os.name == "nt":
-            subprocess.run(["cmd", "/c", "cls"], check=True)
-        else:
-            subprocess.run(["clear"], check=True)
-    except Exception:
-        print("\n" * 50)
+    _rich_console.clear_screen()
 
 
 def draw_separator(char: str = "-", width: int = 60, style: str = "simple") -> None:
@@ -125,109 +121,38 @@ def draw_header(title: str, width: int = 60) -> None:
 def print_info(message: str) -> None:
     """정보 메시지를 출력합니다."""
     _logger().info(message)
-    print(f"{Colors.BLUE}{Symbols.INFO} {message}{Colors.RESET}")
+    _rich_console.print_info(message)
 
 
 def print_success(message: str) -> None:
     """성공 메시지를 출력합니다."""
     _logger().info(f"SUCCESS: {message}")
-    print(f"{Colors.GREEN}{Symbols.SUCCESS} {message}{Colors.RESET}")
+    _rich_console.print_success(message)
 
 
 def print_warning(message: str) -> None:
     """경고 메시지를 출력합니다."""
     _logger().warning(message)
-    print(f"{Colors.YELLOW}{Symbols.WARNING} {message}{Colors.RESET}")
+    _rich_console.print_warning(message)
 
 
 def print_error(message: str) -> None:
     """에러 메시지를 출력합니다."""
     _logger().error(message)
-    print(f"{Colors.RED}{Symbols.ERROR} {message}{Colors.RESET}")
+    _rich_console.print_error(message)
 
 
 def print_document_info(title: str, doc_type: str = "문서") -> None:
     """문서 정보를 박스 형태로 출력합니다."""
     _logger().info(f"처리 중인 {doc_type}: {title}")
-
-    max_display_width = 60
-
-    # 제목 줄바꿈 처리
-    if get_display_width(title) > max_display_width - 4:
-        lines = []
-        current_line = ""
-        words = title.split()
-
-        for word in words:
-            test_line = current_line + word + " " if current_line else word + " "
-            if get_display_width(test_line) <= max_display_width - 4:
-                current_line = test_line
-            else:
-                if current_line:
-                    lines.append(current_line.strip())
-                current_line = word + " "
-
-        if current_line:
-            lines.append(current_line.strip())
-    else:
-        lines = [title]
-
-    # 박스 너비 계산
-    content_display_width = max(get_display_width(line) for line in lines)
-    header_text = f"처리 중인 {doc_type}"
-    header_display_width = get_display_width(header_text) + 4
-    box_display_width = max(content_display_width, header_display_width) + 4
-
-    print()
-    # 상단 테두리
-    header_dashes = box_display_width - get_display_width(header_text) - 3
-    print(
-        f"{Colors.BOLD}{Colors.WHITE}+- {header_text} {'-' * header_dashes}+{Colors.RESET}"
-    )
-
-    # 내용 출력
-    for line in lines:
-        line_display_width = get_display_width(line)
-        padding_spaces = box_display_width - line_display_width - 2
-        print(
-            f"{Colors.BOLD}{Colors.WHITE}| {line}{' ' * padding_spaces}|{Colors.RESET}"
-        )
-
-    # 하단 테두리
-    print(f"{Colors.BOLD}{Colors.WHITE}+{'-' * box_display_width}+{Colors.RESET}")
-    print()
+    _rich_console.print_document_info(title, doc_type)
 
 
 def print_numbered_list(
     items: List[str], start_index: int = 1, highlight_color: str = Colors.CYAN
 ) -> None:
     """번호가 매겨진 목록을 예쁘게 출력합니다."""
-    for idx, item in enumerate(items):
-        number = f"[{idx + start_index:02d}]"
-
-        if get_display_width(item) > 60:
-            words = item.split()
-            lines = []
-            current_line = ""
-
-            for word in words:
-                test_line = current_line + word + " " if current_line else word + " "
-                if get_display_width(test_line) <= 55:
-                    current_line = test_line
-                else:
-                    if current_line:
-                        lines.append(current_line.strip())
-                    current_line = word + " "
-
-            if current_line:
-                lines.append(current_line.strip())
-
-            if lines:
-                print(f"  {highlight_color}{number}{Colors.RESET} {lines[0]}")
-                for line in lines[1:]:
-                    print(f"      {line}")
-        else:
-            print(f"  {highlight_color}{number}{Colors.RESET} {item}")
+    _rich_console.print_numbered_list(items, start_index=start_index)
 
 
 def print_selection_menu(
@@ -237,21 +162,7 @@ def print_selection_menu(
     skip_text: str = "목록에 없음",
 ) -> None:
     """선택 메뉴를 출력합니다."""
-    print()
-    print(
-        f"{Colors.BOLD}{Colors.WHITE}+- {title} {'-' * (56 - get_display_width(title))}+{Colors.RESET}"
-    )
-    print(f"{Colors.BOLD}{Colors.WHITE}|{' ' * 58}|{Colors.RESET}")
-    print()
-
-    print_numbered_list(items)
-
-    if allow_skip:
-        print(f"  {Colors.YELLOW}[00]{Colors.RESET} {skip_text}")
-
-    print()
-    print(f"{Colors.BOLD}{Colors.WHITE}+{'-' * 58}+{Colors.RESET}")
-    print()
+    _rich_console.print_selection_menu(title, items, allow_skip, skip_text)
 
 
 def get_styled_input(prompt: str, input_color: str = Colors.CYAN) -> str:
@@ -269,16 +180,7 @@ def get_styled_input(prompt: str, input_color: str = Colors.CYAN) -> str:
 def print_final_result(success_count: int, total_count: int) -> None:
     """최종 처리 결과를 출력합니다."""
     _logger().info(f"처리 완료 - 성공: {success_count}/{total_count}")
-
-    draw_header("처리 완료")
-
-    if success_count == total_count:
-        print_success(f"모든 문서 처리 완료: {success_count}/{total_count}")
-    else:
-        print_warning(f"일부 문서 처리 완료: {success_count}/{total_count}")
-        print_error(f"실패: {total_count - success_count}건")
-
-    print()
+    _rich_console.print_final_result(success_count, total_count)
 
 
 # ============================================================================
@@ -295,7 +197,12 @@ class SelectionResult(Enum):
 
 
 def get_valid_selection(user_input: str, options: List[str]) -> str:
-    """사용자 입력을 검증하고 유효한 옵션을 반환합니다."""
+    """
+    사용자 입력을 검증하고 유효한 옵션을 반환합니다.
+
+    Note: This is legacy code. New code should use RichConsole.validate_selection()
+    instead for centralized input validation.
+    """
     try:
         selection = int(user_input) - 1
     except (TypeError, ValueError) as exc:

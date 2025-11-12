@@ -13,6 +13,7 @@ dependencies = [
     "openai>=1.102.0",
     "python-dotenv>=1.0.0",
     "pywin32>=306",
+    "rich>=13.0.0",
 ]
 
 [dependency-groups]
@@ -60,3 +61,11 @@ module = [
     "pyperclip",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false

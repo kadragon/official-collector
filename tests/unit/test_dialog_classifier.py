@@ -3,7 +3,7 @@ DialogClassifier 클래스에 대한 단위 테스트
 """
 
 import pytest
-from src.dialogs.dialog_classifier import DialogClassifier, DialogAction
+from dialogs.dialog_classifier import DialogClassifier, DialogAction
 
 
 class TestDialogClassifier:
