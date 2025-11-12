@@ -17,24 +17,28 @@ _current_log_file: Optional[str] = None
 _logger_initialized = False
 
 
-def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> None:
+def cleanup_old_logs(
+    log_directory: str = "logs", retention_days: int = 7
+) -> tuple[int, list[str]]:
     """
     오래된 로그 파일들을 삭제합니다.
+
+    이 함수는 순수한 로직만 수행하고, UI 출력은 호출하는 쪽에서 담당합니다.
+    관심사의 분리(Separation of Concerns) 원칙을 따릅니다.
 
     Args:
         log_directory (str): 로그 디렉토리 경로.
         retention_days (int): 보관 기간 (일).
+
+    Returns:
+        tuple[int, list[str]]: (삭제된 파일 수, 삭제된 파일명 리스트)
     """
     if not os.path.exists(log_directory):
-        return
+        return 0, []
 
-    # Import here to avoid circular dependency
-    from ui.rich_console import RichConsole
-
-    console = RichConsole()
     cutoff_time = datetime.now() - timedelta(days=retention_days)
+    deleted_files: list[str] = []
 
-    deleted_count = 0
     for filename in os.listdir(log_directory):
         if filename.endswith(".log"):
             file_path = os.path.join(log_directory, filename)
@@ -42,17 +46,11 @@ def cleanup_old_logs(log_directory: str = "logs", retention_days: int = 7) -> No
                 file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
                 if file_time < cutoff_time:
                     os.remove(file_path)
-                    deleted_count += 1
-                    console.print_info(f"오래된 로그 파일 삭제: {filename}")
+                    deleted_files.append(filename)
             except (OSError, ValueError):
                 continue
 
-    if deleted_count > 0:
-        console.print_success(
-            f"총 {deleted_count}개의 오래된 로그 파일이 삭제되었습니다."
-        )
-    else:
-        console.print_info("삭제할 오래된 로그 파일이 없습니다.")
+    return len(deleted_files), deleted_files
 
 
 def initialize_execution_logger() -> str:
@@ -66,7 +64,22 @@ def initialize_execution_logger() -> str:
 
     if not _logger_initialized:
         # 오래된 로그 파일 정리
-        cleanup_old_logs()
+        deleted_count, deleted_files = cleanup_old_logs()
+
+        # UI 출력 (선택적 - 삭제된 파일이 있을 때만)
+        if deleted_count > 0:
+            try:
+                from ui.rich_console import RichConsole
+
+                console = RichConsole()
+                for filename in deleted_files:
+                    console.print_info(f"오래된 로그 파일 삭제: {filename}")
+                console.print_success(
+                    f"총 {deleted_count}개의 오래된 로그 파일이 삭제되었습니다."
+                )
+            except ImportError:
+                # RichConsole을 사용할 수 없는 환경에서는 무시
+                pass
 
         # 현재 실행을 위한 로그 파일 생성
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
