@@ -16,6 +16,84 @@ from utils.error_handler import setup_logger
 logger = setup_logger(__name__)
 
 
+# ------------------------------------------------------------------ #
+# UI Configuration
+# ------------------------------------------------------------------ #
+
+
+class TimeoutConfig:
+    """Centralized timeout configuration for UI operations."""
+
+    # Element waiting timeouts (in seconds)
+    ELEMENT_WAIT = 3.0
+    ELEMENT_WAIT_INTERVAL = 0.05
+
+    # Window waiting timeouts (in seconds)
+    WINDOW_WAIT = 3.0
+    WINDOW_READY = 2.0
+
+    # Condition waiting timeouts (in seconds)
+    CONDITION_WAIT = 3.0
+    CONDITION_WAIT_INTERVAL = 0.05
+
+    # Dialog-specific timeouts
+    RECEPTION_CONFIRMATION = 5.0
+    CIRCULATION_COMPLETION = 8.0
+    APPROVAL_CONFIRMATION = 1.0
+    APPROVAL_CONFIRMATION_BACKUP = 2.0
+    APPROVAL_RESULT = 0.5
+    PAYMENT_INFO_WINDOW = 2.0
+
+    # Fast dialog search timeouts
+    FAST_DIALOG_IMMEDIATE = 0.3
+    FAST_DIALOG_INTERVAL = 0.02
+    FAST_DIALOG_DESKTOP = 0.8
+
+    # Sleep delays (in seconds)
+    MINIMAL_DELAY = 0.05
+    SHORT_DELAY = 0.1
+
+
+class OpenAIPricingConfig:
+    """Centralized OpenAI API pricing configuration."""
+
+    # Embedding model pricing (per 1000 tokens)
+    TEXT_EMBEDDING_3_SMALL_PRICE = 0.00002  # $0.00002 per 1K tokens
+    TEXT_EMBEDDING_3_LARGE_PRICE = 0.00013  # $0.00013 per 1K tokens
+
+    # Token estimation (characters per token)
+    CHARS_PER_TOKEN = 4
+
+
+class UIConfig:
+    """Centralized UI configuration for dialog patterns and window titles."""
+
+    # Dialog button patterns (in priority order)
+    DIALOG_BUTTON_PATTERNS = {
+        "confirm": [
+            ("예(&Y)", "Button"),
+            ("예", "Button"),
+            ("확인", "Button"),
+            ("OK", "Button"),
+        ],
+        "cancel": [
+            ("아니오(N)", "Button"),
+            ("취소", "Button"),
+            ("아니오", "Button"),
+            ("Cancel", "Button"),
+        ],
+    }
+
+    # Window title patterns for connection
+    WINDOW_TITLE_PATTERNS = [
+        ("^접수", "접수"),
+        ("^전자결재", "전자결재"),
+    ]
+
+    # Payment info button names
+    PAYMENT_INFO_BUTTONS = ["결재정보", "Payment Information"]
+
+
 class UnifiedConfig:
     """Unified configuration loader with legacy compatibility."""
 

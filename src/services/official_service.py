@@ -11,6 +11,7 @@ import win32gui
 from pywinauto import Application, Desktop, keyboard, mouse, findwindows
 from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
 from pywinauto.findwindows import ElementNotFoundError
+from config import UIConfig, TimeoutConfig
 from utils.error_handler import setup_logger, handle_connection_error
 from utils.performance_logger import log_execution_time, timer
 from dialogs.dialog_classifier import DialogClassifier, DialogAction
@@ -57,7 +58,10 @@ class OfficialCollector:
             return DocumentFlowState.UNKNOWN
 
     def _wait_for_element(
-        self, element_selector: Callable, timeout: float = 3.0, interval: float = 0.05
+        self,
+        element_selector: Callable,
+        timeout: float = TimeoutConfig.ELEMENT_WAIT,
+        interval: float = TimeoutConfig.ELEMENT_WAIT_INTERVAL,
     ) -> bool:
         """
         요소가 준비될 때까지 대기합니다.
@@ -81,7 +85,9 @@ class OfficialCollector:
             time.sleep(interval)
         return False
 
-    def _wait_for_window(self, title: str, timeout: float = 3.0) -> Any:
+    def _wait_for_window(
+        self, title: str, timeout: float = TimeoutConfig.WINDOW_WAIT
+    ) -> Any:
         """
         특정 창이 나타날 때까지 대기합니다.
         Args:
@@ -106,8 +112,8 @@ class OfficialCollector:
     def _wait_for_condition(
         self,
         condition: Callable[[], bool],
-        timeout: float = 3.0,
-        interval: float = 0.05,
+        timeout: float = TimeoutConfig.CONDITION_WAIT,
+        interval: float = TimeoutConfig.CONDITION_WAIT_INTERVAL,
     ) -> bool:
         """
         조건이 만족될 때까지 대기합니다.
@@ -129,7 +135,7 @@ class OfficialCollector:
                 # COM 오류 (-2147220991, '이벤트에서 가입자를 불러낼 수 없습니다') 처리
                 if e.args[0] == -2147220991:
                     logger.debug("COM 이벤트 오류 (계속 시도): %s", e)
-                    time.sleep(0.1)  # 약간의 추가 대기
+                    time.sleep(TimeoutConfig.SHORT_DELAY)  # 약간의 추가 대기
                 else:
                     logger.warning("조건 확인 중 OS 오류: %s", e)
             except Exception as e:
@@ -150,7 +156,7 @@ class OfficialCollector:
         Raises:
             PyWinAutoTimeoutError: 지정된 창을 찾지 못한 경우.
         """
-        window_titles = [("^접수", "접수"), ("^전자결재", "전자결재")]
+        window_titles = UIConfig.WINDOW_TITLE_PATTERNS
 
         # 디버그 모드일 때만 창 목록 상세 로깅 (성능 최적화)
         if debug_mode:
@@ -186,7 +192,7 @@ class OfficialCollector:
                 )
                 # 창이 실제로 준비될 때까지 대기 (최적화된 타임아웃)
                 try:
-                    self.dlg.wait("ready", timeout=2)
+                    self.dlg.wait("ready", timeout=TimeoutConfig.WINDOW_READY)
                     logger.debug("%s 창이 준비 상태입니다.", display_name)
                 except PyWinAutoTimeoutError:
                     logger.debug(
@@ -239,13 +245,13 @@ class OfficialCollector:
             # 결재선 선택
             approval_selector = self.dlg["결재선"]
             approval_selector.select()
-            approval_selector.wait("enabled", timeout=2)
+            approval_selector.wait("enabled", timeout=TimeoutConfig.WINDOW_READY)
             keyboard.send_keys("{TAB 5}")
             pyperclip.copy(approval_name)
             keyboard.send_keys("^v{DOWN}")
             # 확인 버튼 클릭
             confirm_btn = self.dlg["확인"]
-            confirm_btn.wait("enabled", timeout=2)
+            confirm_btn.wait("enabled", timeout=TimeoutConfig.WINDOW_READY)
             confirm_btn.click()
             logger.info("결재선 지정 완료: %s", approval_name)
         except (PyWinAutoTimeoutError, ElementNotFoundError) as e:
@@ -314,8 +320,8 @@ class OfficialCollector:
                     title="문서를 접수하시겠습니까?", class_name="Static"
                 ).exists()
             ),
-            timeout=5.0,
-            interval=0.05,
+            timeout=TimeoutConfig.RECEPTION_CONFIRMATION,
+            interval=TimeoutConfig.CONDITION_WAIT_INTERVAL,
         )
 
         if reception_dialog_appeared:
@@ -341,8 +347,8 @@ class OfficialCollector:
                     title="공람지정을 완료하였습니다.", class_name="Static"
                 ).exists()
             ),
-            timeout=8.0,
-            interval=0.05,
+            timeout=TimeoutConfig.CIRCULATION_COMPLETION,
+            interval=TimeoutConfig.CONDITION_WAIT_INTERVAL,
         )
 
         if circulation_dialog_appeared:
@@ -362,7 +368,7 @@ class OfficialCollector:
         """6) 접수 후 결과 처리 (종료 또는 다음 문서)."""
         result_dialog_appeared = self._wait_for_condition(
             lambda: self.dlg.child_window(title="확인", control_type="Window").exists(),
-            timeout=0.5,
+            timeout=TimeoutConfig.APPROVAL_RESULT,
         )
         if result_dialog_appeared:
             dialog_text = self._get_confirm_dialog_text()
@@ -442,12 +448,12 @@ class OfficialCollector:
         pyperclip.copy(document_group_name)
         keyboard.send_keys("^v")
         keyboard.send_keys("{ENTER}")
-        time.sleep(0.1)
+        time.sleep(TimeoutConfig.SHORT_DELAY)
         keyboard.send_keys("{TAB}")
         keyboard.send_keys("{SPACE}")
         keyboard.send_keys("{TAB 3}")
         keyboard.send_keys("{ENTER}")
-        time.sleep(0.1)
+        time.sleep(TimeoutConfig.SHORT_DELAY)
         keyboard.send_keys("{ENTER}")
         logger.info("문서카드 선택 완료: %s", document_group_name)
 
@@ -470,8 +476,8 @@ class OfficialCollector:
                     title="결재를 진행하시겠습니까?", class_name="Static"
                 ).exists()
             ),
-            timeout=1.0,  # 대기시간 단축: 3.0초 → 1.0초
-            interval=0.05,
+            timeout=TimeoutConfig.APPROVAL_CONFIRMATION,
+            interval=TimeoutConfig.CONDITION_WAIT_INTERVAL,
         )
 
         if approval_dialog_appeared:
@@ -489,7 +495,7 @@ class OfficialCollector:
                 lambda: self.dlg.child_window(
                     title="확인", control_type="Window"
                 ).exists(),
-                timeout=2.0,
+                timeout=TimeoutConfig.APPROVAL_CONFIRMATION_BACKUP,
             )
             if general_dialog_appeared:
                 confirm_dialog = self.dlg.child_window(
@@ -517,7 +523,7 @@ class OfficialCollector:
     def _handle_approval_result(self) -> None:
         """결재 결과를 처리합니다 (완료 또는 다음 문서) - 초고속 최적화 버전."""
         logger.info("결재 결과 대화상자 대기 시작 - _handle_approval_result() 호출됨")
-        time.sleep(0.05)  # 대기 시간 최소화: 0.1초 → 0.05초
+        time.sleep(TimeoutConfig.MINIMAL_DELAY)
 
         # 초고속 대화상자 찾기
         confirm_dialog = self._find_confirm_dialog()
@@ -536,14 +542,14 @@ class OfficialCollector:
             or "결재문서가 완료되었습니다" in dialog_text
         ):
             logger.info("다음 문서 처리 대화상자 감지")
-            self._click_yes_button_fast(confirm_dialog)
+            self._click_dialog_button_unified("confirm", confirm_dialog)
         elif "종료하시겠습니까" in dialog_text:
             logger.info("종료 확인 대화상자 감지 - 프로세스 종료")
-            self._click_yes_button_fast(confirm_dialog)
+            self._click_dialog_button_unified("confirm", confirm_dialog)
         else:
             # 복잡한 분석 대신 기본 처리
             logger.info("기본 확인 처리")
-            self._click_yes_button_fast(confirm_dialog)
+            self._click_dialog_button_unified("confirm", confirm_dialog)
 
     def _find_confirm_dialog(self) -> Any:
         """초고속 확인 대화상자 찾기 - 성능 최적화된 버전."""
@@ -564,8 +570,8 @@ class OfficialCollector:
                 lambda: self.dlg.child_window(
                     title="확인", control_type="Window"
                 ).exists(),
-                timeout=0.3,
-                interval=0.02,  # 대기시간 대폭 단축: 0.8초 → 0.3초
+                timeout=TimeoutConfig.FAST_DIALOG_IMMEDIATE,
+                interval=TimeoutConfig.FAST_DIALOG_INTERVAL,
             ):
                 dialog = self.dlg.child_window(title="확인", control_type="Window")
                 logger.debug("짧은 대기 후 확인 대화상자 발견")
@@ -621,50 +627,6 @@ class OfficialCollector:
             logger.warning("대화상자 내용 분석 실패: %s", e)
             return ""
 
-    def _click_yes_button(self, confirm_dialog: Any, action_type: str) -> None:
-        """확인 대화상자에서 예 버튼을 빠르게 클릭합니다."""
-        try:
-            # 여러 버튼 패턴 시도 (우선순위 순)
-            button_patterns = [
-                ("예(&Y)", "Button"),
-                ("예", "Button"),
-                ("확인", "Button"),
-                ("OK", "Button"),
-            ]
-
-            button_clicked = False
-            for title, class_name in button_patterns:
-                try:
-                    button = confirm_dialog.child_window(
-                        title=title, class_name=class_name
-                    )
-                    if button.exists() and button.is_enabled():
-                        button.click()
-                        logger.debug("%s 확인 완료 (버튼: %s)", action_type, title)
-                        button_clicked = True
-                        break
-                except Exception as exc:
-                    logger.debug(
-                        "Button click attempt failed (%s/%s): %s",
-                        action_type,
-                        title,
-                        exc,
-                    )
-                    continue
-
-            if not button_clicked:
-                # 버튼을 찾지 못한 경우 키보드로 시도
-                logger.debug("버튼을 찾지 못해 키보드로 시도 (%s)", action_type)
-                keyboard.send_keys("y")
-                time.sleep(0.1)
-
-        except Exception as e:
-            logger.warning("%s 버튼 클릭 실패, 키보드로 재시도: %s", action_type, e)
-            try:
-                keyboard.send_keys("{ENTER}")
-                time.sleep(0.1)
-            except Exception as ke:
-                logger.error("키보드 입력도 실패 (%s): %s", action_type, ke)
 
     def _get_quick_dialog_text(self, confirm_dialog: Any) -> str:
         """대화상자 텍스트를 빠르게 가져오는 최적화된 함수."""
@@ -693,44 +655,6 @@ class OfficialCollector:
             logger.debug("빠른 텍스트 가져오기 실패: %s", e)
             return ""
 
-    def _click_yes_button_fast(self, confirm_dialog: Any) -> None:
-        """빠른 Yes 버튼 클릭 - 최적화된 버전."""
-        try:
-            # 방법 1: 가장 일반적인 예(Y) 버튼 우선 시도
-            try:
-                yes_button = confirm_dialog.child_window(
-                    title="예(&Y)", class_name="Button"
-                )
-                if yes_button.exists():
-                    yes_button.click()
-                    logger.debug("예(Y) 버튼 클릭 완료")
-                    return
-            except Exception as exc:
-                logger.debug("Primary yes button click failed: %s", exc)
-
-            # 방법 2: 확인 버튼 시도
-            try:
-                ok_button = confirm_dialog.child_window(
-                    title="확인", class_name="Button"
-                )
-                if ok_button.exists():
-                    ok_button.click()
-                    logger.debug("확인 버튼 클릭 완료")
-                    return
-            except Exception as exc:
-                logger.debug("OK button click failed: %s", exc)
-
-            # 방법 3: 키보드 Y 키로 빠른 처리
-            logger.debug("버튼 찾기 실패, 키보드 Y키로 처리")
-            keyboard.send_keys("y")
-            time.sleep(0.05)  # 최소 대기
-
-        except Exception as e:
-            logger.warning("빠른 버튼 클릭 실패: %s", e)
-            try:
-                keyboard.send_keys("{ENTER}")
-            except Exception as exc:
-                logger.debug("Fallback ENTER keypress failed: %s", exc)
 
     def check_document_flow_state(self) -> DocumentFlowState:
         """
@@ -907,24 +831,21 @@ class OfficialCollector:
             bool: 처리 계속 여부 (True: 계속, False: 종료)
         """
         try:
-            # 가능한 확인 버튼들을 순서대로 시도
-            confirm_buttons = ["예(Y)", "확인", "예", "OK"]
-            cancel_buttons = ["아니오(N)", "취소", "아니오", "Cancel"]
             if state == DocumentFlowState.CONTINUE:
                 if auto_continue:
                     logger.info("자동으로 다음 문서 처리 계속")
-                    return self._click_dialog_button(confirm_buttons)
+                    return self._click_dialog_button_unified("confirm")
                 else:
                     # 사용자에게 선택 권한 제공
                     logger.info("다음 문서 처리 여부를 사용자가 결정")
-                    return self._click_dialog_button(confirm_buttons)
+                    return self._click_dialog_button_unified("confirm")
             elif state == DocumentFlowState.EXIT:
                 logger.info("문서 처리 종료 확인")
-                self._click_dialog_button(confirm_buttons)
+                self._click_dialog_button_unified("confirm")
                 return False
             elif state == DocumentFlowState.UNKNOWN:
                 logger.warning("알 수 없는 대화상자 - 기본 처리")
-                self._click_dialog_button(confirm_buttons)
+                self._click_dialog_button_unified("confirm")
                 return False
         except Exception as e:
             logger.error("문서 흐름 대화상자 처리 중 오류: %s", e)
@@ -947,7 +868,7 @@ class OfficialCollector:
                 return True
             # 결재정보 창이 없으면 결재정보 버튼 클릭
             logger.info("결재정보 창이 표시되지 않음 - 결재정보 버튼 클릭")
-            payment_info_buttons = ["결재정보", "Payment Information"]
+            payment_info_buttons = UIConfig.PAYMENT_INFO_BUTTONS
             for button_name in payment_info_buttons:
                 try:
                     button = self.dlg[button_name]
@@ -955,7 +876,9 @@ class OfficialCollector:
                         logger.info("'%s' 버튼 클릭하여 결재정보 창 열기", button_name)
                         button.click()
                         # 창이 열릴 때까지 대기
-                        if info_window_spec.wait("visible", timeout=2):
+                        if info_window_spec.wait(
+                            "visible", timeout=TimeoutConfig.PAYMENT_INFO_WINDOW
+                        ):
                             logger.info("결재정보 창이 성공적으로 열렸습니다.")
                             return True
                         else:
@@ -975,53 +898,88 @@ class OfficialCollector:
             logger.error("결재정보 창 확인 중 오류 발생: %s", e)
             return False
 
-    def _click_dialog_button(self, button_names: list) -> bool:
+    def _click_dialog_button_unified(
+        self, button_type: str = "confirm", confirm_dialog: Any = None
+    ) -> bool:
         """
-        대화상자에서 사용 가능한 버튼을 찾아 클릭합니다.
+        대화상자에서 버튼을 클릭하는 통합 메서드.
+
         Args:
-            button_names: 시도할 버튼 이름들의 리스트
+            button_type: 클릭할 버튼 유형 ("confirm" 또는 "cancel")
+            confirm_dialog: 특정 대화상자 객체 (None이면 자동 탐색)
+
         Returns:
             bool: 버튼 클릭 성공 여부
         """
-        # 먼저 확인 창이 실제로 존재하는지 확인
-        try:
-            confirm_window = self.dlg.child_window(title="확인", control_type="Window")
-            if not confirm_window.exists():
-                logger.debug("확인 창이 존재하지 않음 - 버튼 클릭 시도 생략")
-                return True  # 창이 없으면 성공으로 간주
-        except Exception as e:
-            logger.debug("확인 창 존재 여부 확인 실패: %s", e)
-            return True
-        # 확인 창이 존재하는 경우 버튼 클릭 시도
-        for button_name in button_names:
+        # 버튼 패턴 가져오기
+        button_patterns = UIConfig.DIALOG_BUTTON_PATTERNS.get(button_type, [])
+        if not button_patterns:
+            logger.warning("알 수 없는 버튼 유형: %s", button_type)
+            return False
+
+        # 대화상자 확인
+        target_dialog = confirm_dialog
+        if target_dialog is None:
             try:
-                # 먼저 메인 다이얼로그에서 찾기
-                button = self.dlg[button_name]
+                target_dialog = self.dlg.child_window(
+                    title="확인", control_type="Window"
+                )
+                if not target_dialog.exists():
+                    logger.debug("확인 창이 존재하지 않음 - 버튼 클릭 시도 생략")
+                    return True  # 창이 없으면 성공으로 간주
+            except Exception as e:
+                logger.debug("확인 창 존재 여부 확인 실패: %s", e)
+                return True
+
+        # 버튼 패턴으로 클릭 시도
+        for title, class_name in button_patterns:
+            # 먼저 대화상자에서 찾기
+            if target_dialog:
+                try:
+                    button = target_dialog.child_window(
+                        title=title, class_name=class_name
+                    )
+                    if button.exists() and button.is_enabled():
+                        button.click()
+                        logger.debug("%s 버튼 클릭 완료 (버튼: %s)", button_type, title)
+                        return True
+                except Exception as e:
+                    logger.debug(
+                        "대화상자에서 버튼 찾기 실패 (%s/%s): %s", button_type, title, e
+                    )
+
+            # 메인 다이얼로그에서도 시도
+            try:
+                button = self.dlg.child_window(title=title, class_name=class_name)
                 if button.exists() and button.is_enabled():
-                    logger.debug("메인 창에서 버튼 '%s' 클릭", button_name)
                     button.click()
+                    logger.debug(
+                        "메인 창에서 %s 버튼 클릭 완료 (버튼: %s)", button_type, title
+                    )
                     return True
             except Exception as e:
-                logger.debug("메인 창에서 버튼 '%s' 찾기 실패: %s", button_name, str(e))
-            # 메인 창에서 못 찾으면 확인 창에서 찾기
-            try:
-                button = confirm_window[button_name]
-                if button.exists() and button.is_enabled():
-                    logger.debug("확인 창에서 버튼 '%s' 클릭", button_name)
-                    button.click()
-                    return True
-            except Exception as e:
-                logger.debug("확인 창에서 버튼 '%s' 찾기 실패: %s", button_name, str(e))
-        # 버튼을 찾지 못한 경우 키보드로 ENTER 시도
+                logger.debug("메인 창에서 버튼 찾기 실패 (%s/%s): %s", button_type, title, e)
+
+        # 버튼을 찾지 못한 경우 키보드로 시도
         try:
-            logger.debug("버튼을 찾지 못해 키보드 ENTER로 시도")
-            keyboard.send_keys("{ENTER}")
-            time.sleep(0.1)
+            if button_type == "confirm":
+                logger.debug("버튼을 찾지 못해 키보드로 시도 (%s)", button_type)
+                keyboard.send_keys("y")
+                time.sleep(TimeoutConfig.MINIMAL_DELAY)
+            else:
+                logger.debug("버튼을 찾지 못해 키보드 ESC로 시도 (%s)", button_type)
+                keyboard.send_keys("{ESC}")
+                time.sleep(TimeoutConfig.MINIMAL_DELAY)
             return True
         except Exception as e:
-            logger.warning("키보드 ENTER 시도 실패: %s", e)
-        logger.warning("사용 가능한 버튼을 찾을 수 없습니다: %s", button_names)
-        return False
+            logger.warning("%s 버튼 클릭 실패, 키보드로 재시도: %s", button_type, e)
+            try:
+                keyboard.send_keys("{ENTER}")
+                time.sleep(TimeoutConfig.SHORT_DELAY)
+                return True
+            except Exception as ke:
+                logger.error("키보드 입력도 실패 (%s): %s", button_type, ke)
+                return False
 
     def handle_cancel_dialog(self) -> bool:
         """
@@ -1029,8 +987,7 @@ class OfficialCollector:
         Returns:
             bool: 취소 버튼 클릭 성공 여부
         """
-        cancel_buttons = ["아니오(N)", "취소", "아니오", "Cancel"]
-        return self._click_dialog_button(cancel_buttons)
+        return self._click_dialog_button_unified("cancel")
 
     def handle_confirm_dialog(self) -> bool:
         """
@@ -1038,8 +995,7 @@ class OfficialCollector:
         Returns:
             bool: 확인 버튼 클릭 성공 여부
         """
-        confirm_buttons = ["예(Y)", "확인", "예", "OK"]
-        return self._click_dialog_button(confirm_buttons)
+        return self._click_dialog_button_unified("confirm")
 
 
 if __name__ == "__main__":

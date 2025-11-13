@@ -202,3 +202,42 @@
   files_changed:
     - src/services/supabase_service.py (7 method decorations)
   governance_ref: ".governance/patterns.md line 16"
+- task_id: TASK-017
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Unify button click logic and centralize UI patterns"
+  completed_at: "2025-11-13T04:00:00+09:00"
+  outcome: >
+    Unified three button click methods (_click_yes_button, _click_yes_button_fast, _click_dialog_button)
+    into single _click_dialog_button_unified() method. Created UIConfig class in config.py with
+    centralized button patterns (confirm/cancel), window title patterns, and payment info buttons.
+    Reduced official_service.py from 1047 to 995 lines (~52 lines removed). Updated all call sites
+    including _handle_approval_result, handle_confirm_dialog, handle_cancel_dialog, and
+    handle_document_flow_dialog to use unified method with button_type parameter.
+    Total: 4 files changed, ~100 lines of duplicated code eliminated.
+  test_refs:
+    - TEST-cleanup-5
+  files_changed:
+    - src/config.py (added UIConfig class)
+    - src/services/official_service.py (unified button click logic, removed duplicates)
+  governance_ref: "SPEC-codebase-cleanup-1 Phase 2"
+- task_id: TASK-018
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Centralize timeout and UI configuration"
+  completed_at: "2025-11-13T04:30:00+09:00"
+  outcome: >
+    Created TimeoutConfig class with 15+ named timeout constants replacing hard-coded values
+    throughout official_service.py. Created OpenAIPricingConfig class with pricing constants
+    and token estimation values. Updated all timeout values: ELEMENT_WAIT (3.0s), WINDOW_WAIT (3.0s),
+    RECEPTION_CONFIRMATION (5.0s), CIRCULATION_COMPLETION (8.0s), APPROVAL_CONFIRMATION (1.0s),
+    FAST_DIALOG_IMMEDIATE (0.3s), MINIMAL_DELAY (0.05s), SHORT_DELAY (0.1s), etc.
+    Replaced hard-coded OpenAI pricing ($0.00002 per 1K tokens) and token estimation (4 chars/token)
+    with OpenAIPricingConfig references. Updated config_manager.py to use centralized pricing config.
+    Total: 4 files changed, all magic numbers eliminated, environment-specific tuning now possible.
+  test_refs:
+    - TEST-cleanup-5
+  files_changed:
+    - src/config.py (added TimeoutConfig and OpenAIPricingConfig classes)
+    - src/services/official_service.py (replaced all hard-coded timeouts)
+    - src/utils/config_manager.py (use OpenAIPricingConfig)
+    - src/services/openai_embedding_service.py (use OpenAIPricingConfig)
+  governance_ref: ".governance/coding-style.md line 9"

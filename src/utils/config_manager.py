@@ -5,14 +5,12 @@ Provides helper functions to access configuration values
 
 import os
 import logging
+from config import OpenAIPricingConfig
 
 logger = logging.getLogger(__name__)
 
 # Vector similarity threshold for recommendation filtering
 DEFAULT_VECTOR_SIMILARITY_THRESHOLD = 0.3
-
-# OpenAI model pricing (per 1K tokens)
-OPENAI_EMBEDDING_PRICE_PER_1K = 0.00002
 
 
 def get_vector_similarity_threshold() -> float:
@@ -50,20 +48,22 @@ def get_openai_embedding_price() -> float:
     """
     try:
         price_str = os.getenv(
-            "OPENAI_EMBEDDING_PRICE_PER_1K", str(OPENAI_EMBEDDING_PRICE_PER_1K)
+            "OPENAI_EMBEDDING_PRICE_PER_1K",
+            str(OpenAIPricingConfig.TEXT_EMBEDDING_3_SMALL_PRICE),
         )
         price = float(price_str)
 
         if price < 0:
             logger.warning("OpenAI 가격이 음수입니다, 기본값 사용")
-            return OPENAI_EMBEDDING_PRICE_PER_1K
+            return OpenAIPricingConfig.TEXT_EMBEDDING_3_SMALL_PRICE
 
         return price
     except ValueError:
         logger.warning(
-            "OpenAI 가격 설정 오류, 기본값 사용 (%.8f)", OPENAI_EMBEDDING_PRICE_PER_1K
+            "OpenAI 가격 설정 오류, 기본값 사용 (%.8f)",
+            OpenAIPricingConfig.TEXT_EMBEDDING_3_SMALL_PRICE,
         )
-        return OPENAI_EMBEDDING_PRICE_PER_1K
+        return OpenAIPricingConfig.TEXT_EMBEDDING_3_SMALL_PRICE
 
 
 def is_production_environment() -> bool:

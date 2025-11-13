@@ -13,6 +13,7 @@ import json
 
 import openai
 from dotenv import load_dotenv
+from config import OpenAIPricingConfig
 from utils.performance_logger import log_execution_time
 from utils.config_manager import get_openai_embedding_price
 
@@ -383,7 +384,8 @@ class OpenAIEmbeddingService:
     def estimate_cost(self, text_length: int) -> float:
         """텍스트 길이 기반 비용 추정 (매우 대략적)"""
         # 대략 4글자 = 1토큰으로 추정
-        estimated_tokens = text_length // 4
-        # text-embedding-3-small 가격: $0.00002 per 1K tokens
-        estimated_cost = (estimated_tokens / 1000) * 0.00002
+        estimated_tokens = text_length // OpenAIPricingConfig.CHARS_PER_TOKEN
+        # text-embedding-3-small 가격: 환경 변수 또는 기본값 사용
+        price_per_1k = get_openai_embedding_price()
+        estimated_cost = (estimated_tokens / 1000) * price_per_1k
         return estimated_cost
