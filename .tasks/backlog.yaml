@@ -1,19 +1,6 @@
 # Trace:
 #   spec_id: SPEC-governance-doc-structure-1
 #   task_id: TASK-001
-- task_id: TASK-003
-  spec_id: SPEC-performance-observability-1
-  title: "Complete remaining instrumentation (Phase 3)"
-  status: pending
-  priority: 2
-  description: >
-    Finish the Phase 3 logging plan by instrumenting payment-info windows, circulation dialogs,
-    and log aggregation for Phase 3 analysis scripts.
-  test_refs:
-    - TEST-performance-1
-    - TEST-performance-2
-  blocked_by:
-    - TASK-002
 - task_id: TASK-004
   spec_id: SPEC-supabase-migration-1
   title: "Harden configuration validation and vector thresholds"
