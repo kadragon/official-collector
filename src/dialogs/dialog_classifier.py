@@ -110,14 +110,14 @@ class DialogClassifier:
         # 정렬된 순서대로 패턴 매칭 시도
         for pattern, action, _ in all_patterns:
             logger.debug(
-                f"패턴 테스트: '{pattern}' in '{normalized_text[:50]}...' = {pattern in normalized_text}"
+                "패턴 테스트: '%s' in '%s...' = %s", pattern, normalized_text[:50], pattern in normalized_text
             )
             if pattern in normalized_text:
-                logger.info(f"패턴 매칭 성공: '{pattern}' → {action.value}")
+                logger.info("패턴 매칭 성공: '%s' → %s", pattern, action.value)
                 return action
 
         # 패턴이 매칭되지 않은 경우
-        logger.warning(f"알 수 없는 대화상자 패턴: '{normalized_text}'")
+        logger.warning("알 수 없는 대화상자 패턴: '%s'", normalized_text)
         return DialogAction.UNKNOWN
 
     def get_action_description(self, action: DialogAction) -> str:
@@ -152,9 +152,9 @@ class DialogClassifier:
 
         if pattern not in self._pattern_mapping[action]:
             self._pattern_mapping[action].append(pattern)
-            logger.info(f"새 패턴 추가: {action.value} ← '{pattern}'")
+            logger.info("새 패턴 추가: %s ← '%s'", action.value, pattern)
         else:
-            logger.warning(f"이미 존재하는 패턴: {action.value} ← '{pattern}'")
+            logger.warning("이미 존재하는 패턴: %s ← '%s'", action.value, pattern)
 
     def get_patterns_for_action(self, action: DialogAction) -> List[str]:
         """

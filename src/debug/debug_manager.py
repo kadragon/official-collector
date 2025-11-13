@@ -88,15 +88,15 @@ class UnifiedDebugManager:
                 )
                 self.dlg = self.app.top_window()  # type: ignore[attr-defined]
                 logger.info(
-                    f"Successfully connected to application with pattern: {pattern}"
+                    "Successfully connected to application with pattern: %s", pattern
                 )
                 return True
             except Exception as e:
-                logger.debug(f"Failed to connect with pattern '{pattern}': {e}")
+                logger.debug("Failed to connect with pattern '%s': %s", pattern, e)
                 continue
 
         logger.error(
-            f"Failed to connect to any application with patterns: {self.app_title_patterns}"
+            "Failed to connect to any application with patterns: %s", self.app_title_patterns
         )
         return False
 
@@ -142,12 +142,12 @@ class UnifiedDebugManager:
                     f.write(f"Current window title: {self.dlg.window_text()}\n")
                     f.write("=" * 60 + "\n\n")
                     f.write(output)
-                logger.info(f"Window structure saved to: {filename}")
+                logger.info("Window structure saved to: %s", filename)
 
             return output
 
         except Exception as e:
-            logger.error(f"Failed to get window structure: {e}")
+            logger.error("Failed to get window structure: %s", e)
             return ""
 
     def analyze_current_window(
@@ -186,7 +186,7 @@ class UnifiedDebugManager:
             }
 
         except Exception as e:
-            logger.error(f"Window analysis failed: {e}")
+            logger.error("Window analysis failed: %s", e)
             return {
                 "success": False,
                 "error": str(e),
@@ -222,15 +222,15 @@ class UnifiedDebugManager:
             iteration += 1
 
             if self.interactive:
-                logger.info(f"=== Monitoring iteration {iteration} ===")
+                logger.info("=== Monitoring iteration %d ===", iteration)
 
             # Check if any dialogs exist
             dialogs = self._find_confirm_dialogs()
             if dialogs:
-                logger.info(f"Found {len(dialogs)} dialog(s)")
+                logger.info("Found %d dialog(s)", len(dialogs))
                 for i, dialog in enumerate(dialogs):
                     if self.interactive:
-                        logger.info(f"Dialog {i+1} structure:")
+                        logger.info("Dialog %d structure:", i+1)
                         self._print_dialog_structure(dialog)
                     else:
                         # Store dialog info for programmatic use
@@ -263,7 +263,7 @@ class UnifiedDebugManager:
             dialogs.extend(popup_dialogs)
 
         except Exception as e:
-            logger.debug(f"Error finding dialogs: {e}")
+            logger.debug("Error finding dialogs: %s", e)
 
         return dialogs
 
@@ -287,7 +287,7 @@ class UnifiedDebugManager:
                 console.print(output)
 
         except Exception as e:
-            logger.error(f"Failed to print dialog structure: {e}")
+            logger.error("Failed to print dialog structure: %s", e)
 
     def _analyze_dialog(self, dialog: Any, iteration: int) -> Dict[str, Any]:
         """
@@ -348,7 +348,7 @@ class UnifiedDebugManager:
             return dialog_info
 
         except Exception as e:
-            logger.error(f"Failed to analyze dialog: {e}")
+            logger.error("Failed to analyze dialog: %s", e)
             return {
                 "iteration": iteration,
                 "timestamp": datetime.now().isoformat(),
@@ -416,12 +416,12 @@ class UnifiedDebugManager:
                         dialog_info = self._analyze_dialog(dialog, 0)
                         dialog_info["is_circulation_dialog"] = True
                         logger.info(
-                            f"Found circulation completion dialog: {text_content[:50]}"
+                            "Found circulation completion dialog: %s", text_content[:50]
                         )
                         return dialog_info
 
             except Exception as e:
-                logger.debug(f"Error searching for circulation dialog: {e}")
+                logger.debug("Error searching for circulation dialog: %s", e)
 
             time.sleep(0.1)
 

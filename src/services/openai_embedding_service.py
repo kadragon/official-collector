@@ -83,7 +83,7 @@ class OpenAIEmbeddingService:
             "text-embedding-ada-002": 1536,
         }
 
-        logger.info(f"OpenAI 임베딩 서비스 초기화 완료 - 모델: {self.model}")
+        logger.info("OpenAI 임베딩 서비스 초기화 완료 - 모델: %s", self.model)
 
     def get_embedding_dimension(self) -> int:
         """현재 모델의 임베딩 차원 수 반환"""
@@ -121,26 +121,26 @@ class OpenAIEmbeddingService:
                     metadata=metadata or {},
                 )
 
-                logger.debug(f"임베딩 생성 완료: {identifier}, 토큰: {token_count}")
+                logger.debug("임베딩 생성 완료: %s, 토큰: %d", identifier, token_count)
                 return result
 
             except openai.RateLimitError as e:
                 wait_time = 2**attempt
                 logger.warning(
-                    f"Rate limit 초과, {wait_time}초 대기 중... (시도 {attempt + 1}/{self.max_retry})"
+                    "Rate limit 초과, %d초 대기 중... (시도 %d/%d)", wait_time, attempt + 1, self.max_retry
                 )
                 time.sleep(wait_time)
 
             except openai.APIError as e:
                 logger.error(
-                    f"OpenAI API 오류 (시도 {attempt + 1}/{self.max_retry}): {e}"
+                    "OpenAI API 오류 (시도 %d/%d): %s", attempt + 1, self.max_retry, e
                 )
                 if attempt == self.max_retry - 1:
                     raise
                 time.sleep(1)
 
             except Exception as e:
-                logger.error(f"임베딩 생성 중 예상치 못한 오류: {e}")
+                logger.error("임베딩 생성 중 예상치 못한 오류: %s", e)
                 if attempt == self.max_retry - 1:
                     raise
                 time.sleep(1)
@@ -259,7 +259,7 @@ class OpenAIEmbeddingService:
                     time.sleep(1)
 
                 except Exception as error:
-                    logger.error(f"Batch {batch_num} processing failed: {error}")
+                    logger.error("Batch %d processing failed: %s", batch_num, error)
                     for req, _ in valid_items:
                         individual_result = self.create_embedding(
                             req.text, req.identifier, req.metadata
@@ -373,7 +373,7 @@ class OpenAIEmbeddingService:
             )
             return True
         except Exception as e:
-            logger.error(f"API 키 검증 실패: {e}")
+            logger.error("API 키 검증 실패: %s", e)
             return False
 
     def get_supported_models(self) -> List[str]:
