@@ -45,6 +45,7 @@ class SupabaseService:
 
         logger.info("Supabase 클라이언트 초기화 완료")
 
+    @log_execution_time(logger)
     def retrieve_reception_by_title(
         self, title: str
     ) -> Tuple[Optional[str], Optional[str]]:
@@ -64,6 +65,7 @@ class SupabaseService:
             logger.error("접수 문서 제목 조회 실패: %s", e)
             return None, None
 
+    @log_execution_time(logger)
     def recommend_reception(self, title: str, count: int = 3) -> List[Dict[str, Any]]:
         """벡터 유사도 기반 접수 문서 추천"""
         try:
@@ -132,6 +134,7 @@ class SupabaseService:
             logger.error("접수 문서 추천 실패: %s", e)
             return []
 
+    @log_execution_time(logger)
     def retrieve_card_by_title(self, title: str) -> Optional[str]:
         """제목으로 업무카드 매핑 조회"""
         try:
@@ -148,6 +151,7 @@ class SupabaseService:
             logger.error("업무카드 제목 조회 실패: %s", e)
             return None
 
+    @log_execution_time(logger)
     def recommend_cards(self, title: str, count: int = 5) -> List[Dict[str, Any]]:
         """벡터 유사도 기반 업무카드 추천 (유사도 포함)"""
         try:
@@ -211,6 +215,7 @@ class SupabaseService:
             logger.error("업무카드 추천 실패: %s", e)
             return []
 
+    @log_execution_time(logger)
     def upsert_reception_embedding(
         self, title: str, handler: str, share_target: str
     ) -> bool:
@@ -242,6 +247,7 @@ class SupabaseService:
             logger.error("접수 문서 정규 매핑 실패: %s", e)
             return False
 
+    @log_execution_time(logger)
     def upsert_card_embedding(self, title: str, task_title: str) -> bool:
         """업무카드 정규 매핑 (선택적 업데이트)"""
         try:
@@ -268,6 +274,7 @@ class SupabaseService:
             logger.error("업무카드 정규 매핑 실패: %s", e)
             return False
 
+    @log_execution_time(logger)
     def get_document_count(self, table_type: str = "task_card") -> int:
         """문서 개수 조회"""
         try:
