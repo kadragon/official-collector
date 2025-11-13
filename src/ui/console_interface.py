@@ -11,6 +11,7 @@ from enum import Enum, auto
 from typing import List, Tuple, Optional
 import win32gui
 import win32con
+from rich.panel import Panel
 from utils.error_handler import setup_logger
 from ui.rich_console import RichConsole
 
@@ -31,7 +32,12 @@ def _logger() -> logging.Logger:
 
 
 class Colors:
-    """터미널 컬러 코드 (필수 색상만 유지)."""
+    """
+    터미널 컬러 코드 (deprecated).
+
+    Note: This class is deprecated. Rich library handles all color styling now.
+    Kept for backward compatibility only.
+    """
 
     RESET = "\033[0m"
     BOLD = "\033[1m"
@@ -47,7 +53,12 @@ class Colors:
 
 
 class Symbols:
-    """터미널 심볼 (필수만 유지)."""
+    """
+    터미널 심볼 (deprecated).
+
+    Note: This class is deprecated. Rich library uses Unicode symbols directly.
+    Kept for backward compatibility only.
+    """
 
     ARROW = "->"
     INFO = "[INFO]"
@@ -57,7 +68,12 @@ class Symbols:
 
 
 def get_display_width(text: str) -> int:
-    """Estimate printable width accounting for East Asian characters."""
+    """
+    Estimate printable width accounting for East Asian characters.
+
+    Note: This function is deprecated. Rich library handles CJK width automatically.
+    Kept for backward compatibility only.
+    """
     if not text:
         return 0
 
@@ -85,32 +101,21 @@ def clear_screen() -> None:
 
 
 def draw_separator(char: str = "-", width: int = 60, style: str = "simple") -> None:
-    """구분선을 그립니다."""
-    if style == "simple":
-        print(f"{Colors.DIM}{char * width}{Colors.RESET}")
-    elif style == "section":
-        print(f"{Colors.CYAN}{'-' * (width // 3)} * {'-' * (width // 3)}{Colors.RESET}")
-    elif style == "header":
-        print(f"{Colors.BOLD}{Colors.WHITE}{'=' * width}{Colors.RESET}")
-    else:
-        print(char * width)
+    """
+    구분선을 그립니다.
+
+    Note: This function is deprecated. Use RichConsole.print_separator() instead.
+    """
+    _rich_console.print_separator(length=width, char=char)
 
 
 def draw_header(title: str, width: int = 60) -> None:
-    """헤더를 그립니다."""
-    print()
-    print(f"{Colors.BOLD}{Colors.CYAN}{'+' + '-' * (width - 2) + '+'}{Colors.RESET}")
+    """
+    헤더를 그립니다.
 
-    # 제목 길이에 따른 중앙 정렬
-    title_display_width = get_display_width(title)
-    padding = (width - 2 - title_display_width) // 2
-    remaining = width - 2 - title_display_width - padding
-
-    print(
-        f"{Colors.BOLD}{Colors.CYAN}|{' ' * padding}{Colors.WHITE}{title}{Colors.CYAN}{' ' * remaining}|{Colors.RESET}"
-    )
-    print(f"{Colors.BOLD}{Colors.CYAN}{'+' + '-' * (width - 2) + '+'}{Colors.RESET}")
-    print()
+    Note: This function is deprecated. Use RichConsole.print_header() instead.
+    """
+    _rich_console.print_header(title, width=width)
 
 
 # ============================================================================
@@ -149,9 +154,13 @@ def print_document_info(title: str, doc_type: str = "문서") -> None:
 
 
 def print_numbered_list(
-    items: List[str], start_index: int = 1, highlight_color: str = Colors.CYAN
+    items: List[str], start_index: int = 1, highlight_color: str = ""
 ) -> None:
-    """번호가 매겨진 목록을 예쁘게 출력합니다."""
+    """
+    번호가 매겨진 목록을 예쁘게 출력합니다.
+
+    Note: highlight_color parameter is deprecated and ignored.
+    """
     _rich_console.print_numbered_list(items, start_index=start_index)
 
 
@@ -165,10 +174,15 @@ def print_selection_menu(
     _rich_console.print_selection_menu(title, items, allow_skip, skip_text)
 
 
-def get_styled_input(prompt: str, input_color: str = Colors.CYAN) -> str:
-    """스타일이 적용된 입력을 받습니다."""
+def get_styled_input(prompt: str, input_color: str = "") -> str:
+    """
+    스타일이 적용된 입력을 받습니다.
+
+    Note: input_color parameter is deprecated and ignored.
+    """
     try:
-        return input(f"{input_color}{Symbols.ARROW} {prompt}{Colors.RESET}")
+        # Use simple prompt without ANSI codes for better compatibility
+        return input(f"❯ {prompt}: ")
     except EOFError:
         print("\n프로그램을 종료합니다.")
         exit(0)
@@ -367,18 +381,21 @@ class ConsoleInterface:
         activate_cmd_window()
         clear_screen()
 
-        print()
-        print(f"{Colors.BOLD}{Colors.WHITE}+- 추천 확인 {'-' * 47}+{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.WHITE}|{' ' * 58}|{Colors.RESET}")
-        print()
-
-        print(f"  {Colors.DIM}공문 제목:{Colors.RESET} {title}")
-        print(
-            f"  {Colors.GREEN}추천 항목:{Colors.RESET} {Colors.BOLD}{recommended_task_title}{Colors.RESET}"
+        content = (
+            f"[dim]공문 제목:[/dim] {title}\n"
+            f"[green]추천 항목:[/green] [bold]{recommended_task_title}[/bold]"
         )
-        print()
+        panel = Panel(
+            content,
+            title="[bold white]추천 확인[/bold white]",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+        _rich_console.console.print()
+        _rich_console.console.print(panel)
+        _rich_console.console.print()
 
-        return confirm_choice("이 추천을 사용하시겠습니까?", default_yes=True)
+        return _rich_console.confirm("이 추천을 사용하시겠습니까?", default=True)
 
     def choose_from_predefined_list(
         self, title: str, card_list: List[str]
@@ -463,58 +480,24 @@ class ConsoleInterface:
         clear_screen()
 
         if not items:
-            _logger().info(f"삭제 가능한 {item_type}이 없습니다.")
-            print(f"삭제 가능한 {item_type}이 없습니다.")
-            input("엔터를 눌러 계속...")
+            _logger().info("삭제 가능한 %s이 없습니다.", item_type)
+            _rich_console.print_warning(f"삭제 가능한 {item_type}이 없습니다.")
+            self.wait_for_enter("엔터를 눌러 계속...")
             return []
 
-        _logger().info(f"저장된 {item_type} 목록 표시 ({len(items)}개)")
+        _logger().info("저장된 %s 목록 표시 (%d개)", item_type, len(items))
 
-        print(
-            f"\n{Colors.BOLD}{Colors.CYAN}+- 저장된 {item_type} 목록 {'-' * (40 - get_display_width(item_type))}+{Colors.RESET}"
-        )
-        print(f"{Colors.BOLD}{Colors.CYAN}|{' ' * 58}|{Colors.RESET}")
-        for i, item in enumerate(items, 1):
-            if item_type == "과제 카드":
-                if len(item) >= 3:
-                    title, task_title, registered_at = item[0], item[1], item[2]
-                    print(
-                        f"{Colors.CYAN}|{Colors.RESET} {i:2d}. {title} -> {task_title} [등록: {registered_at}]"
-                    )
-                else:
-                    title, task_title = item[0], item[1]
-                    print(
-                        f"{Colors.CYAN}|{Colors.RESET} {i:2d}. {title} -> {task_title}"
-                    )
-            else:  # 접수 문서
-                if len(item) >= 4:
-                    title, approval, share, registered_at = (
-                        item[0],
-                        item[1],
-                        item[2],
-                        item[3],
-                    )
-                    print(
-                        f"{Colors.CYAN}|{Colors.RESET} {i:2d}. {title} (담당: {approval}, 공람: {share}) [등록: {registered_at}]"
-                    )
-                else:
-                    title, approval, share = item[0], item[1], item[2]
-                    print(
-                        f"{Colors.CYAN}|{Colors.RESET} {i:2d}. {title} (담당: {approval}, 공람: {share})"
-                    )
+        # Use Rich Table for displaying items
+        _rich_console.print_deletion_items(items, item_type)
+        _rich_console.print_deletion_instructions()
 
-        print(f"{Colors.BOLD}{Colors.CYAN}+{'-' * 58}+{Colors.RESET}")
-
-        print(
-            f"\n{Colors.DIM}삭제할 항목 번호를 입력하세요 (여러 개는 쉼표로 구분, 전체 삭제는 'all', 취소는 'q'):{Colors.RESET}"
-        )
-        user_input = get_styled_input("선택: ").strip()
+        user_input = get_styled_input("선택").strip()
 
         if user_input.lower() == "q":
             return []
         elif user_input.lower() == "all":
-            if confirm_choice(
-                f"모든 {item_type}을 삭제하시겠습니까?", default_yes=False
+            if _rich_console.confirm(
+                f"모든 {item_type}을 삭제하시겠습니까?", default=False
             ):
                 return list(range(len(items)))
             else:
@@ -527,21 +510,20 @@ class ConsoleInterface:
                     if 0 <= num < len(items):
                         indices.append(num)
                     else:
-                        _logger().warning(f"잘못된 번호 입력: {num_str.strip()}")
-                        print(f"잘못된 번호: {num_str.strip()}")
+                        _logger().warning("잘못된 번호 입력: %s", num_str.strip())
+                        _rich_console.print_warning(f"잘못된 번호: {num_str.strip()}")
 
-                if indices and confirm_choice(
-                    f"선택한 {len(indices)}개 항목을 삭제하시겠습니까?",
-                    default_yes=False,
+                if indices and _rich_console.confirm_deletion(
+                    len(indices), item_type, default=False
                 ):
-                    _logger().info(f"{len(indices)}개 항목 삭제 확인됨")
+                    _logger().info("%d개 항목 삭제 확인됨", len(indices))
                     return indices
                 else:
                     return []
             except ValueError:
                 _logger().warning("사용자가 올바르지 않은 숫자 입력")
-                print("올바른 숫자를 입력해주세요.")
-                input("엔터를 눌러 계속...")
+                _rich_console.print_error("올바른 숫자를 입력해주세요.")
+                self.wait_for_enter("엔터를 눌러 계속...")
                 return []
 
     def get_title_for_deletion(self, item_type: str) -> Optional[str]:
@@ -549,20 +531,16 @@ class ConsoleInterface:
         activate_cmd_window()
         clear_screen()
 
-        _logger().info(f"{item_type} 개별 삭제 시작")
+        _logger().info("%s 개별 삭제 시작", item_type)
 
-        print(
-            f"\n{Colors.BOLD}{Colors.CYAN}+- {item_type} 개별 삭제 {'-' * (38 - get_display_width(item_type))}+{Colors.RESET}"
-        )
-        print(f"{Colors.BOLD}{Colors.CYAN}|{' ' * 58}|{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.CYAN}+{'-' * 58}+{Colors.RESET}")
+        _rich_console.print_deletion_header(item_type)
 
-        title = get_styled_input(f"삭제할 {item_type}의 제목을 입력하세요: ").strip()
+        title = get_styled_input(f"삭제할 {item_type}의 제목을 입력하세요").strip()
 
-        if title and confirm_choice(
-            f"'{title}' {item_type}을/를 삭제하시겠습니까?", default_yes=False
+        if title and _rich_console.confirm(
+            f"'{title}' {item_type}을/를 삭제하시겠습니까?", default=False
         ):
-            _logger().info(f"{item_type} 삭제 확인: {title}")
+            _logger().info("%s 삭제 확인: %s", item_type, title)
             return title
         return None
 
@@ -571,22 +549,7 @@ class ConsoleInterface:
         activate_cmd_window()
         clear_screen()
 
-        print(
-            f"\n{Colors.RED}╔═══════════════════════════════════════════╗{Colors.RESET}"
-        )
-        print(
-            f"{Colors.RED}║{Colors.BOLD}{Colors.WHITE}    ⚠️  일괄 삭제 경고    {Colors.RESET}{Colors.RED}║{Colors.RESET}"
-        )
-        print(
-            f"{Colors.RED}╚═══════════════════════════════════════════╝{Colors.RESET}"
-        )
-        print(f"{Colors.YELLOW}모든 과제 카드와 접수 문서가 삭제됩니다.{Colors.RESET}")
-        print(f"{Colors.YELLOW}이 작업은 되돌릴 수 없습니다.{Colors.RESET}")
-        print()
-
-        return confirm_choice(
-            "정말로 모든 데이터를 삭제하시겠습니까?", default_yes=False
-        )
+        return _rich_console.confirm_bulk_deletion()
 
     # ========================================================================
     # 기타 유틸리티 메서드
@@ -594,18 +557,10 @@ class ConsoleInterface:
 
     def print_final_result(self, success_count: int, total_count: int) -> None:
         """최종 처리 결과를 출력합니다."""
-        _logger().info(f"처리 완료 - 성공: {success_count}/{total_count}")
-
-        draw_header("처리 완료")
-
-        if success_count == total_count:
-            print_success(f"모든 문서 처리 완료: {success_count}/{total_count}")
-        else:
-            print_warning(f"일부 문서 처리 완료: {success_count}/{total_count}")
-            print_error(f"실패: {total_count - success_count}건")
-
-        print()
+        _logger().info("처리 완료 - 성공: %d/%d", success_count, total_count)
+        _rich_console.print_final_result(success_count, total_count)
 
     def wait_for_enter(self, message: str = "계속하려면 Enter를 누르세요...") -> None:
         """Enter 키 대기."""
-        input(f"\n{Colors.DIM}{message}{Colors.RESET}")
+        _rich_console.console.print(f"\n[dim]{message}[/dim]", end="")
+        input()

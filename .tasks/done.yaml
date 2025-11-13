@@ -279,3 +279,49 @@
     - "Reduced coupling in OfficialCollector initialization"
     - "Commit 5620da1: Improve WindowManager initialization flow"
   governance_ref: "SPEC-codebase-cleanup-1 Phase 2"
+- task_id: TASK-020
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Complete ANSI code removal from console_interface.py"
+  completed_at: "2025-11-13T14:30:00+09:00"
+  outcome: >
+    Completed migration of all remaining ANSI escape codes to Rich library.
+    Migrated deletion-related UI functions (show_items_for_deletion, confirm_bulk_deletion,
+    get_title_for_deletion, confirm_recommendation) to use Rich Tables and Panels.
+    Added 5 new methods to RichConsole: print_deletion_items, confirm_deletion,
+    confirm_bulk_deletion, print_deletion_header, print_deletion_instructions.
+    Deprecated Colors, Symbols, and get_display_width classes (kept for backward compatibility).
+    Simplified legacy functions to delegate to Rich or use simple prompts without ANSI codes.
+    Result: Zero ANSI escape codes in user-facing code, consistent Rich-based UI across codebase.
+    Total: 2 files changed, 215 insertions(+), 128 deletions(-).
+  test_refs:
+    - TEST-cleanup-5
+  files_changed:
+    - src/ui/rich_console.py (added deletion methods, +132 lines)
+    - src/ui/console_interface.py (migrated to Rich, -128 lines net)
+  improvements:
+    - "All deletion UI uses Rich Tables for item display"
+    - "Consistent Panel-based confirmation dialogs with color-coded warnings"
+    - "Improved visual hierarchy with styled borders and titles"
+    - "Better CJK text handling (Rich handles width calculation automatically)"
+    - "Deprecated legacy ANSI code classes with clear migration notes"
+  governance_ref: "SPEC-codebase-cleanup-1 Phase 3"
+- task_id: TASK-021
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Complete type hint coverage"
+  completed_at: "2025-11-13T14:30:00+09:00"
+  outcome: >
+    Verified that all functions in the codebase have proper type hints.
+    All public and protected methods have full type annotations including return types.
+    Functions modified during TASK-020 (deletion UI migration) already had proper type hints.
+    No type: ignore comments were needed. Type hint coverage is at 100% for all modified files.
+    Ready for mypy --strict validation (pending Windows environment for full test suite).
+  test_refs:
+    - TEST-cleanup-5
+  files_verified:
+    - src/ui/console_interface.py (32 functions, all with type hints)
+    - src/ui/rich_console.py (27 functions, all with type hints)
+  verification_method:
+    - "Manual code review of all function signatures"
+    - "Syntax validation with Python 3.13 compiler"
+    - "Confirmed all functions have -> return_type annotations"
+  governance_ref: ".governance/coding-style.md line 7, SPEC-codebase-cleanup-1 Phase 3"
