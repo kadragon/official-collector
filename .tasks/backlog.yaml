@@ -113,7 +113,7 @@
     - "performance_logger.py: 4 logger calls (lines 20, 25, 41, 90)"
     - "debug_manager.py: 11 logger calls (lines 95, 145, 150, 189, etc.)"
     - "dialog_classifier.py: 5 logger calls (lines 113, 116, 120, 155, 157)"
-    - "openai_embedding_service.py: 8 logger calls (lines 86, 124, 129-130, 135-136, 143, 262, 376)"
+    - "openai_embedding_service.py: 7 logger calls (lines 86, 124, 130, 136, 143, 262, 376)"
   test_refs:
     - TEST-cleanup-3
   acceptance_criteria:
