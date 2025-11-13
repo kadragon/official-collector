@@ -17,12 +17,12 @@ def log_execution_time(
             try:
                 result = func(*args, **kwargs)
                 elapsed_time = time.time() - start_time
-                logger.info(f"⏱️ {func_name} 완료 (소요시간: {elapsed_time:.3f}초)")
+                logger.info("⏱️ %s 완료 (소요시간: %.3f초)", func_name, elapsed_time)
                 return result
             except Exception as e:
                 elapsed_time = time.time() - start_time
                 logger.error(
-                    f"⏱️ {func_name} 실패 (소요시간: {elapsed_time:.3f}초) - {e}"
+                    "⏱️ %s 실패 (소요시간: %.3f초) - %s", func_name, elapsed_time, e
                 )
                 raise
 
@@ -38,7 +38,7 @@ def timer(logger: logging.Logger, operation_name: str) -> Any:
         yield
     finally:
         elapsed_time = time.time() - start_time
-        logger.info(f"⏱️ {operation_name} 완료 (소요시간: {elapsed_time:.3f}초)")
+        logger.info("⏱️ %s 완료 (소요시간: %.3f초)", operation_name, elapsed_time)
 
 
 class PerformanceTracker:
@@ -87,5 +87,5 @@ def tracked_timer(
         yield
     finally:
         elapsed_time = time.time() - start_time
-        logger.info(f"⏱️ {operation_name} 완료 (소요시간: {elapsed_time:.3f}초)")
+        logger.info("⏱️ %s 완료 (소요시간: %.3f초)", operation_name, elapsed_time)
         perf_tracker.record(operation_name, elapsed_time)

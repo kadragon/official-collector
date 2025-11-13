@@ -23,8 +23,12 @@ logger = logging.getLogger(__name__)
 class SupabaseService:
     """Supabase 데이터베이스 서비스"""
 
-    def __init__(self) -> None:
-        """Supabase 클라이언트 초기화"""
+    def __init__(self, embedding_service: OpenAIEmbeddingService) -> None:
+        """Supabase 클라이언트 초기화
+
+        Args:
+            embedding_service: OpenAI 임베딩 서비스 인스턴스 (의존성 주입)
+        """
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
 
@@ -33,14 +37,15 @@ class SupabaseService:
 
         self.client: Client = create_client(self.url, self.key)
 
-        # OpenAI 임베딩 서비스 초기화
-        self.embedding_service = OpenAIEmbeddingService()
+        # 주입받은 임베딩 서비스 사용
+        self.embedding_service = embedding_service
 
         # 벡터 유사도 임계값 설정
         self.similarity_threshold = get_vector_similarity_threshold()
 
-        logger.info("Supabase 클라이언트 및 OpenAI 임베딩 서비스 초기화 완료")
+        logger.info("Supabase 클라이언트 초기화 완료")
 
+    @log_execution_time(logger)
     def retrieve_reception_by_title(
         self, title: str
     ) -> Tuple[Optional[str], Optional[str]]:
@@ -60,6 +65,7 @@ class SupabaseService:
             logger.error("접수 문서 제목 조회 실패: %s", e)
             return None, None
 
+    @log_execution_time(logger)
     def recommend_reception(self, title: str, count: int = 3) -> List[Dict[str, Any]]:
         """벡터 유사도 기반 접수 문서 추천"""
         try:
@@ -128,6 +134,7 @@ class SupabaseService:
             logger.error("접수 문서 추천 실패: %s", e)
             return []
 
+    @log_execution_time(logger)
     def retrieve_card_by_title(self, title: str) -> Optional[str]:
         """제목으로 업무카드 매핑 조회"""
         try:
@@ -144,6 +151,7 @@ class SupabaseService:
             logger.error("업무카드 제목 조회 실패: %s", e)
             return None
 
+    @log_execution_time(logger)
     def recommend_cards(self, title: str, count: int = 5) -> List[Dict[str, Any]]:
         """벡터 유사도 기반 업무카드 추천 (유사도 포함)"""
         try:
@@ -207,6 +215,7 @@ class SupabaseService:
             logger.error("업무카드 추천 실패: %s", e)
             return []
 
+    @log_execution_time(logger)
     def upsert_reception_embedding(
         self, title: str, handler: str, share_target: str
     ) -> bool:
@@ -238,6 +247,7 @@ class SupabaseService:
             logger.error("접수 문서 정규 매핑 실패: %s", e)
             return False
 
+    @log_execution_time(logger)
     def upsert_card_embedding(self, title: str, task_title: str) -> bool:
         """업무카드 정규 매핑 (선택적 업데이트)"""
         try:
@@ -264,6 +274,7 @@ class SupabaseService:
             logger.error("업무카드 정규 매핑 실패: %s", e)
             return False
 
+    @log_execution_time(logger)
     def get_document_count(self, table_type: str = "task_card") -> int:
         """문서 개수 조회"""
         try:
@@ -318,7 +329,7 @@ class SupabaseService:
             logger.error("데이터 삭제 실패: %s", e)
             return False
 
-    # 삭제 인터페이스용 메서드들 (기존 ChromaService 호환성)
+    # 삭제 인터페이스용 메서드들
     def list_all_cards(
         self, limit: int = 1000, offset: int = 0
     ) -> List[Tuple[str, str, str]]:

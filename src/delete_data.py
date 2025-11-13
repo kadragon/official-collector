@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Chroma에 저장된 분류된 문서와 과제카드 데이터를 삭제하는 독립 실행 스크립트
+Supabase에 저장된 분류된 문서와 과제카드 데이터를 삭제하는 독립 실행 스크립트
 """
 
 import sys
@@ -27,10 +27,10 @@ def main() -> None:
 
     try:
         logger = setup_logger(__name__)
-        logger.info("Chroma 데이터 삭제 도구 시작")
+        logger.info("Supabase 데이터 삭제 도구 시작")
 
         console.clear()
-        console.print_header("Chroma 데이터 삭제 도구")
+        console.print_header("Supabase 데이터 삭제 도구")
         console.print_info(
             "이 도구를 사용하여 분류된 문서와 과제카드 데이터를 삭제할 수 있습니다."
         )

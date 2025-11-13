@@ -94,9 +94,7 @@ class MockEnvironment:
     """Mocked environment variables for testing."""
 
     def __init__(self) -> None:
-        self.variables: Dict[str, str] = {
-            "CHROMA_PERSIST_DIR": "./.test_chroma_db",
-        }
+        self.variables: Dict[str, str] = {}
 
     def set_variable(self, key: str, value: str) -> None:
         """Set environment variable."""

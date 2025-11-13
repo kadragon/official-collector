@@ -76,14 +76,13 @@ def fixture_supabase_service(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "fake-openai-key")
 
     fake_client = FakeClient()
-    monkeypatch.setattr(supabase_module, "create_client", lambda url, key: fake_client)
-    monkeypatch.setattr(
-        supabase_module, "OpenAIEmbeddingService", lambda: FakeEmbeddingService()
-    )
+    fake_embedding_service = FakeEmbeddingService()
 
-    service = SupabaseService()
+    monkeypatch.setattr(supabase_module, "create_client", lambda url, key: fake_client)
+
+    # 의존성 주입: embedding_service를 생성자에 전달
+    service = SupabaseService(fake_embedding_service)
     service.client = fake_client
-    service.embedding_service = FakeEmbeddingService()
     return service
 
 

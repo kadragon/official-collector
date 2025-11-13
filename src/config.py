@@ -16,14 +16,11 @@ from utils.error_handler import setup_logger
 logger = setup_logger(__name__)
 
 
-DEFAULT_CHROMA_DIR = "./.chroma_db"
-
-
 class UnifiedConfig:
     """Unified configuration loader with legacy compatibility."""
 
     REQUIRED_ENV_VARS: List[str] = []
-    OPTIONAL_PATH_VARS = {"CHROMA_PERSIST_DIR": DEFAULT_CHROMA_DIR}
+    OPTIONAL_PATH_VARS: Dict[str, str] = {}
     SUPABASE_VARS = [
         "OPENAI_API_KEY",
         "SUPABASE_URL",
@@ -84,20 +81,18 @@ class UnifiedConfig:
     def get_config_summary(self) -> Dict[str, Any]:
         """Return configuration summary (human readable)."""
         return {
-            "chroma_persist_dir": self.chroma_persist_dir,
-            "reception_count": len(self.reception_list),
-            "share_count": len(self.share_list),
-            "task_card_count": len(self.task_card_list),
+            "reception_count": len(self._reception_list),
+            "share_count": len(self._share_list),
+            "task_card_count": len(self._task_card_list),
             "supabase_url": self.supabase_url,
         }
 
     def get_debug_summary(self) -> Dict[str, Any]:
         """Return a lightweight diagnostic summary."""
         return {
-            "chroma_persist_dir": self.chroma_persist_dir,
-            "reception_count": len(self.reception_list),
-            "share_count": len(self.share_list),
-            "task_card_count": len(self.task_card_list),
+            "reception_count": len(self._reception_list),
+            "share_count": len(self._share_list),
+            "task_card_count": len(self._task_card_list),
             "supabase_configured": bool(self.supabase_url and self.supabase_key),
         }
 
@@ -120,10 +115,7 @@ class UnifiedConfig:
                 raise ValueError(message)
             logger.warning("%s - using fallback configuration values", message)
 
-        chroma_env = self._env_value("CHROMA_PERSIST_DIR")
-        self.chroma_persist_dir = chroma_env or DEFAULT_CHROMA_DIR
-
-        # New Supabase/OpenAI settings (optional – do not raise if missing)
+        # Supabase/OpenAI settings (optional – do not raise if missing)
         self.openai_api_key = self._env_value("OPENAI_API_KEY")
         self.supabase_url = self._env_value("SUPABASE_URL")
         self.supabase_key = self._env_value("SUPABASE_KEY")
@@ -140,10 +132,6 @@ class UnifiedConfig:
 
         for path in (self.data_dir, self.logs_dir, self.cache_dir):
             path.mkdir(parents=True, exist_ok=True)
-
-        chroma_path = Path(self.chroma_persist_dir).expanduser()
-        chroma_path.mkdir(parents=True, exist_ok=True)
-        self.chroma_persist_path = chroma_path.resolve()
 
     def _env_value(self, key: str) -> Optional[str]:
         value = os.environ.get(key)
@@ -170,21 +158,21 @@ class UnifiedConfig:
                 )
                 data = {}
 
-        self.reception_list = self._load_list(
+        self._reception_list = self._load_list(
             data.get("reception_list"), self.data_dir / "reception_list.txt"
         )
-        self.share_list = self._load_list(
+        self._share_list = self._load_list(
             data.get("share_list"), self.data_dir / "share_list.txt"
         )
-        self.task_card_list = self._load_list(
+        self._task_card_list = self._load_list(
             data.get("task_card_list"), self.data_dir / "card_list.txt"
         )
 
         logger.info(
             "Base data loaded (cards=%d, receptions=%d, shares=%d)",
-            len(self.task_card_list),
-            len(self.reception_list),
-            len(self.share_list),
+            len(self._task_card_list),
+            len(self._reception_list),
+            len(self._share_list),
         )
 
     def _load_list(
@@ -229,9 +217,9 @@ class UnifiedConfig:
     def _validate_lists(self) -> bool:
         """Ensure the loaded lists are iterable collections of strings."""
         list_candidates: Dict[str, Any] = {
-            "reception_list": self.reception_list,
-            "share_list": self.share_list,
-            "task_card_list": self.task_card_list,
+            "reception_list": self._reception_list,
+            "share_list": self._share_list,
+            "task_card_list": self._task_card_list,
         }
 
         for name, values in list_candidates.items():
@@ -244,16 +232,37 @@ class UnifiedConfig:
         return True
 
     # ------------------------------------------------------------------ #
+    # Public properties (immutable - return copies)
+    # ------------------------------------------------------------------ #
+
+    @property
+    def reception_list(self) -> List[str]:
+        """Return a copy of the reception list to ensure immutability."""
+        return self._reception_list.copy()
+
+    @property
+    def share_list(self) -> List[str]:
+        """Return a copy of the share list to ensure immutability."""
+        return self._share_list.copy()
+
+    @property
+    def task_card_list(self) -> List[str]:
+        """Return a copy of the task card list to ensure immutability."""
+        return self._task_card_list.copy()
+
+    # ------------------------------------------------------------------ #
     # Legacy compatibility aliases
     # ------------------------------------------------------------------ #
 
     @property
     def card_list(self) -> List[str]:
+        """Legacy alias for task_card_list."""
         return self.task_card_list
 
     @card_list.setter
     def card_list(self, values: List[str]) -> None:
-        self.task_card_list = list(values) if values is not None else []
+        """Legacy setter for backward compatibility."""
+        self._task_card_list = list(values) if values is not None else []
 
 
 # ---------------------------------------------------------------------- #
