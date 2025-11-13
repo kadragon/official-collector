@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from .openai_embedding_service import OpenAIEmbeddingService
 from utils.performance_logger import log_execution_time, timer
 from utils.config_manager import get_vector_similarity_threshold
+from utils.audit_logger import get_audit_logger, AuditResource
+from utils.monitoring_hooks import get_monitoring_hooks
 
 # 환경변수 로드
 load_dotenv()
@@ -220,6 +222,10 @@ class SupabaseService:
         self, title: str, handler: str, share_target: str
     ) -> bool:
         """접수 문서 정규 매핑 (선택적 업데이트)"""
+        audit = get_audit_logger()
+        monitoring = get_monitoring_hooks()
+        start_time = datetime.now()
+
         try:
             embedding_response = self.embedding_service.create_embedding(
                 title, f"reception_{title}"
@@ -239,17 +245,66 @@ class SupabaseService:
                 .upsert(data, on_conflict="title")
                 .execute()
             )
+
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+
             logger.info(
                 "접수 문서 정규 매핑: %s -> %s/%s", title, handler, share_target
             )
+
+            # Audit log
+            audit.log_update(
+                resource=AuditResource.RECEPTION_DOCUMENT,
+                resource_id=title,
+                status="success",
+                details={
+                    "handler": handler,
+                    "share_target": share_target,
+                    "has_embedding": embedding is not None,
+                },
+                duration_ms=duration_ms,
+            )
+
+            # Monitoring
+            monitoring.record_api_call(
+                service="supabase",
+                success=True,
+                response_time_ms=duration_ms,
+            )
+
             return True
         except Exception as e:
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+            error_msg = str(e)
+
             logger.error("접수 문서 정규 매핑 실패: %s", e)
+
+            # Audit log failure
+            audit.log_update(
+                resource=AuditResource.RECEPTION_DOCUMENT,
+                resource_id=title,
+                status="failure",
+                error_message=error_msg,
+                details={"handler": handler, "share_target": share_target},
+                duration_ms=duration_ms,
+            )
+
+            # Monitoring
+            monitoring.record_database_error(
+                operation="upsert_reception_embedding",
+                error_message=error_msg,
+                details={"title": title},
+            )
+
             return False
 
     @log_execution_time(logger)
     def upsert_card_embedding(self, title: str, task_title: str) -> bool:
         """업무카드 정규 매핑 (선택적 업데이트)"""
+        audit = get_audit_logger()
+        monitoring = get_monitoring_hooks()
+        start_time = datetime.now()
+
         try:
             embedding_response = self.embedding_service.create_embedding(
                 title, f"task_card_{title}"
@@ -268,10 +323,54 @@ class SupabaseService:
                 .upsert(data, on_conflict="title")
                 .execute()
             )
+
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+
             logger.info("업무카드 정규 매핑: %s -> %s", title, task_title)
+
+            # Audit log
+            audit.log_update(
+                resource=AuditResource.TASK_CARD,
+                resource_id=title,
+                status="success",
+                details={
+                    "task_title": task_title,
+                    "has_embedding": embedding is not None,
+                },
+                duration_ms=duration_ms,
+            )
+
+            # Monitoring
+            monitoring.record_api_call(
+                service="supabase",
+                success=True,
+                response_time_ms=duration_ms,
+            )
+
             return True
         except Exception as e:
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+            error_msg = str(e)
+
             logger.error("업무카드 정규 매핑 실패: %s", e)
+
+            # Audit log failure
+            audit.log_update(
+                resource=AuditResource.TASK_CARD,
+                resource_id=title,
+                status="failure",
+                error_message=error_msg,
+                details={"task_title": task_title},
+                duration_ms=duration_ms,
+            )
+
+            # Monitoring
+            monitoring.record_database_error(
+                operation="upsert_card_embedding",
+                error_message=error_msg,
+                details={"title": title},
+            )
+
             return False
 
     @log_execution_time(logger)
@@ -315,18 +414,56 @@ class SupabaseService:
 
     def clear_all_data(self) -> bool:
         """모든 데이터 삭제 (개발/테스트용)"""
+        audit = get_audit_logger()
+        start_time = datetime.now()
+
         # 프로덕션 환경에서는 데이터 삭제 금지
         if os.getenv("ENVIRONMENT", "development") == "production":
             logger.error("프로덕션 환경에서는 데이터 삭제를 수행할 수 없습니다")
+            audit.log_delete(
+                resource=AuditResource.SUPABASE,
+                resource_id="all_data",
+                status="failure",
+                error_message="Production environment deletion blocked",
+            )
             return False
 
         try:
             self.client.table("task_card_mappings").delete().neq("id", "").execute()
             self.client.table("reception_mappings").delete().neq("id", "").execute()
+
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+
             logger.warning("모든 데이터 삭제 완료")
+
+            # Audit log (CRITICAL: data deletion)
+            audit.log_delete(
+                resource=AuditResource.SUPABASE,
+                resource_id="all_data",
+                status="success",
+                details={
+                    "tables": ["task_card_mappings", "reception_mappings"],
+                    "environment": os.getenv("ENVIRONMENT", "development"),
+                },
+                duration_ms=duration_ms,
+            )
+
             return True
         except Exception as e:
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+            error_msg = str(e)
+
             logger.error("데이터 삭제 실패: %s", e)
+
+            # Audit log failure
+            audit.log_delete(
+                resource=AuditResource.SUPABASE,
+                resource_id="all_data",
+                status="failure",
+                error_message=error_msg,
+                duration_ms=duration_ms,
+            )
+
             return False
 
     # 삭제 인터페이스용 메서드들

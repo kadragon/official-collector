@@ -16,6 +16,9 @@ from dotenv import load_dotenv
 from config import OpenAIPricingConfig
 from utils.performance_logger import log_execution_time
 from utils.config_manager import get_openai_embedding_price
+from utils.audit_logger import get_audit_logger, AuditResource
+from utils.monitoring_hooks import get_monitoring_hooks
+from utils.quota_manager import get_quota_manager
 
 # 환경변수 로드
 load_dotenv()
@@ -102,6 +105,27 @@ class OpenAIEmbeddingService:
             logger.warning("빈 텍스트에 대한 임베딩 요청")
             return None
 
+        # Get monitoring and quota managers
+        monitoring = get_monitoring_hooks()
+        quota = get_quota_manager()
+        audit = get_audit_logger()
+
+        # Check quota before making request
+        estimated_tokens = len(text) // OpenAIPricingConfig.CHARS_PER_TOKEN
+        can_proceed, quota_reason = quota.can_make_request(estimated_tokens)
+        if not can_proceed:
+            logger.error("Quota check failed: %s", quota_reason)
+            audit.log_api_call(
+                resource=AuditResource.OPENAI,
+                endpoint="embeddings.create",
+                status="failure",
+                error_message=f"Quota exceeded: {quota_reason}",
+                details={"text_length": len(text), "estimated_tokens": estimated_tokens},
+            )
+            return None
+
+        start_time = time.time()
+
         for attempt in range(self.max_retry):
             try:
                 response = self.client.embeddings.create(
@@ -110,9 +134,34 @@ class OpenAIEmbeddingService:
 
                 embedding_data = response.data[0]
                 token_count = response.usage.total_tokens
+                response_time_ms = (time.time() - start_time) * 1000
 
                 # 비용 추적
                 self.cost_tracker.add_request(token_count)
+
+                # Record quota usage
+                quota.record_api_usage(token_count)
+
+                # Record monitoring metrics
+                monitoring.record_api_call(
+                    service="openai",
+                    success=True,
+                    response_time_ms=response_time_ms,
+                )
+
+                # Audit log
+                audit.log_api_call(
+                    resource=AuditResource.OPENAI,
+                    endpoint="embeddings.create",
+                    status="success",
+                    details={
+                        "model": self.model,
+                        "token_count": token_count,
+                        "text_length": len(text),
+                        "identifier": identifier,
+                    },
+                    duration_ms=response_time_ms,
+                )
 
                 result = EmbeddingResponse(
                     identifier=identifier or f"embed_{int(time.time())}",
@@ -130,18 +179,39 @@ class OpenAIEmbeddingService:
                 logger.warning(
                     "Rate limit 초과, %d초 대기 중... (시도 %d/%d)", wait_time, attempt + 1, self.max_retry
                 )
+
+                # Record rate limit event
+                monitoring.record_rate_limit("openai", retry_after=wait_time)
+
                 time.sleep(wait_time)
 
-            except openai.APIError as e:
+            except (openai.APIError, Exception) as e:
+                response_time_ms = (time.time() - start_time) * 1000
+                error_msg = str(e)
+                status = "failure" if isinstance(e, openai.APIError) else "error"
+
                 logger.error(
                     "OpenAI API 오류 (시도 %d/%d): %s", attempt + 1, self.max_retry, e
                 )
-                if attempt == self.max_retry - 1:
-                    raise
-                time.sleep(1)
 
-            except Exception as e:
-                logger.error("임베딩 생성 중 예상치 못한 오류: %s", e)
+                # Record monitoring metrics for failure
+                monitoring.record_api_call(
+                    service="openai",
+                    success=False,
+                    response_time_ms=response_time_ms,
+                    error_message=error_msg,
+                )
+
+                # Audit log failure/error
+                audit.log_api_call(
+                    resource=AuditResource.OPENAI,
+                    endpoint="embeddings.create",
+                    status=status,
+                    error_message=error_msg,
+                    details={"attempt": attempt + 1, "max_retry": self.max_retry},
+                    duration_ms=response_time_ms,
+                )
+
                 if attempt == self.max_retry - 1:
                     raise
                 time.sleep(1)

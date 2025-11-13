@@ -15,6 +15,9 @@ from services.openai_embedding_service import OpenAIEmbeddingService
 from services.document_processor import DocumentProcessor
 from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
+from utils.audit_logger import init_audit_logger
+from utils.monitoring_hooks import init_monitoring_hooks
+from utils.quota_manager import init_quota_manager
 from ui.console_interface import (
     ConsoleInterface,
     draw_header,
@@ -29,6 +32,20 @@ from ui.console_interface import (
 )
 
 logger = setup_logger(__name__)
+
+# Initialize deployment readiness systems (TASK-002)
+audit_logger = init_audit_logger(log_to_file=True)
+monitoring_hooks = init_monitoring_hooks(
+    performance_threshold_ms=5000.0,
+    error_rate_threshold=0.1,
+    consecutive_failure_threshold=3,
+)
+quota_manager = init_quota_manager(enable_enforcement=True)
+
+logger.info("Deployment readiness systems initialized")
+logger.info("- Audit logging: enabled (./logs/audit/)")
+logger.info("- Monitoring hooks: enabled")
+logger.info("- Quota management: enabled")
 
 
 class Main:
