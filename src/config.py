@@ -65,6 +65,18 @@ class OpenAIPricingConfig:
     CHARS_PER_TOKEN = 4
 
 
+class VectorConfig:
+    """Centralized vector similarity and embedding configuration."""
+
+    # Default similarity threshold for recommendation filtering (0.0 to 1.0)
+    # Lower values = more strict matching, higher values = more lenient matching
+    DEFAULT_SIMILARITY_THRESHOLD = 0.3
+
+    # Similarity threshold bounds for validation
+    MIN_SIMILARITY_THRESHOLD = 0.0
+    MAX_SIMILARITY_THRESHOLD = 1.0
+
+
 class UIConfig:
     """Centralized UI configuration for dialog patterns and window titles."""
 
@@ -155,6 +167,68 @@ class UnifiedConfig:
 
         logger.debug("Supabase 자격증명 검증: %s", is_valid)
         return is_valid
+
+    def get_vector_similarity_threshold(self) -> float:
+        """
+        Get the vector similarity threshold for recommendation filtering.
+
+        Reads from VECTOR_SIMILARITY_THRESHOLD environment variable, falls back to default.
+        Validates that the threshold is within acceptable bounds (0.0 to 1.0).
+
+        Returns:
+            float: Similarity threshold (0.0 to 1.0), defaults to 0.3
+
+        Raises:
+            ValueError: If threshold is outside valid range
+        """
+        threshold_str = self._env_value("VECTOR_SIMILARITY_THRESHOLD")
+        if threshold_str is None:
+            return VectorConfig.DEFAULT_SIMILARITY_THRESHOLD
+
+        try:
+            threshold = float(threshold_str)
+            if not (
+                VectorConfig.MIN_SIMILARITY_THRESHOLD
+                <= threshold
+                <= VectorConfig.MAX_SIMILARITY_THRESHOLD
+            ):
+                logger.warning(
+                    "벡터 유사도 임계값 범위 초과 (%s), 기본값 사용 (%.1f)",
+                    threshold,
+                    VectorConfig.DEFAULT_SIMILARITY_THRESHOLD,
+                )
+                return VectorConfig.DEFAULT_SIMILARITY_THRESHOLD
+            return threshold
+        except ValueError:
+            logger.warning(
+                "벡터 유사도 임계값 설정 오류, 기본값 사용 (%.1f)",
+                VectorConfig.DEFAULT_SIMILARITY_THRESHOLD,
+            )
+            return VectorConfig.DEFAULT_SIMILARITY_THRESHOLD
+
+    def allow_destructive_operations(self) -> bool:
+        """
+        Check if destructive operations (delete_all, etc.) are allowed.
+
+        Destructive operations are blocked in production environments unless
+        explicitly enabled via ALLOW_DESTRUCTIVE_OPERATIONS=true.
+
+        Returns:
+            bool: True if destructive operations are allowed, False otherwise
+        """
+        # Block in production unless explicitly allowed
+        environment = self._env_value("ENVIRONMENT")
+        if environment == "production":
+            allow_flag = self._env_value("ALLOW_DESTRUCTIVE_OPERATIONS")
+            is_allowed = allow_flag is not None and allow_flag.lower() == "true"
+            if not is_allowed:
+                logger.debug(
+                    "Destructive operations blocked in production environment"
+                )
+            return is_allowed
+
+        # Allow in development/test by default
+        return True
 
     def get_config_summary(self) -> Dict[str, Any]:
         """Return configuration summary (human readable)."""

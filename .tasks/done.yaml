@@ -408,3 +408,38 @@
     - "dialog_handler.py:529 - handle_approval_result"
     - "dialog_handler.py:436 - handle_reception_result"
   governance_ref: "SPEC-performance-observability-1, patterns.md line 16"
+- task_id: TASK-004
+  spec_id: SPEC-supabase-migration-1
+  title: "Harden configuration validation and vector thresholds"
+  completed_at: "2025-11-13T17:00:00+09:00"
+  outcome: >
+    Hardened configuration management by centralizing vector thresholds and adding
+    explicit destructive operation gating. Created VectorConfig class in config.py with
+    DEFAULT_SIMILARITY_THRESHOLD (0.3), MIN/MAX bounds for validation. Added
+    get_vector_similarity_threshold() method to UnifiedConfig with environment variable
+    support and validation. Implemented allow_destructive_operations() method that blocks
+    delete_all operations in production unless ALLOW_DESTRUCTIVE_OPERATIONS=true is set.
+    Updated SupabaseService to use config.get_vector_similarity_threshold() instead of
+    config_manager.py. Replaced hard-coded ENVIRONMENT checks in delete_all_cards() and
+    delete_all_receptions() with config.allow_destructive_operations(). Marked config_manager.py
+    functions as deprecated with migration guidance. Supabase credential validation already
+    existed in validate_supabase_credentials(). OpenAI pricing already centralized in
+    OpenAIPricingConfig. Total: 3 files changed, improved security and maintainability.
+  test_refs:
+    - TEST-supabase-3
+  files_changed:
+    - src/config.py (added VectorConfig class, 2 new methods, +78 lines)
+    - src/services/supabase_service.py (use config methods, -2 hard-coded checks, +6 lines)
+    - src/utils/config_manager.py (deprecation warnings, +14 lines)
+  features_implemented:
+    - "VectorConfig class with DEFAULT_SIMILARITY_THRESHOLD=0.3 and bounds"
+    - "get_vector_similarity_threshold(): Environment-aware threshold with validation"
+    - "allow_destructive_operations(): Production-safe operation gating"
+    - "Destructive ops blocked in production unless ALLOW_DESTRUCTIVE_OPERATIONS=true"
+    - "Migration from config_manager.py to config.UnifiedConfig"
+    - "Deprecation warnings for legacy config_manager functions"
+  security_improvements:
+    - "Explicit ALLOW_DESTRUCTIVE_OPERATIONS flag prevents accidental deletions"
+    - "Centralized configuration reduces scattered hard-coded values"
+    - "Validation ensures thresholds stay within safe bounds (0.0-1.0)"
+  governance_ref: "SPEC-supabase-migration-1, env.yaml, TEST-supabase-3"

@@ -1,42 +1,35 @@
 """
 Configuration manager for centralized settings management
 Provides helper functions to access configuration values
+
+DEPRECATED: This module is being phased out. Use config.UnifiedConfig instead.
 """
 
 import os
 import logging
-from config import OpenAIPricingConfig
+import warnings
+from config import OpenAIPricingConfig, get_config
 
 logger = logging.getLogger(__name__)
-
-# Vector similarity threshold for recommendation filtering
-DEFAULT_VECTOR_SIMILARITY_THRESHOLD = 0.3
 
 
 def get_vector_similarity_threshold() -> float:
     """
     Get the vector similarity threshold for recommendation filtering.
 
+    .. deprecated:: 2025-11-13
+        Use `config.UnifiedConfig.get_vector_similarity_threshold()` instead.
+
     Returns:
         float: Similarity threshold (0.0 to 1.0), defaults to 0.3
     """
-    try:
-        threshold_str = os.getenv(
-            "VECTOR_SIMILARITY_THRESHOLD", str(DEFAULT_VECTOR_SIMILARITY_THRESHOLD)
-        )
-        threshold = float(threshold_str)
-
-        if not 0.0 <= threshold <= 1.0:
-            logger.warning("벡터 유사도 임계값 범위 초과 (%f), 기본값 사용", threshold)
-            return DEFAULT_VECTOR_SIMILARITY_THRESHOLD
-
-        return threshold
-    except ValueError:
-        logger.warning(
-            "벡터 유사도 임계값 설정 오류, 기본값 사용 (%.1f)",
-            DEFAULT_VECTOR_SIMILARITY_THRESHOLD,
-        )
-        return DEFAULT_VECTOR_SIMILARITY_THRESHOLD
+    warnings.warn(
+        "get_vector_similarity_threshold() is deprecated. "
+        "Use config.UnifiedConfig.get_vector_similarity_threshold() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return get_config().get_vector_similarity_threshold()
 
 
 def get_openai_embedding_price() -> float:
@@ -70,6 +63,9 @@ def is_production_environment() -> bool:
     """
     Check if the application is running in production environment.
 
+    .. deprecated:: 2025-11-13
+        Use `config.UnifiedConfig.allow_destructive_operations()` for operation gating.
+
     Returns:
         bool: True if ENVIRONMENT=production, False otherwise
     """
@@ -79,6 +75,9 @@ def is_production_environment() -> bool:
 def is_development_environment() -> bool:
     """
     Check if the application is running in development environment.
+
+    .. deprecated:: 2025-11-13
+        Use `config.UnifiedConfig.allow_destructive_operations()` for operation gating.
 
     Returns:
         bool: True if ENVIRONMENT=development or not set, False otherwise
