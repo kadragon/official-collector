@@ -20,28 +20,30 @@ logger = setup_logger(__name__)
 class WindowManager:
     """Manages window connections and state for the official document automation system."""
 
-    def __init__(self, app: Any, dlg: Any) -> None:
+    def __init__(self, app: Any) -> None:
         """
         Initialize the WindowManager.
 
         Args:
             app: pywinauto Application instance
-            dlg: Main dialog window reference
         """
         self.app = app
-        self.dlg = dlg
+        self.dlg: Any = None
 
     @handle_connection_error("공문 처리기 연결", logger)
     def connect_to_window(
         self, max_attempts: int = 10, wait_time: int = 2, debug_mode: bool = False
-    ) -> None:
+    ) -> Any:
         """
-        접수 또는 전자결재 창에 연결을 시도합니다.
+        접수 또는 전자결재 창에 연결을 시도하고 창 객체를 반환합니다.
 
         Args:
             max_attempts (int): 최대 시도 횟수.
             wait_time (int): 각 시도 사이의 대기 시간 (초).
             debug_mode (bool): 디버그 모드 - 창 목록 상세 로깅 여부.
+
+        Returns:
+            Any: 연결된 최상위 창 객체.
 
         Raises:
             PyWinAutoTimeoutError: 지정된 창을 찾지 못한 경우.
@@ -90,7 +92,7 @@ class WindowManager:
                         display_name,
                     )
                     # 창이 연결되었으므로 계속 진행
-                return
+                return self.dlg
             except (ElementNotFoundError, PyWinAutoTimeoutError) as e:
                 logger.warning("%s 창 연결 실패: %s", display_name, e)
                 continue

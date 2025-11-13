@@ -35,17 +35,11 @@ class OfficialCollector:
         OfficialCollector 인스턴스를 초기화하고, 지정된 창에 연결을 시도합니다.
         """
         self.app: Any = Application(backend="uia")
-        self.dlg: Any = None
         self.dialog_classifier = DialogClassifier()
 
-        # Initialize modular components
-        self.window_manager = WindowManager(self.app, self.dlg)
-        self.button_controller: Optional[ButtonController] = None
-        self.dialog_handler: Optional[DialogHandler] = None
-
-        # Connect to window and update references
-        self.window_manager.connect_to_window(debug_mode=True)
-        self.dlg = self.window_manager.dlg
+        # Initialize WindowManager and connect to window
+        self.window_manager = WindowManager(self.app)
+        self.dlg = self.window_manager.connect_to_window(debug_mode=True)
 
         # Initialize components that depend on dlg
         self.button_controller = ButtonController(self.dlg)
