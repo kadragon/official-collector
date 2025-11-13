@@ -151,40 +151,6 @@
 # ================================================================
 # Phase 2: Structural Refactoring (Medium Priority)
 # ================================================================
-- task_id: TASK-016
-  spec_id: SPEC-codebase-cleanup-1
-  title: "Refactor official_service.py into modular files"
-  status: pending
-  priority: 2
-  estimated_hours: 8
-  description: >
-    Split the 1047-line official_service.py into 4 focused modules following single
-    responsibility principle. This is the largest refactoring task requiring careful
-    import management and comprehensive testing.
-  proposed_structure:
-    - "services/official_service.py: Main orchestrator (~300 lines)"
-    - "services/dialog_handler.py: Dialog analysis and handling (~200 lines)"
-    - "services/button_controller.py: Button click logic (~150 lines)"
-    - "services/window_manager.py: Window connection/focus (~200 lines)"
-  changes_required:
-    - "Create new service files with appropriate classes"
-    - "Move methods to respective modules"
-    - "Update imports across entire codebase"
-    - "Refactor tests to match new structure"
-    - "Update __init__.py exports"
-  test_refs:
-    - TEST-cleanup-5
-  acceptance_criteria:
-    - "official_service.py < 350 lines"
-    - "Each new file < 250 lines"
-    - "All integration tests pass"
-    - "pytest coverage >= 90%"
-    - "No circular dependencies"
-  blocked_by:
-    - TASK-017
-  notes:
-    - "Most complex refactoring task - consider doing last in Phase 2"
-    - "May need to split into sub-tasks"
 
 # ================================================================
 # Phase 3: Quality Improvements (Low Priority)

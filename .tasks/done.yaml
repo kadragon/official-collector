@@ -241,3 +241,35 @@
     - src/utils/config_manager.py (use OpenAIPricingConfig)
     - src/services/openai_embedding_service.py (use OpenAIPricingConfig)
   governance_ref: ".governance/coding-style.md line 9"
+- task_id: TASK-016
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Refactor official_service.py into modular files"
+  completed_at: "2025-11-13T06:00:00+09:00"
+  outcome: >
+    Successfully split the 995-line official_service.py into 4 focused modules following
+    single responsibility principle. Created window_manager.py (172 lines) for window connection/focus,
+    button_controller.py (149 lines) for button click operations, and dialog_handler.py (564 lines)
+    for dialog analysis and handling. Refactored main official_service.py to 370 lines as orchestrator.
+    Implemented modular architecture with dependency injection: OfficialCollector initializes WindowManager,
+    ButtonController, and DialogHandler instances. Updated __init__.py to export all new classes.
+    Benefits: improved separation of concerns, easier testing with modular components, clearer code organization.
+    Total: 4 new files created, 1 file refactored, reduced main orchestrator by 625 lines (62% reduction).
+  test_refs:
+    - TEST-cleanup-5
+  files_changed:
+    - src/services/window_manager.py (new, 172 lines)
+    - src/services/button_controller.py (new, 149 lines)
+    - src/services/dialog_handler.py (new, 564 lines)
+    - src/services/official_service.py (refactored from 995 to 370 lines)
+    - src/services/__init__.py (updated exports)
+  line_count_changes:
+    - "official_service.py: 995 → 370 lines (62% reduction)"
+    - "window_manager.py: 0 → 172 lines (new)"
+    - "button_controller.py: 0 → 149 lines (new)"
+    - "dialog_handler.py: 0 → 564 lines (new)"
+  architecture_improvements:
+    - "Separation of concerns: each module has single responsibility"
+    - "Dependency injection: services initialized and passed to components"
+    - "Improved testability: modular components can be tested independently"
+    - "Clear API: __init__.py exports all public classes"
+  governance_ref: "SPEC-codebase-cleanup-1 Phase 2"
