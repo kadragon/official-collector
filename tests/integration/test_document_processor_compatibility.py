@@ -184,7 +184,11 @@ class TestRealSupabaseIntegration:
     def real_document_processor(self):
         """실제 SupabaseService를 사용하는 DocumentProcessor"""
         try:
-            supabase_service = SupabaseService()
+            # 의존성 주입: embedding_service를 생성자에 전달
+            from services.openai_embedding_service import OpenAIEmbeddingService
+
+            embedding_service = OpenAIEmbeddingService()
+            supabase_service = SupabaseService(embedding_service)
             return DocumentProcessor(
                 supabase_service=supabase_service,
                 approval_name_list=["테스트담당자"],

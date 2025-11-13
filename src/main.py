@@ -11,6 +11,7 @@ traceback.install(show_locals=True, width=120, theme="monokai")
 from config import config
 from services.official_service import OfficialCollector, DocumentFlowState
 from services.supabase_service import SupabaseService
+from services.openai_embedding_service import OpenAIEmbeddingService
 from services.document_processor import DocumentProcessor
 from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
@@ -41,8 +42,9 @@ class Main:
 
         self.collector = OfficialCollector()
 
-        # Supabase 서비스 (통합)
-        supabase_service = SupabaseService()
+        # 서비스 생성 (의존성 주입 패턴)
+        embedding_service = OpenAIEmbeddingService()
+        supabase_service = SupabaseService(embedding_service)
 
         # 통합된 문서 처리기
         self.document_processor = DocumentProcessor(
@@ -243,8 +245,9 @@ def run_deletion_interface() -> None:
     )
 
     try:
-        # Supabase 서비스 초기화 (통합)
-        supabase_service = SupabaseService()
+        # 서비스 초기화 (의존성 주입 패턴)
+        embedding_service = OpenAIEmbeddingService()
+        supabase_service = SupabaseService(embedding_service)
     except Exception as e:
         print_error(f"Supabase 서비스 초기화 실패: {e}")
         print_error("삭제 기능을 사용하려면 Supabase 환경변수가 필요합니다.")

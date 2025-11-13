@@ -39,7 +39,9 @@ def temp_supabase_service() -> Generator[SupabaseService, None, None]:
     service = None
 
     try:
-        service = SupabaseService()
+        # 의존성 주입: embedding_service를 생성자에 전달
+        embedding_service = OpenAIEmbeddingService()
+        service = SupabaseService(embedding_service)
         # Clear any existing test data
         service.client.table("task_card_mappings").delete().like(
             "title", "pytest_%"
@@ -574,7 +576,8 @@ class TestMockIntegration:
 
             # Configure mocks
             mock_client.return_value = MagicMock()
-            mock_embedding.return_value = MagicMock()
+            mock_embedding_instance = MagicMock()
+            mock_embedding.return_value = mock_embedding_instance
 
             # Mock environment variables
             with patch.dict(
@@ -584,7 +587,9 @@ class TestMockIntegration:
                     "SUPABASE_KEY": "test-key",
                 },
             ):
-                service = SupabaseService()
+                # 의존성 주입: mock embedding service를 전달
+                embedding_service = mock_embedding()
+                service = SupabaseService(embedding_service)
 
                 # Verify service was created
                 assert service is not None
@@ -636,12 +641,19 @@ class TestMockIntegration:
 
         # Test missing environment variables
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="SUPABASE_URL"):
-                SupabaseService()
+            with patch("services.supabase_service.OpenAIEmbeddingService") as mock_embedding:
+                mock_embedding.return_value = MagicMock()
+                embedding_service = mock_embedding()
+                with pytest.raises(ValueError, match="SUPABASE_URL"):
+                    SupabaseService(embedding_service)
 
         # Test Supabase connection failure
-        with patch("services.supabase_service.create_client") as mock_client:
+        with (
+            patch("services.supabase_service.create_client") as mock_client,
+            patch("services.supabase_service.OpenAIEmbeddingService") as mock_embedding,
+        ):
             mock_client.side_effect = Exception("Supabase connection failed")
+            mock_embedding.return_value = MagicMock()
 
             with patch.dict(
                 os.environ,
@@ -650,8 +662,9 @@ class TestMockIntegration:
                     "SUPABASE_KEY": "test-key",
                 },
             ):
+                embedding_service = mock_embedding()
                 with pytest.raises(Exception, match="Supabase connection failed"):
-                    SupabaseService()
+                    SupabaseService(embedding_service)
 
         # Test OpenAI service failure
         with (
@@ -670,7 +683,8 @@ class TestMockIntegration:
                 },
             ):
                 with pytest.raises(ValueError, match="OPENAI_API_KEY"):
-                    SupabaseService()
+                    embedding_service = mock_embedding()
+                    SupabaseService(embedding_service)
 
 
 if __name__ == "__main__":

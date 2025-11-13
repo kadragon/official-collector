@@ -23,8 +23,12 @@ logger = logging.getLogger(__name__)
 class SupabaseService:
     """Supabase 데이터베이스 서비스"""
 
-    def __init__(self) -> None:
-        """Supabase 클라이언트 초기화"""
+    def __init__(self, embedding_service: OpenAIEmbeddingService) -> None:
+        """Supabase 클라이언트 초기화
+
+        Args:
+            embedding_service: OpenAI 임베딩 서비스 인스턴스 (의존성 주입)
+        """
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
 
@@ -33,13 +37,13 @@ class SupabaseService:
 
         self.client: Client = create_client(self.url, self.key)
 
-        # OpenAI 임베딩 서비스 초기화
-        self.embedding_service = OpenAIEmbeddingService()
+        # 주입받은 임베딩 서비스 사용
+        self.embedding_service = embedding_service
 
         # 벡터 유사도 임계값 설정
         self.similarity_threshold = get_vector_similarity_threshold()
 
-        logger.info("Supabase 클라이언트 및 OpenAI 임베딩 서비스 초기화 완료")
+        logger.info("Supabase 클라이언트 초기화 완료")
 
     def retrieve_reception_by_title(
         self, title: str
