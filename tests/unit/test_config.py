@@ -30,19 +30,7 @@ class TestUnifiedConfig:
 
     @patch.dict(
         "os.environ",
-        {
-            "CHROMA_PERSIST_DIR": "./.test_chroma",
-        },
-    )
-    def test_environment_variable_loading(self) -> None:
-        """Test loading configuration from environment variables."""
-        config = self.config_class(allow_fallback=True)
-
-        assert config.chroma_persist_dir == "./.test_chroma"
-
-    @patch.dict(
-        "os.environ",
-        {"CHROMA_PERSIST_DIR": "./.test_chroma"},
+        {},
     )
     @patch(
         "builtins.open",
@@ -112,29 +100,16 @@ class TestUnifiedConfig:
 
     @patch.dict(
         "os.environ",
-        {
-            "CHROMA_PERSIST_DIR": "./test",
-        },
-    )
-    def test_chroma_directory_configuration(self) -> None:
-        """Test Chroma directory configuration."""
-        config = self.config_class(allow_fallback=True)
-        assert config.chroma_persist_dir == "./test"
-
-    @patch.dict(
-        "os.environ",
         {},
     )
     def test_config_reload_capability(self) -> None:
         """Test configuration reload functionality."""
         config = self.config_class(allow_fallback=True)
 
+        # Verify reload method exists and works
         if hasattr(config, "reload"):
-            with patch.dict("os.environ", {"CHROMA_PERSIST_DIR": "./new_path"}):
-                config.reload()
-
-                # Path should be updated after reload
-                assert config.chroma_persist_dir == "./new_path"
+            config.reload()
+            assert isinstance(config.reception_list, list)
 
     @patch.dict(
         "os.environ",
@@ -174,22 +149,6 @@ class TestConfigurationPaths:
             path = config.base_data_path
             assert isinstance(path, (str, Path))
             assert "base_data.json" in str(path)
-
-    def test_chroma_directory_creation(self) -> None:
-        """Test Chroma directory handling."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            test_chroma_dir = Path(temp_dir) / "test_chroma"
-
-            with patch.dict(
-                "os.environ",
-                {
-                    "CHROMA_PERSIST_DIR": str(test_chroma_dir),
-                },
-            ):
-                config = self.config_class(allow_fallback=True)
-
-                # Directory path should be set correctly
-                assert str(test_chroma_dir) in config.chroma_persist_dir
 
     @patch.dict(
         "os.environ",
@@ -303,15 +262,10 @@ class TestConfigurationEdgeCases:
         """Test that configuration values are properly managed."""
         config = self.config_class(allow_fallback=True)
 
-        original_dir = config.chroma_persist_dir
-
-        # Try to modify configuration
-        if hasattr(config, "_chroma_persist_dir"):
-            # If using private attributes, they should be managed
-            pass
+        original_list = config.reception_list.copy()
 
         # Configuration should maintain integrity
-        assert config.chroma_persist_dir == original_dir
+        assert config.reception_list == original_list
 
 
 class TestGlobalConfigInstance:
@@ -335,7 +289,7 @@ class TestGlobalConfigInstance:
             from config import config as config2
 
             # Should be the same object or have same values
-            assert config.chroma_persist_dir == config2.chroma_persist_dir
+            assert config.reception_list == config2.reception_list
         except ImportError:
             pytest.skip("Global config instance not implemented")
 
@@ -346,7 +300,6 @@ class TestGlobalConfigInstance:
 
             # Should have all required configuration attributes
             required_attrs = [
-                "chroma_persist_dir",
                 "reception_list",
                 "share_list",
                 "task_card_list",

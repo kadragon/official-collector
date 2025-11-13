@@ -15,7 +15,6 @@ class TestConfigurations:
 
     # 기본 테스트 설정
     DEFAULT_TEST_CONFIG = {
-        "chroma_persist_dir": "./.test_chroma_db",
         "reception_list": ["예산담당자", "인사담당자", "시설담당자", "교육담당자"],
         "share_list": ["기획팀", "총무팀", "관리팀", "인사팀"],
         "task_card_list": [
@@ -28,7 +27,6 @@ class TestConfigurations:
 
     # 최소 설정 (필수 항목만)
     MINIMAL_CONFIG = {
-        "chroma_persist_dir": tempfile.mkdtemp(prefix="test_minimal_"),
         "reception_list": ["담당자1"],
         "share_list": ["팀1"],
         "task_card_list": ["업무1"],
@@ -36,7 +34,6 @@ class TestConfigurations:
 
     # 확장된 설정 (많은 옵션들)
     EXTENDED_CONFIG = {
-        "chroma_persist_dir": tempfile.mkdtemp(prefix="test_extended_"),
         "reception_list": [
             "예산담당자",
             "인사담당자",
@@ -74,11 +71,7 @@ class TestConfigurations:
     }
 
     # 에러 케이스용 잘못된 설정
-    INVALID_CONFIGS = {
-        "invalid_chroma_dir": {
-            "chroma_persist_dir": "/invalid/path/that/does/not/exist",
-        },
-    }
+    INVALID_CONFIGS: Dict[str, Dict[str, Any]] = {}
 
 
 class TestEnvironmentManager:
@@ -100,16 +93,8 @@ class TestEnvironmentManager:
         else:
             raise ValueError(f"Unknown config: {self.config_name}")
 
-        # 임시 디렉토리 생성 및 추적
-        if not os.path.exists(config["chroma_persist_dir"]):  # type: ignore[arg-type]
-            temp_dir = tempfile.mkdtemp(prefix=f"test_{self.config_name}_")
-            config["chroma_persist_dir"] = temp_dir
-            self.temp_dirs.append(temp_dir)
-
-        # 환경 변수 백업 및 설정
-        env_vars = {
-            "CHROMA_PERSIST_DIR": config["chroma_persist_dir"],
-        }
+        # 환경 변수 설정 (Supabase 등)
+        env_vars: Dict[str, str] = {}
 
         for key, value in env_vars.items():
             self.original_env[key] = os.environ.get(key)

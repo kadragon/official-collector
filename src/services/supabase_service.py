@@ -318,7 +318,7 @@ class SupabaseService:
             logger.error("데이터 삭제 실패: %s", e)
             return False
 
-    # 삭제 인터페이스용 메서드들 (기존 ChromaService 호환성)
+    # 삭제 인터페이스용 메서드들
     def list_all_cards(
         self, limit: int = 1000, offset: int = 0
     ) -> List[Tuple[str, str, str]]:

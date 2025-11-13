@@ -16,14 +16,11 @@ from utils.error_handler import setup_logger
 logger = setup_logger(__name__)
 
 
-DEFAULT_CHROMA_DIR = "./.chroma_db"
-
-
 class UnifiedConfig:
     """Unified configuration loader with legacy compatibility."""
 
     REQUIRED_ENV_VARS: List[str] = []
-    OPTIONAL_PATH_VARS = {"CHROMA_PERSIST_DIR": DEFAULT_CHROMA_DIR}
+    OPTIONAL_PATH_VARS: Dict[str, str] = {}
     SUPABASE_VARS = [
         "OPENAI_API_KEY",
         "SUPABASE_URL",
@@ -84,7 +81,6 @@ class UnifiedConfig:
     def get_config_summary(self) -> Dict[str, Any]:
         """Return configuration summary (human readable)."""
         return {
-            "chroma_persist_dir": self.chroma_persist_dir,
             "reception_count": len(self.reception_list),
             "share_count": len(self.share_list),
             "task_card_count": len(self.task_card_list),
@@ -94,7 +90,6 @@ class UnifiedConfig:
     def get_debug_summary(self) -> Dict[str, Any]:
         """Return a lightweight diagnostic summary."""
         return {
-            "chroma_persist_dir": self.chroma_persist_dir,
             "reception_count": len(self.reception_list),
             "share_count": len(self.share_list),
             "task_card_count": len(self.task_card_list),
@@ -120,10 +115,7 @@ class UnifiedConfig:
                 raise ValueError(message)
             logger.warning("%s - using fallback configuration values", message)
 
-        chroma_env = self._env_value("CHROMA_PERSIST_DIR")
-        self.chroma_persist_dir = chroma_env or DEFAULT_CHROMA_DIR
-
-        # New Supabase/OpenAI settings (optional – do not raise if missing)
+        # Supabase/OpenAI settings (optional – do not raise if missing)
         self.openai_api_key = self._env_value("OPENAI_API_KEY")
         self.supabase_url = self._env_value("SUPABASE_URL")
         self.supabase_key = self._env_value("SUPABASE_KEY")
@@ -140,10 +132,6 @@ class UnifiedConfig:
 
         for path in (self.data_dir, self.logs_dir, self.cache_dir):
             path.mkdir(parents=True, exist_ok=True)
-
-        chroma_path = Path(self.chroma_persist_dir).expanduser()
-        chroma_path.mkdir(parents=True, exist_ok=True)
-        self.chroma_persist_path = chroma_path.resolve()
 
     def _env_value(self, key: str) -> Optional[str]:
         value = os.environ.get(key)
