@@ -121,3 +121,36 @@ task_id: TASK-001
 - Added targeted mypy overrides so test modules keep pytest-style helpers untyped while the production packages stay strict.
 - Cleaned up `RichConsole.progress_bar()` and `prompt_int()` signatures plus fixtures for card/reception data so type checking no longer needs ignores.
 - Documented that `uv run mypy -p services -p dialogs -p ui -p utils -p debug -m config -m main -m delete_data` (code) and `uv run mypy tests` (test suite) must both stay green for TASK-002 compliance.
+
+## Session Log (2025-11-12 Comprehensive Codebase Analysis)
+- **Conducted full codebase audit** to identify technical debt accumulated during library migrations (Ollama→Supabase, ANSI→Rich).
+- **Created SPEC-codebase-cleanup-1** with 3-phase improvement plan covering 10 distinct tasks (TASK-012 through TASK-021).
+- **Key Findings**:
+  - **Legacy Code**: Chroma references still present in config.py, delete_data.py despite complete Supabase migration
+  - **Architecture Violations**: SupabaseService creates OpenAIEmbeddingService internally (DI pattern violation)
+  - **Logging Pattern Violations**: ~20 files use f-strings in logger calls instead of %s formatting
+  - **Missing Instrumentation**: 7 Supabase I/O methods lack @log_execution_time decorator
+  - **Code Duplication**: 3 similar button click methods in official_service.py (~100 lines duplicate)
+  - **Hard-coded Values**: Timeout values, pricing constants, UI patterns scattered throughout code
+  - **Large File**: official_service.py at 1047 lines violates single responsibility principle
+- **Phase 1 Tasks (Priority 1, 4 hours)**:
+  - TASK-012: Remove Chroma legacy code (1h)
+  - TASK-013: Fix dependency injection in SupabaseService (0.5h)
+  - TASK-014: Convert f-string logging to %s format (2h)
+  - TASK-015: Add performance instrumentation to 7 methods (0.5h)
+- **Phase 2 Tasks (Priority 2, 11 hours)**:
+  - TASK-016: Split official_service.py into 4 modular files (8h)
+  - TASK-017: Unify button click logic (2h)
+  - TASK-018: Centralize timeout and UI configuration (1h)
+- **Phase 3 Tasks (Priority 3, 6 hours)**:
+  - TASK-019: Replace broad Exception handling (3h)
+  - TASK-020: Complete ANSI code removal (2h)
+  - TASK-021: Complete type hint coverage (1h)
+- **Expected Outcomes**:
+  - 10% code reduction (~300 lines)
+  - Governance compliance: 60% → 95%+
+  - official_service.py: 1047 lines → <700 lines (split into 4 files)
+  - Zero legacy library references
+  - All I/O operations instrumented
+- **Total Estimated Effort**: 21 hours (2.5 days)
+- **Analysis artifacts** stored in `.spec/codebase-cleanup/spec.yaml` and `.tasks/backlog.yaml`

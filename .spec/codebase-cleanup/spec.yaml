@@ -1,0 +1,221 @@
+# Trace:
+#   spec_id: SPEC-codebase-cleanup-1
+#   task_id: TASK-012
+
+spec_id: SPEC-codebase-cleanup-1
+title: "Codebase Cleanup & Architecture Improvement"
+version: 1.0
+created_at: 2025-11-12
+updated_at: 2025-11-12
+
+description: >
+  Systematic cleanup of legacy code and architecture improvements following
+  major library migrations (Ollama→Supabase, ANSI→Rich). This spec addresses
+  technical debt accumulated during rapid feature development.
+
+rationale: >
+  Multiple library changes have left residual code patterns that violate
+  governance standards (.governance/coding-style.md, .governance/patterns.md).
+  Key issues identified:
+  - Legacy Chroma references despite complete Supabase migration
+  - Dependency injection pattern violations
+  - Logging pattern violations (f-strings vs %s formatting)
+  - Missing performance instrumentation on I/O operations
+  - Code duplication in button click logic (official_service.py)
+  - Hard-coded configuration values
+  - Overly broad exception handling
+
+phases:
+  - phase: 1
+    title: "Critical Cleanup (High Priority)"
+    description: "Remove legacy code and fix governance violations"
+    estimated_duration: "4 hours"
+    scope:
+      - "Remove all Chroma-related code (config.py, delete_data.py)"
+      - "Fix dependency injection (SupabaseService)"
+      - "Convert f-string logging to %s format (~20 files)"
+      - "Add @log_execution_time to Supabase I/O methods (7 methods)"
+
+  - phase: 2
+    title: "Structural Refactoring (Medium Priority)"
+    description: "Improve code organization and reduce duplication"
+    estimated_duration: "11 hours"
+    scope:
+      - "Split official_service.py (1047 lines → 4 files)"
+      - "Unify button click logic (3 methods → 1)"
+      - "Create TimeoutConfig and UIConfig classes"
+      - "Remove hard-coded pricing in OpenAIEmbeddingService"
+
+  - phase: 3
+    title: "Quality Improvements (Low Priority)"
+    description: "Incremental quality enhancements"
+    estimated_duration: "6 hours"
+    scope:
+      - "Replace broad Exception with specific exception types"
+      - "Remove remaining ANSI codes from console_interface.py"
+      - "Add missing return type hints (~20 functions)"
+
+key_findings:
+  legacy_code:
+    - location: "config.py:19-146"
+      issue: "Chroma configuration still present"
+      impact: "Confusion, maintenance burden"
+
+    - location: "delete_data.py:3-33"
+      issue: "References to 'Chroma' in comments/logs"
+      impact: "Misleading documentation"
+
+    - location: "console_interface.py:33-611"
+      issue: "ANSI codes still used despite Rich migration"
+      impact: "Inconsistent UI patterns"
+
+  architecture_violations:
+    - location: "supabase_service.py:37"
+      issue: "Creates OpenAIEmbeddingService internally"
+      governance: "coding-style.md: 'construct services in main.py'"
+      severity: "high"
+
+    - location: "performance_logger.py, openai_embedding_service.py"
+      issue: "f-string in logger calls (~20 instances)"
+      governance: "coding-style.md: 'use logger.info(\"msg %s\", arg)'"
+      severity: "high"
+
+    - location: "supabase_service.py (7 methods)"
+      issue: "Missing @log_execution_time decorator"
+      governance: "patterns.md: 'Wrap every I/O heavy function'"
+      severity: "medium"
+
+    - location: "openai_embedding_service.py:388"
+      issue: "Hard-coded price 0.00002"
+      governance: "coding-style.md: 'no hard-coded pricing'"
+      severity: "medium"
+
+  code_quality:
+    - location: "official_service.py"
+      issue: "1047 lines, single responsibility violation"
+      impact: "Hard to test, maintain"
+      severity: "high"
+
+    - location: "official_service.py:624-1024"
+      issue: "3 similar button click methods"
+      impact: "DRY violation, ~100 lines duplication"
+      severity: "medium"
+
+    - location: "official_service.py:60-473"
+      issue: "Hard-coded timeout values"
+      impact: "Hard to configure per environment"
+      severity: "medium"
+
+    - location: "Multiple files (~100+ instances)"
+      issue: "Broad 'except Exception' usage"
+      impact: "Hides specific error types"
+      severity: "low"
+
+expected_outcomes:
+  - "10% code reduction (~300 lines)"
+  - "95%+ governance compliance (from 60%)"
+  - "Zero legacy library references"
+  - "Improved testability and maintainability"
+  - "All I/O operations instrumented"
+
+success_criteria:
+  - "No references to 'Chroma' or 'Ollama' in codebase"
+  - "All services follow dependency injection pattern"
+  - "Zero f-strings in logger calls"
+  - "All I/O methods have @log_execution_time"
+  - "official_service.py < 700 lines"
+  - "All config values centralized in config.py or config_manager.py"
+  - "pytest coverage remains >= 90%"
+  - "mypy --strict passes on all packages"
+
+acceptance_tests:
+  - id: TEST-cleanup-1
+    desc: "No legacy library references remain"
+    steps:
+      - "grep -r 'Chroma\\|Ollama\\|chroma' src/ returns no results"
+      - "All comments/logs reference correct libraries"
+
+  - id: TEST-cleanup-2
+    desc: "Dependency injection pattern validated"
+    steps:
+      - "Services created in main.py only"
+      - "All service constructors receive dependencies as parameters"
+      - "No 'Service()' instantiation inside other services"
+
+  - id: TEST-cleanup-3
+    desc: "Logging pattern compliance"
+    steps:
+      - "grep -r 'logger\\.[a-z]*\\(f\"' src/ returns no results"
+      - "All logger calls use %s formatting"
+
+  - id: TEST-cleanup-4
+    desc: "Performance instrumentation complete"
+    steps:
+      - "All Supabase I/O methods decorated"
+      - "Execution time logs appear in output"
+
+  - id: TEST-cleanup-5
+    desc: "Refactored code maintains functionality"
+    steps:
+      - "pytest tests/ passes with 90%+ coverage"
+      - "mypy -p services -p dialogs -p ui -p utils passes"
+      - "All integration tests pass"
+
+linked_tasks:
+  - TASK-012  # Phase 1: Chroma cleanup
+  - TASK-013  # Phase 1: Dependency injection
+  - TASK-014  # Phase 1: Logging pattern
+  - TASK-015  # Phase 1: Performance instrumentation
+  - TASK-016  # Phase 2: official_service.py refactoring
+  - TASK-017  # Phase 2: Button logic unification
+  - TASK-018  # Phase 2: Config centralization
+  - TASK-019  # Phase 3: Exception handling
+  - TASK-020  # Phase 3: ANSI cleanup
+  - TASK-021  # Phase 3: Type hints
+
+dependencies:
+  - spec: "SPEC-rich-ui-enhancement-1"
+    reason: "Rich UI migration must be complete before ANSI cleanup"
+    status: "completed"
+
+  - governance: "coding-style.md"
+    note: "All changes must follow established patterns"
+
+  - governance: "patterns.md"
+    note: "Performance instrumentation and DI patterns"
+
+risks:
+  - risk: "Breaking changes during refactoring"
+    mitigation: "Comprehensive test coverage, incremental changes"
+    severity: "medium"
+
+  - risk: "official_service.py split may affect imports"
+    mitigation: "Update all imports, run full test suite"
+    severity: "high"
+
+  - risk: "Logging format changes may affect log parsing"
+    mitigation: "Verify log aggregation tools still work"
+    severity: "low"
+
+migration_strategy:
+  approach: "Phased rollout with continuous testing"
+  steps:
+    - "Create feature branch from current main"
+    - "Complete Phase 1 (critical cleanup)"
+    - "Run full test suite + mypy validation"
+    - "Complete Phase 2 (structural refactoring)"
+    - "Run integration tests + manual smoke tests"
+    - "Complete Phase 3 (quality improvements)"
+    - "Final validation + code review"
+    - "Merge to main"
+
+  rollback_plan:
+    - "Each phase commits separately"
+    - "Git revert available at any checkpoint"
+    - "Test failures block next phase"
+
+notes:
+  - "Analysis completed 2025-11-12 via comprehensive codebase audit"
+  - "Findings documented in .governance/memory.md"
+  - "Priority aligned with technical debt reduction goals"
+  - "Estimated total effort: 2.5 days (21 hours)"
