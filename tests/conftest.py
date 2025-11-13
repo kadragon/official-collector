@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 def cleanup_test_databases():
     """
     Placeholder for test database cleanup.
-    Previously used for Chroma databases - now using Supabase.
+    No cleanup needed for cloud-based Supabase.
     """
     # Before tests - no cleanup needed for Supabase (cloud-based)
     yield  # Run all tests
