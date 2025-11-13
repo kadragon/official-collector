@@ -121,3 +121,84 @@
     - src/ui/console_interface.py (simplified print_final_result to delegate to RichConsole)
     - tests/unit/test_rich_console.py (added 5 new tests: 3 Tree + 2 Markdown)
     - tests/unit/test_console_interface.py (updated 3 tests to match new delegation pattern)
+- task_id: TASK-012
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Remove Chroma legacy code"
+  completed_at: "2025-11-13T01:28:00+09:00"
+  outcome: >
+    Removed all Chroma-related configuration and references after Supabase migration completion.
+    Eliminated DEFAULT_CHROMA_DIR constant, CHROMA_PERSIST_DIR environment variable handling,
+    chroma_persist_dir/chroma_persist_path properties, and chroma directory creation logic.
+    Updated delete_data.py comments/logs from "Chroma" to "Supabase".
+    Modified test files to remove chroma_persist_dir references.
+    Verification: grep -ri 'chroma' src/ returns no results.
+    Total: 7 files changed, 121 lines deleted, 21 lines added.
+  test_refs:
+    - TEST-cleanup-1
+  files_changed:
+    - src/config.py (removed Chroma constants and properties)
+    - src/delete_data.py (updated to Supabase terminology)
+    - src/services/supabase_service.py (removed legacy comment)
+    - tests/unit/test_config.py (removed chroma tests)
+    - tests/fixtures/test_configs.py (removed chroma config)
+    - tests/fixtures/mock_responses.py (removed chroma env var)
+    - tests/conftest.py (updated cleanup fixture)
+  governance_ref: "SPEC-codebase-cleanup-1 Phase 1"
+- task_id: TASK-013
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Fix dependency injection pattern in SupabaseService"
+  completed_at: "2025-11-13T01:45:00+09:00"
+  outcome: >
+    Refactored SupabaseService to use constructor injection for OpenAIEmbeddingService
+    instead of internal instantiation. Modified __init__ to accept embedding_service parameter
+    with proper docstring. Updated main.py to create OpenAIEmbeddingService before SupabaseService
+    in both Main.__init__ and run_deletion_interface. Updated all test files to inject
+    mock/real embedding services. Benefits: better testability, clearer separation of concerns,
+    follows dependency inversion principle.
+    Total: 5 files changed, 47 lines added, 23 lines deleted.
+  test_refs:
+    - TEST-cleanup-2
+  files_changed:
+    - src/services/supabase_service.py (constructor injection)
+    - src/main.py (service creation with DI)
+    - tests/unit/test_supabase_service.py (mock injection)
+    - tests/integration/test_supabase_integration.py (DI pattern)
+    - tests/integration/test_document_processor_compatibility.py (DI pattern)
+  governance_ref: ".governance/coding-style.md line 10"
+- task_id: TASK-014
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Convert f-string logging to %s format"
+  completed_at: "2025-11-13T02:15:00+09:00"
+  outcome: >
+    Converted all f-string usage in logger calls to %s formatting to avoid encoding surprises.
+    Updated 4 files with 27 logger calls total. performance_logger.py: 4 calls converted to
+    %s and %.3f formats. debug_manager.py: 11+ calls for connection, window analysis, and
+    error logging. dialog_classifier.py: 5 calls for pattern matching and addition.
+    openai_embedding_service.py: 7 calls for initialization, embedding generation, and errors.
+    Verification: grep -r 'logger\.\w+\(f"' src/ returns no results.
+    Total: 4 files changed, 30 lines modified.
+  test_refs:
+    - TEST-cleanup-3
+  files_changed:
+    - src/utils/performance_logger.py (4 conversions)
+    - src/debug/debug_manager.py (11+ conversions)
+    - src/dialogs/dialog_classifier.py (5 conversions)
+    - src/services/openai_embedding_service.py (7 conversions)
+  governance_ref: ".governance/coding-style.md line 8"
+- task_id: TASK-015
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Add performance instrumentation to Supabase I/O methods"
+  completed_at: "2025-11-13T02:30:00+09:00"
+  outcome: >
+    Added @log_execution_time decorator to all 7 I/O-heavy methods in SupabaseService
+    that lacked instrumentation. Methods instrumented: retrieve_reception_by_title,
+    recommend_reception, retrieve_card_by_title, recommend_cards, upsert_reception_embedding,
+    upsert_card_embedding, get_document_count. Each method now logs execution time in
+    format "⏱️ method_name 완료 (소요시간: X.XXX초)". Benefits: consistent performance
+    monitoring, easy identification of slow queries, better production observability.
+    Total: 1 file changed, 7 decorators added.
+  test_refs:
+    - TEST-cleanup-4
+  files_changed:
+    - src/services/supabase_service.py (7 method decorations)
+  governance_ref: ".governance/patterns.md line 16"
