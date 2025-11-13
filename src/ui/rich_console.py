@@ -475,3 +475,135 @@ class RichConsole:
             if "invalid literal" in str(e):
                 raise ValueError("올바른 숫자를 입력해주세요.") from e
             raise
+
+    def print_deletion_items(
+        self, items: List[tuple], item_type: str
+    ) -> None:
+        """
+        Display items for deletion in a Rich Table.
+
+        Args:
+            items: List of tuples containing item information
+            item_type: Type of items being displayed (e.g., "과제 카드", "접수 문서")
+        """
+        if not items:
+            self.print_warning(f"삭제 가능한 {item_type}이 없습니다.")
+            return
+
+        table = Table(
+            title=f"저장된 {item_type} 목록",
+            show_header=True,
+            header_style="bold cyan",
+            border_style="cyan",
+            padding=(0, 1),
+        )
+
+        table.add_column("번호", style="cyan bold", width=6, justify="right")
+
+        if item_type == "과제 카드":
+            table.add_column("공문 제목", style="white")
+            table.add_column("과제 카드", style="green")
+            table.add_column("등록일시", style="dim")
+
+            for i, item in enumerate(items, 1):
+                if len(item) >= 3:
+                    title, task_title, registered_at = item[0], item[1], item[2]
+                    table.add_row(str(i), title, task_title, registered_at)
+                else:
+                    title, task_title = item[0], item[1]
+                    table.add_row(str(i), title, task_title, "-")
+        else:  # 접수 문서
+            table.add_column("제목", style="white")
+            table.add_column("담당자", style="green")
+            table.add_column("공람자", style="yellow")
+            table.add_column("등록일시", style="dim")
+
+            for i, item in enumerate(items, 1):
+                if len(item) >= 4:
+                    title, approval, share, registered_at = (
+                        item[0],
+                        item[1],
+                        item[2],
+                        item[3],
+                    )
+                    table.add_row(str(i), title, approval, share, registered_at)
+                else:
+                    title, approval, share = item[0], item[1], item[2]
+                    table.add_row(str(i), title, approval, share, "-")
+
+        self.console.print()
+        self.console.print(table)
+        self.console.print()
+
+    def print_deletion_instructions(self) -> None:
+        """Print instructions for deletion selection."""
+        instructions = Panel(
+            "[dim]삭제할 항목 번호를 입력하세요\n"
+            "• 여러 개: 쉼표로 구분 (예: 1,3,5)\n"
+            "• 전체 삭제: 'all' 입력\n"
+            "• 취소: 'q' 입력[/dim]",
+            border_style="yellow",
+            padding=(0, 1),
+        )
+        self.console.print(instructions)
+
+    def confirm_deletion(
+        self, count: int, item_type: str, default: bool = False
+    ) -> bool:
+        """
+        Confirm deletion of items.
+
+        Args:
+            count: Number of items to delete
+            item_type: Type of items (e.g., "과제 카드", "접수 문서")
+            default: Default choice if user just presses Enter
+
+        Returns:
+            bool: True if confirmed, False otherwise
+        """
+        if count == 0:
+            return False
+
+        message = f"[yellow]⚠[/yellow] 선택한 {count}개 {item_type}을/를 삭제하시겠습니까?"
+        return self.confirm(message, default=default)
+
+    def confirm_bulk_deletion(self) -> bool:
+        """
+        Display bulk deletion warning and confirm.
+
+        Returns:
+            bool: True if confirmed, False otherwise
+        """
+        warning_panel = Panel(
+            "[bold red]⚠️  일괄 삭제 경고[/bold red]\n\n"
+            "[yellow]모든 과제 카드와 접수 문서가 삭제됩니다.[/yellow]\n"
+            "[yellow]이 작업은 되돌릴 수 없습니다.[/yellow]",
+            border_style="red",
+            padding=(1, 2),
+            title="[bold red]경고[/bold red]",
+        )
+
+        self.console.print()
+        self.console.print(warning_panel)
+        self.console.print()
+
+        return self.confirm(
+            "[bold red]정말로 모든 데이터를 삭제하시겠습니까?[/bold red]",
+            default=False,
+        )
+
+    def print_deletion_header(self, item_type: str) -> None:
+        """
+        Print a header for deletion interface.
+
+        Args:
+            item_type: Type of items being deleted
+        """
+        header = Panel(
+            f"[bold white]{item_type} 개별 삭제[/bold white]",
+            border_style="cyan",
+            padding=(0, 1),
+        )
+        self.console.print()
+        self.console.print(header)
+        self.console.print()
