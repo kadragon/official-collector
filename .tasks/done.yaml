@@ -272,4 +272,10 @@
     - "Dependency injection: services initialized and passed to components"
     - "Improved testability: modular components can be tested independently"
     - "Clear API: __init__.py exports all public classes"
+  post_completion_improvements:
+    - "Applied code review feedback on 2025-11-13T06:30:00+09:00"
+    - "Simplified WindowManager.__init__ (removed redundant dlg parameter)"
+    - "Made connect_to_window() return dlg explicitly for clearer data flow"
+    - "Reduced coupling in OfficialCollector initialization"
+    - "Commit 5620da1: Improve WindowManager initialization flow"
   governance_ref: "SPEC-codebase-cleanup-1 Phase 2"
