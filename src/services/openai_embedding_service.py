@@ -185,9 +185,10 @@ class OpenAIEmbeddingService:
 
                 time.sleep(wait_time)
 
-            except openai.APIError as e:
+            except (openai.APIError, Exception) as e:
                 response_time_ms = (time.time() - start_time) * 1000
                 error_msg = str(e)
+                status = "failure" if isinstance(e, openai.APIError) else "error"
 
                 logger.error(
                     "OpenAI API 오류 (시도 %d/%d): %s", attempt + 1, self.max_retry, e
@@ -201,39 +202,11 @@ class OpenAIEmbeddingService:
                     error_message=error_msg,
                 )
 
-                # Audit log failure
+                # Audit log failure/error
                 audit.log_api_call(
                     resource=AuditResource.OPENAI,
                     endpoint="embeddings.create",
-                    status="failure",
-                    error_message=error_msg,
-                    details={"attempt": attempt + 1, "max_retry": self.max_retry},
-                    duration_ms=response_time_ms,
-                )
-
-                if attempt == self.max_retry - 1:
-                    raise
-                time.sleep(1)
-
-            except Exception as e:
-                response_time_ms = (time.time() - start_time) * 1000
-                error_msg = str(e)
-
-                logger.error("임베딩 생성 중 예상치 못한 오류: %s", e)
-
-                # Record monitoring metrics for failure
-                monitoring.record_api_call(
-                    service="openai",
-                    success=False,
-                    response_time_ms=response_time_ms,
-                    error_message=error_msg,
-                )
-
-                # Audit log error
-                audit.log_api_call(
-                    resource=AuditResource.OPENAI,
-                    endpoint="embeddings.create",
-                    status="error",
+                    status=status,
                     error_message=error_msg,
                     details={"attempt": attempt + 1, "max_retry": self.max_retry},
                     duration_ms=response_time_ms,
