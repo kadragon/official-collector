@@ -259,13 +259,19 @@ class TestConfigurationEdgeCases:
         {},
     )
     def test_config_immutability(self) -> None:
-        """Test that configuration values are properly managed."""
+        """Test that configuration values are immutable (return copies)."""
         config = self.config_class(allow_fallback=True)
 
-        original_list = config.reception_list.copy()
+        original_list_copy = config.reception_list.copy()
 
-        # Configuration should maintain integrity
-        assert config.reception_list == original_list
+        # Attempt to modify the list obtained from config
+        config.reception_list.append("new_item_should_not_be_added")
+
+        # This assertion will fail if the config is mutable (as it currently is),
+        # highlighting the need to return a copy or an immutable sequence.
+        assert (
+            config.reception_list == original_list_copy
+        ), "Configuration list should be immutable or return a copy."
 
 
 class TestGlobalConfigInstance:
