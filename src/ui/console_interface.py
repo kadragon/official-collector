@@ -482,7 +482,7 @@ class ConsoleInterface:
         if not items:
             _logger().info("삭제 가능한 %s이 없습니다.", item_type)
             _rich_console.print_warning(f"삭제 가능한 {item_type}이 없습니다.")
-            input("엔터를 눌러 계속...")
+            self.wait_for_enter("엔터를 눌러 계속...")
             return []
 
         _logger().info("저장된 %s 목록 표시 (%d개)", item_type, len(items))
@@ -523,7 +523,7 @@ class ConsoleInterface:
             except ValueError:
                 _logger().warning("사용자가 올바르지 않은 숫자 입력")
                 _rich_console.print_error("올바른 숫자를 입력해주세요.")
-                input("엔터를 눌러 계속...")
+                self.wait_for_enter("엔터를 눌러 계속...")
                 return []
 
     def get_title_for_deletion(self, item_type: str) -> Optional[str]:
