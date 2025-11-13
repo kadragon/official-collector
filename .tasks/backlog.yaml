@@ -1,17 +1,6 @@
 # Trace:
 #   spec_id: SPEC-governance-doc-structure-1
 #   task_id: TASK-001
-- task_id: TASK-005
-  spec_id: SPEC-core-automation-1
-  title: "Stabilize DocumentProcessor UX + error handling"
-  status: pending
-  priority: 3
-  description: >
-    Replace bare assertions with explicit error handling, add CLI timeout/backoff for manual selections,
-    and ensure deduplication happens upstream in the database.
-  test_refs:
-    - TEST-core-automation-2
-    - TEST-core-automation-3
 - task_id: TASK-006
   spec_id: SPEC-supabase-migration-1
   title: "Paginate Supabase list APIs"

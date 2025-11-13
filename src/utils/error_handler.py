@@ -91,7 +91,12 @@ def initialize_execution_logger() -> str:
 
         _logger_initialized = True
 
-    assert _current_log_file is not None
+    # Explicit error handling instead of bare assertion
+    if _current_log_file is None:
+        raise RuntimeError(
+            "Log file initialization failed. _current_log_file is None after initialization."
+        )
+
     return _current_log_file
 
 

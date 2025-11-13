@@ -443,3 +443,36 @@
     - "Centralized configuration reduces scattered hard-coded values"
     - "Validation ensures thresholds stay within safe bounds (0.0-1.0)"
   governance_ref: "SPEC-supabase-migration-1, env.yaml, TEST-supabase-3"
+- task_id: TASK-005
+  spec_id: SPEC-core-automation-1
+  title: "Stabilize DocumentProcessor UX + error handling"
+  completed_at: "2025-11-13T18:00:00+09:00"
+  outcome: >
+    Stabilized DocumentProcessor UX and error handling by replacing bare assertions,
+    adding CLI timeout/backoff safeguards, and implementing upstream deduplication.
+    Replaced bare assertion in error_handler.py:94 with explicit RuntimeError raising.
+    Added max_retries parameter (default: 3) to _manual_reception_selection() method
+    with bounded retry loops for both approval and share selection, replacing infinite
+    while True loops. Implemented _deduplicate_updates() method for flush_pending_updates()
+    that removes duplicate title entries and keeps only the most recent value before
+    database upsert. Benefits: prevents CLI hanging on invalid input, ensures data
+    consistency with deduplication, improves error visibility with explicit error handling.
+    Total: 2 files changed, 100+ lines improved for robustness.
+  test_refs:
+    - TEST-core-automation-2
+    - TEST-core-automation-3
+  files_changed:
+    - src/utils/error_handler.py (assertion → RuntimeError, +4 lines)
+    - src/services/document_processor.py (retry logic + deduplication, +96 lines)
+  features_implemented:
+    - "Explicit error handling: Replaced assertion with RuntimeError in error_handler.py"
+    - "CLI timeout/backoff: max_retries=3 for manual selections with retry counters"
+    - "Bounded wait time: Finite retry loops replace infinite while True loops"
+    - "Upstream deduplication: _deduplicate_updates() removes duplicate titles"
+    - "Latest value priority: Keeps most recent update when duplicates exist"
+    - "Error logging: Logs retry attempts and max retry exceeded errors"
+  ux_improvements:
+    - "Retry counter feedback: Shows 'retry X/Y' to user on invalid input"
+    - "Graceful failure: Returns (None, None) after max retries instead of hanging"
+    - "Deduplication logging: Reports duplicate removal statistics"
+  governance_ref: "SPEC-core-automation-1, patterns.md, TEST-core-automation-2, TEST-core-automation-3"
