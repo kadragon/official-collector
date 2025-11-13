@@ -15,6 +15,7 @@ from .openai_embedding_service import OpenAIEmbeddingService
 from utils.performance_logger import log_execution_time, timer
 from utils.audit_logger import get_audit_logger, AuditResource
 from utils.monitoring_hooks import get_monitoring_hooks
+from utils.error_handler import handle_supabase_error
 
 # 환경변수 로드
 load_dotenv()
@@ -49,24 +50,25 @@ class SupabaseService:
         logger.info("Supabase 클라이언트 초기화 완료")
 
     @log_execution_time(logger)
+    @handle_supabase_error("접수 문서 제목 조회", logger, default_return=(None, None))
     def retrieve_reception_by_title(
         self, title: str
     ) -> Tuple[Optional[str], Optional[str]]:
-        """제목으로 접수 문서 매핑 조회"""
-        try:
-            result = (
-                self.client.table("reception_mappings")
-                .select("handler", "share_target")
-                .eq("title", title)
-                .execute()
-            )
-            if result.data:
-                data = result.data[0]
-                return data["handler"], data["share_target"]
-            return None, None
-        except Exception as e:
-            logger.error("접수 문서 제목 조회 실패: %s", e)
-            return None, None
+        """
+        제목으로 접수 문서 매핑 조회
+
+        Note: Exception handling managed by @handle_supabase_error decorator
+        """
+        result = (
+            self.client.table("reception_mappings")
+            .select("handler", "share_target")
+            .eq("title", title)
+            .execute()
+        )
+        if result.data:
+            data = result.data[0]
+            return data["handler"], data["share_target"]
+        return None, None
 
     @log_execution_time(logger)
     def recommend_reception(self, title: str, count: int = 3) -> List[Dict[str, Any]]:

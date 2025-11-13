@@ -27,7 +27,7 @@
 - task_id: TASK-019
   spec_id: SPEC-codebase-cleanup-1
   title: "Replace broad Exception handling with specific types"
-  status: pending
+  status: in_progress
   priority: 3
   estimated_hours: 3
   description: >
@@ -35,20 +35,21 @@
     statements with specific exception types. This is a gradual improvement task that
     can be done incrementally.
   changes_required:
-    - "error_handler.py: Add @handle_supabase_error decorator"
-    - "error_handler.py: Add @handle_pywinauto_error decorator"
+    - "error_handler.py: Add @handle_supabase_error decorator ✓"
+    - "error_handler.py: Add @handle_pywinauto_error decorator ✓"
     - "official_service.py: Replace Exception with specific pywinauto exceptions"
-    - "supabase_service.py: Use @handle_supabase_error on methods"
-    - "Document common exception patterns in .governance/patterns.md"
+    - "supabase_service.py: Use @handle_supabase_error on methods (1/N methods done)"
+    - "Document common exception patterns in .governance/patterns.md ✓"
   test_refs:
     - TEST-cleanup-5
   acceptance_criteria:
-    - "Common exception patterns use decorators"
-    - "Critical paths have specific exception types"
+    - "Common exception patterns use decorators ✓"
+    - "Critical paths have specific exception types (in progress)"
     - "No silent failures (all exceptions logged)"
     - "Tests verify specific exception handling"
   notes:
     - "Can be done incrementally over multiple PRs"
     - "Focus on high-traffic code paths first"
+    - "Phase 1 complete: Decorators created, documented, and applied to retrieve_reception_by_title()"
 
 # TASK-020, TASK-021 completed - see done.yaml

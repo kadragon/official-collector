@@ -237,3 +237,160 @@ def safe_execute(
             message = error_message or f"함수 실행 중 오류 발생: {e}"
             logger.exception(message)
         return default_return
+
+
+def handle_supabase_error(
+    operation_name: str,
+    logger: logging.Logger,
+    default_return: Any = None,
+    raise_on_auth_error: bool = True,
+) -> Callable[[Callable], Callable]:
+    """
+    Supabase 데이터베이스 오류를 처리하는 데코레이터.
+
+    일반적인 Supabase/PostgreSQL 오류를 구체적으로 처리하고 로깅합니다.
+
+    Args:
+        operation_name: 작업 이름 (로깅용)
+        logger: 사용할 로거
+        default_return: 오류 발생 시 반환할 기본값
+        raise_on_auth_error: 인증 오류 시 예외를 재발생시킬지 여부
+
+    Returns:
+        Callable: 데코레이터 함수
+
+    Handles:
+        - APIError: General Supabase API errors
+        - ConnectionError/TimeoutError: Network issues
+        - ValueError: Invalid data/parameters
+        - KeyError: Missing required fields
+        - Exception: Catch-all for unexpected errors
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except (ConnectionError, TimeoutError) as e:
+                logger.error(
+                    "%s 실패 - 네트워크 연결 오류: %s", operation_name, str(e)
+                )
+                return default_return
+            except ValueError as e:
+                logger.error("%s 실패 - 잘못된 데이터: %s", operation_name, str(e))
+                return default_return
+            except KeyError as e:
+                logger.error(
+                    "%s 실패 - 필수 필드 누락: %s", operation_name, str(e)
+                )
+                return default_return
+            except AttributeError as e:
+                logger.error(
+                    "%s 실패 - 속성 접근 오류: %s", operation_name, str(e)
+                )
+                return default_return
+            except Exception as e:
+                # Log full traceback for unexpected errors
+                logger.exception(
+                    "%s 실패 - 예상치 못한 오류: %s", operation_name, str(e)
+                )
+                return default_return
+
+        return wrapper
+
+    return decorator
+
+
+def handle_pywinauto_error(
+    operation_name: str,
+    logger: logging.Logger,
+    default_return: Any = None,
+    max_retries: int = 0,
+    retry_delay: float = 0.5,
+) -> Callable[[Callable], Callable]:
+    """
+    pywinauto UI 자동화 오류를 처리하는 데코레이터.
+
+    일반적인 pywinauto 오류를 구체적으로 처리하고 재시도 로직을 제공합니다.
+
+    Args:
+        operation_name: 작업 이름 (로깅용)
+        logger: 사용할 로거
+        default_return: 오류 발생 시 반환할 기본값
+        max_retries: 최대 재시도 횟수
+        retry_delay: 재시도 간 대기 시간 (초)
+
+    Returns:
+        Callable: 데코레이터 함수
+
+    Handles:
+        - ElementNotFoundError: UI element not found
+        - TimeoutError: Operation timeout
+        - RuntimeError: General runtime errors
+        - OSError: System-level errors
+        - Exception: Catch-all for unexpected errors
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except (
+                    AttributeError,
+                    RuntimeError,
+                ) as e:  # ElementNotFoundError typically manifests as these
+                    last_exception = e
+                    if attempt < max_retries:
+                        logger.warning(
+                            "%s 실패 - UI 요소 미발견 (재시도 %d/%d): %s",
+                            operation_name,
+                            attempt + 1,
+                            max_retries,
+                            str(e),
+                        )
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.error(
+                            "%s 실패 - UI 요소 미발견 (최대 재시도 초과): %s",
+                            operation_name,
+                            str(e),
+                        )
+                        return default_return
+                except TimeoutError as e:
+                    last_exception = e
+                    logger.error(
+                        "%s 실패 - 작업 타임아웃: %s", operation_name, str(e)
+                    )
+                    return default_return
+                except OSError as e:
+                    last_exception = e
+                    logger.error(
+                        "%s 실패 - 시스템 레벨 오류: %s", operation_name, str(e)
+                    )
+                    return default_return
+                except Exception as e:
+                    last_exception = e
+                    logger.exception(
+                        "%s 실패 - 예상치 못한 오류: %s", operation_name, str(e)
+                    )
+                    return default_return
+
+            # Should not reach here, but just in case
+            if last_exception:
+                logger.error(
+                    "%s 실패 - 모든 재시도 실패: %s",
+                    operation_name,
+                    str(last_exception),
+                )
+            return default_return
+
+        return wrapper
+
+    return decorator
+
