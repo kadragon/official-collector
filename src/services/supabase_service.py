@@ -10,11 +10,12 @@ from datetime import datetime
 
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from config import get_config
 from .openai_embedding_service import OpenAIEmbeddingService
 from utils.performance_logger import log_execution_time, timer
-from utils.config_manager import get_vector_similarity_threshold
 from utils.audit_logger import get_audit_logger, AuditResource
 from utils.monitoring_hooks import get_monitoring_hooks
+from utils.error_handler import handle_supabase_error
 
 # 환경변수 로드
 load_dotenv()
@@ -31,6 +32,7 @@ class SupabaseService:
         Args:
             embedding_service: OpenAI 임베딩 서비스 인스턴스 (의존성 주입)
         """
+        self.config = get_config()
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
 
@@ -43,29 +45,30 @@ class SupabaseService:
         self.embedding_service = embedding_service
 
         # 벡터 유사도 임계값 설정
-        self.similarity_threshold = get_vector_similarity_threshold()
+        self.similarity_threshold = self.config.get_vector_similarity_threshold()
 
         logger.info("Supabase 클라이언트 초기화 완료")
 
     @log_execution_time(logger)
+    @handle_supabase_error("접수 문서 제목 조회", logger, default_return=(None, None))
     def retrieve_reception_by_title(
         self, title: str
     ) -> Tuple[Optional[str], Optional[str]]:
-        """제목으로 접수 문서 매핑 조회"""
-        try:
-            result = (
-                self.client.table("reception_mappings")
-                .select("handler", "share_target")
-                .eq("title", title)
-                .execute()
-            )
-            if result.data:
-                data = result.data[0]
-                return data["handler"], data["share_target"]
-            return None, None
-        except Exception as e:
-            logger.error("접수 문서 제목 조회 실패: %s", e)
-            return None, None
+        """
+        제목으로 접수 문서 매핑 조회
+
+        Note: Exception handling managed by @handle_supabase_error decorator
+        """
+        result = (
+            self.client.table("reception_mappings")
+            .select("handler", "share_target")
+            .eq("title", title)
+            .execute()
+        )
+        if result.data:
+            data = result.data[0]
+            return data["handler"], data["share_target"]
+        return None, None
 
     @log_execution_time(logger)
     def recommend_reception(self, title: str, count: int = 3) -> List[Dict[str, Any]]:
@@ -612,9 +615,12 @@ class SupabaseService:
 
     def delete_all_cards(self) -> int:
         """모든 업무카드 삭제"""
-        # 프로덕션 환경에서는 삭제 금지
-        if os.getenv("ENVIRONMENT", "development") == "production":
-            logger.error("프로덕션 환경에서는 데이터 삭제를 수행할 수 없습니다")
+        # Destructive operations check
+        if not self.config.allow_destructive_operations():
+            logger.error(
+                "Destructive operations are not allowed in this environment. "
+                "Set ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
+            )
             return 0
 
         try:
@@ -630,9 +636,12 @@ class SupabaseService:
 
     def delete_all_receptions(self) -> int:
         """모든 접수 문서 삭제"""
-        # 프로덕션 환경에서는 삭제 금지
-        if os.getenv("ENVIRONMENT", "development") == "production":
-            logger.error("프로덕션 환경에서는 데이터 삭제를 수행할 수 없습니다")
+        # Destructive operations check
+        if not self.config.allow_destructive_operations():
+            logger.error(
+                "Destructive operations are not allowed in this environment. "
+                "Set ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
+            )
             return 0
 
         try:

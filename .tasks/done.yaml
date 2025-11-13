@@ -373,3 +373,106 @@
     - "2025-11-11T05:30:00+09:00 Ran strict mypy and resolved typing gaps"
     - "2025-11-13T15:00:00+09:00 Completed all Phase 6 deployment readiness work"
   governance_ref: "SPEC-supabase-migration-1, patterns.md, coding-style.md, env.yaml"
+- task_id: TASK-003
+  spec_id: SPEC-performance-observability-1
+  title: "Complete remaining instrumentation (Phase 3)"
+  completed_at: "2025-11-13T16:00:00+09:00"
+  outcome: >
+    Completed Phase 3 performance logging plan by verifying all payment-info windows
+    and circulation dialogs are instrumented with @log_execution_time decorator.
+    Created comprehensive log analysis script (src/utils/phase3_analysis.py) with
+    features: log parsing for performance metrics, statistical analysis (avg/min/max/stddev),
+    baseline storage and comparison, and markdown report generation. Created detailed
+    documentation (docs/PHASE3_ANALYSIS.md) covering usage, workflows, and CI/CD integration.
+    All Phase 3 operations now tracked: ensure_payment_info_window, handle_reception_confirmation,
+    handle_circulation_completion, handle_approval_confirmation, handle_approval_result,
+    handle_reception_result. Total: 2 new files created, 450+ lines of analysis code.
+  test_refs:
+    - TEST-performance-1
+    - TEST-performance-2
+  files_changed:
+    - src/utils/phase3_analysis.py (new, 398 lines)
+    - docs/PHASE3_ANALYSIS.md (new, 234 lines)
+  features_implemented:
+    - "Log parsing: Extracts ⏱️ performance metrics from log files"
+    - "Statistics: Calculates count, avg, min, max, stddev, success rate per operation"
+    - "Baseline storage: Saves performance baselines as JSON for future comparison"
+    - "Baseline comparison: Shows performance changes (seconds and percentage)"
+    - "Report generation: Creates markdown reports with detailed metrics"
+    - "Multiple modes: Single file, all files, comparison, and report generation"
+  instrumented_operations:
+    - "window_manager.py:128 - ensure_payment_info_window"
+    - "dialog_handler.py:363 - handle_reception_confirmation"
+    - "dialog_handler.py:402 - handle_circulation_completion"
+    - "dialog_handler.py:467 - handle_approval_confirmation"
+    - "dialog_handler.py:529 - handle_approval_result"
+    - "dialog_handler.py:436 - handle_reception_result"
+  governance_ref: "SPEC-performance-observability-1, patterns.md line 16"
+- task_id: TASK-004
+  spec_id: SPEC-supabase-migration-1
+  title: "Harden configuration validation and vector thresholds"
+  completed_at: "2025-11-13T17:00:00+09:00"
+  outcome: >
+    Hardened configuration management by centralizing vector thresholds and adding
+    explicit destructive operation gating. Created VectorConfig class in config.py with
+    DEFAULT_SIMILARITY_THRESHOLD (0.3), MIN/MAX bounds for validation. Added
+    get_vector_similarity_threshold() method to UnifiedConfig with environment variable
+    support and validation. Implemented allow_destructive_operations() method that blocks
+    delete_all operations in production unless ALLOW_DESTRUCTIVE_OPERATIONS=true is set.
+    Updated SupabaseService to use config.get_vector_similarity_threshold() instead of
+    config_manager.py. Replaced hard-coded ENVIRONMENT checks in delete_all_cards() and
+    delete_all_receptions() with config.allow_destructive_operations(). Marked config_manager.py
+    functions as deprecated with migration guidance. Supabase credential validation already
+    existed in validate_supabase_credentials(). OpenAI pricing already centralized in
+    OpenAIPricingConfig. Total: 3 files changed, improved security and maintainability.
+  test_refs:
+    - TEST-supabase-3
+  files_changed:
+    - src/config.py (added VectorConfig class, 2 new methods, +78 lines)
+    - src/services/supabase_service.py (use config methods, -2 hard-coded checks, +6 lines)
+    - src/utils/config_manager.py (deprecation warnings, +14 lines)
+  features_implemented:
+    - "VectorConfig class with DEFAULT_SIMILARITY_THRESHOLD=0.3 and bounds"
+    - "get_vector_similarity_threshold(): Environment-aware threshold with validation"
+    - "allow_destructive_operations(): Production-safe operation gating"
+    - "Destructive ops blocked in production unless ALLOW_DESTRUCTIVE_OPERATIONS=true"
+    - "Migration from config_manager.py to config.UnifiedConfig"
+    - "Deprecation warnings for legacy config_manager functions"
+  security_improvements:
+    - "Explicit ALLOW_DESTRUCTIVE_OPERATIONS flag prevents accidental deletions"
+    - "Centralized configuration reduces scattered hard-coded values"
+    - "Validation ensures thresholds stay within safe bounds (0.0-1.0)"
+  governance_ref: "SPEC-supabase-migration-1, env.yaml, TEST-supabase-3"
+- task_id: TASK-005
+  spec_id: SPEC-core-automation-1
+  title: "Stabilize DocumentProcessor UX + error handling"
+  completed_at: "2025-11-13T18:00:00+09:00"
+  outcome: >
+    Stabilized DocumentProcessor UX and error handling by replacing bare assertions,
+    adding CLI timeout/backoff safeguards, and implementing upstream deduplication.
+    Replaced bare assertion in error_handler.py:94 with explicit RuntimeError raising.
+    Added max_retries parameter (default: 3) to _manual_reception_selection() method
+    with bounded retry loops for both approval and share selection, replacing infinite
+    while True loops. Implemented _deduplicate_updates() method for flush_pending_updates()
+    that removes duplicate title entries and keeps only the most recent value before
+    database upsert. Benefits: prevents CLI hanging on invalid input, ensures data
+    consistency with deduplication, improves error visibility with explicit error handling.
+    Total: 2 files changed, 100+ lines improved for robustness.
+  test_refs:
+    - TEST-core-automation-2
+    - TEST-core-automation-3
+  files_changed:
+    - src/utils/error_handler.py (assertion → RuntimeError, +4 lines)
+    - src/services/document_processor.py (retry logic + deduplication, +96 lines)
+  features_implemented:
+    - "Explicit error handling: Replaced assertion with RuntimeError in error_handler.py"
+    - "CLI timeout/backoff: max_retries=3 for manual selections with retry counters"
+    - "Bounded wait time: Finite retry loops replace infinite while True loops"
+    - "Upstream deduplication: _deduplicate_updates() removes duplicate titles"
+    - "Latest value priority: Keeps most recent update when duplicates exist"
+    - "Error logging: Logs retry attempts and max retry exceeded errors"
+  ux_improvements:
+    - "Retry counter feedback: Shows 'retry X/Y' to user on invalid input"
+    - "Graceful failure: Returns (None, None) after max retries instead of hanging"
+    - "Deduplication logging: Reports duplicate removal statistics"
+  governance_ref: "SPEC-core-automation-1, patterns.md, TEST-core-automation-2, TEST-core-automation-3"

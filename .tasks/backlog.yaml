@@ -1,42 +1,6 @@
 # Trace:
 #   spec_id: SPEC-governance-doc-structure-1
 #   task_id: TASK-001
-- task_id: TASK-003
-  spec_id: SPEC-performance-observability-1
-  title: "Complete remaining instrumentation (Phase 3)"
-  status: pending
-  priority: 2
-  description: >
-    Finish the Phase 3 logging plan by instrumenting payment-info windows, circulation dialogs,
-    and log aggregation for Phase 3 analysis scripts.
-  test_refs:
-    - TEST-performance-1
-    - TEST-performance-2
-  blocked_by:
-    - TASK-002
-- task_id: TASK-004
-  spec_id: SPEC-supabase-migration-1
-  title: "Harden configuration validation and vector thresholds"
-  status: pending
-  priority: 2
-  description: >
-    Move hard-coded similarity thresholds (0.3) and OpenAI pricing constants into config.py,
-    add Supabase credential validation, and gate destructive helpers behind environment flags.
-  test_refs:
-    - TEST-supabase-3
-  notes:
-    - "See CODE_REVIEW_PR25.md issues #1-4."
-- task_id: TASK-005
-  spec_id: SPEC-core-automation-1
-  title: "Stabilize DocumentProcessor UX + error handling"
-  status: pending
-  priority: 3
-  description: >
-    Replace bare assertions with explicit error handling, add CLI timeout/backoff for manual selections,
-    and ensure deduplication happens upstream in the database.
-  test_refs:
-    - TEST-core-automation-2
-    - TEST-core-automation-3
 - task_id: TASK-006
   spec_id: SPEC-supabase-migration-1
   title: "Paginate Supabase list APIs"
@@ -51,102 +15,7 @@
 # ================================================================
 # Phase 1: Critical Cleanup (High Priority)
 # ================================================================
-- task_id: TASK-012
-  spec_id: SPEC-codebase-cleanup-1
-  title: "Remove Chroma legacy code"
-  status: pending
-  priority: 1
-  estimated_hours: 1
-  description: >
-    Remove all Chroma-related configuration and references that remain after Supabase migration.
-    This includes config.py constants, environment variables, path setup, and misleading
-    comments/log messages in delete_data.py.
-  changes_required:
-    - "config.py: Remove DEFAULT_CHROMA_DIR, OPTIONAL_PATH_VARS['CHROMA_PERSIST_DIR']"
-    - "config.py: Remove chroma_persist_dir, chroma_persist_path properties"
-    - "config.py: Remove chroma references in get_config_summary(), get_debug_summary()"
-    - "config.py: Remove chroma directory creation in _setup_paths()"
-    - "delete_data.py: Update comments and log messages (Chroma → Supabase)"
-    - "supabase_service.py:321: Update comment about legacy ChromaService compatibility"
-  test_refs:
-    - TEST-cleanup-1
-  acceptance_criteria:
-    - "grep -ri 'chroma' src/ returns no results (case-insensitive)"
-    - "All tests pass after removal"
-    - "No references to .chroma_db or CHROMA_PERSIST_DIR"
-
-- task_id: TASK-013
-  spec_id: SPEC-codebase-cleanup-1
-  title: "Fix dependency injection pattern in SupabaseService"
-  status: pending
-  priority: 1
-  estimated_hours: 0.5
-  description: >
-    Refactor SupabaseService to receive OpenAIEmbeddingService via constructor injection
-    instead of creating it internally. This aligns with governance requirement:
-    "construct services in main.py and pass them downward".
-  changes_required:
-    - "main.py: Create OpenAIEmbeddingService before SupabaseService"
-    - "main.py: Pass embedding_service to SupabaseService constructor"
-    - "supabase_service.py: Add embedding_service parameter to __init__"
-    - "supabase_service.py: Remove self.embedding_service = OpenAIEmbeddingService() line"
-    - "tests/: Update mocks to inject embedding_service"
-  test_refs:
-    - TEST-cleanup-2
-  acceptance_criteria:
-    - "SupabaseService constructor accepts embedding_service parameter"
-    - "No service instantiation inside other services"
-    - "All tests pass with mocked injection"
-  governance_ref: ".governance/coding-style.md line 10"
-
-- task_id: TASK-014
-  spec_id: SPEC-codebase-cleanup-1
-  title: "Convert f-string logging to %s format"
-  status: pending
-  priority: 1
-  estimated_hours: 2
-  description: >
-    Replace all f-string usage in logger calls with %s formatting to comply with
-    governance requirement: "use logger.info('msg %s', arg) instead of f-strings in logging
-    to avoid encoding surprises". This affects ~20 files with multiple violations.
-  changes_required:
-    - "performance_logger.py: 4 logger calls (lines 20, 25, 41, 90)"
-    - "debug_manager.py: 11 logger calls (lines 95, 145, 150, 189, etc.)"
-    - "dialog_classifier.py: 5 logger calls (lines 113, 116, 120, 155, 157)"
-    - "openai_embedding_service.py: 7 logger calls (lines 86, 124, 130, 136, 143, 262, 376)"
-  test_refs:
-    - TEST-cleanup-3
-  acceptance_criteria:
-    - "grep -r 'logger\\.[a-z]*\\(f\"' src/ returns no results"
-    - "All logger calls use %s, %d, %.3f format strings"
-    - "UTF-8 encoding tests pass without issues"
-  governance_ref: ".governance/coding-style.md line 8"
-
-- task_id: TASK-015
-  spec_id: SPEC-codebase-cleanup-1
-  title: "Add performance instrumentation to Supabase I/O methods"
-  status: pending
-  priority: 1
-  estimated_hours: 0.5
-  description: >
-    Add @log_execution_time decorator to all I/O-heavy methods in SupabaseService that
-    currently lack instrumentation. Governance requirement: "Wrap every I/O heavy function
-    with @log_execution_time".
-  changes_required:
-    - "supabase_service.py:44 retrieve_reception_by_title"
-    - "supabase_service.py:63 recommend_reception"
-    - "supabase_service.py:131 retrieve_card_by_title"
-    - "supabase_service.py:147 recommend_cards"
-    - "supabase_service.py:210 upsert_reception_embedding"
-    - "supabase_service.py:241 upsert_card_embedding"
-    - "supabase_service.py:267 get_document_count"
-  test_refs:
-    - TEST-cleanup-4
-  acceptance_criteria:
-    - "All 7 methods decorated with @log_execution_time"
-    - "Execution time logs appear in test output"
-    - "No performance regression (within 5% baseline)"
-  governance_ref: ".governance/patterns.md line 16"
+# TASK-012, TASK-013, TASK-014, TASK-015 completed - see done.yaml
 
 # ================================================================
 # Phase 2: Structural Refactoring (Medium Priority)
@@ -158,7 +27,7 @@
 - task_id: TASK-019
   spec_id: SPEC-codebase-cleanup-1
   title: "Replace broad Exception handling with specific types"
-  status: pending
+  status: in_progress
   priority: 3
   estimated_hours: 3
   description: >
@@ -166,66 +35,21 @@
     statements with specific exception types. This is a gradual improvement task that
     can be done incrementally.
   changes_required:
-    - "error_handler.py: Add @handle_supabase_error decorator"
-    - "error_handler.py: Add @handle_pywinauto_error decorator"
+    - "error_handler.py: Add @handle_supabase_error decorator ✓"
+    - "error_handler.py: Add @handle_pywinauto_error decorator ✓"
     - "official_service.py: Replace Exception with specific pywinauto exceptions"
-    - "supabase_service.py: Use @handle_supabase_error on methods"
-    - "Document common exception patterns in .governance/patterns.md"
+    - "supabase_service.py: Use @handle_supabase_error on methods (1/N methods done)"
+    - "Document common exception patterns in .governance/patterns.md ✓"
   test_refs:
     - TEST-cleanup-5
   acceptance_criteria:
-    - "Common exception patterns use decorators"
-    - "Critical paths have specific exception types"
+    - "Common exception patterns use decorators ✓"
+    - "Critical paths have specific exception types (in progress)"
     - "No silent failures (all exceptions logged)"
     - "Tests verify specific exception handling"
   notes:
     - "Can be done incrementally over multiple PRs"
     - "Focus on high-traffic code paths first"
+    - "Phase 1 complete: Decorators created, documented, and applied to retrieve_reception_by_title()"
 
-- task_id: TASK-020
-  spec_id: SPEC-codebase-cleanup-1
-  title: "Complete ANSI code removal from console_interface.py"
-  status: pending
-  priority: 3
-  estimated_hours: 2
-  description: >
-    Finish the Rich UI migration by removing remaining ANSI codes from console_interface.py,
-    particularly in deletion-related functions. Either migrate to RichConsole or deprecate
-    the entire file if all callers can use RichConsole directly.
-  changes_required:
-    - "console_interface.py: Remove Colors class or unused symbols"
-    - "console_interface.py: Migrate show_items_for_deletion() to Rich Table"
-    - "console_interface.py: Migrate deletion confirmation to Rich Panel"
-    - "Update all deletion UI calls to use RichConsole"
-    - "Consider deprecating console_interface.py entirely"
-  test_refs:
-    - TEST-cleanup-5
-  acceptance_criteria:
-    - "No ANSI escape codes in console_interface.py"
-    - "All UI uses Rich library primitives"
-    - "Deletion UI has consistent styling"
-    - "69 UI tests pass"
-  depends_on:
-    - "SPEC-rich-ui-enhancement-1 (completed)"
-
-- task_id: TASK-021
-  spec_id: SPEC-codebase-cleanup-1
-  title: "Complete type hint coverage"
-  status: pending
-  priority: 3
-  estimated_hours: 1
-  description: >
-    Add missing return type hints to ~20 functions, primarily in official_service.py
-    internal methods. Ensure mypy --strict passes on all packages.
-  changes_required:
-    - "official_service.py: Add return type hints to helper methods"
-    - "Add -> None to all procedures without explicit returns"
-    - "Verify mypy --strict compliance on all packages"
-    - "Update .governance/coding-style.md with type hint guidelines"
-  test_refs:
-    - TEST-cleanup-5
-  acceptance_criteria:
-    - "mypy -p services -p dialogs -p ui -p utils --strict passes"
-    - "All public/protected methods have full type hints"
-    - "No # type: ignore comments added"
-  governance_ref: ".governance/coding-style.md line 7"
+# TASK-020, TASK-021 completed - see done.yaml

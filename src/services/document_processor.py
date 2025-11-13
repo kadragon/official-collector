@@ -146,9 +146,18 @@ class DocumentProcessor:
         return None, None
 
     def _manual_reception_selection(
-        self, title: str
+        self, title: str, max_retries: int = 3
     ) -> Tuple[Optional[str], Optional[str]]:
-        """수동으로 담당자와 공람 대상자를 선택합니다."""
+        """
+        수동으로 담당자와 공람 대상자를 선택합니다.
+
+        Args:
+            title: 문서 제목
+            max_retries: 최대 재시도 횟수 (기본값: 3)
+
+        Returns:
+            Tuple[담당자, 공람대상자]: 선택 결과, 실패 시 (None, None)
+        """
         try:
             console.clear()
 
@@ -158,8 +167,13 @@ class DocumentProcessor:
                 console.print_info(f"담당자 자동 선택: {selected_approval}")
             else:
                 console.print_menu("담당자 선택", self.approval_name_list)
-                while True:
+                selected_approval = None
+                for attempt in range(max_retries):
                     try:
+                        if attempt > 0:
+                            console.print_warning(
+                                f"재시도 {attempt}/{max_retries - 1}"
+                            )
                         user_input = console.get_input("번호를 선택하세요")
                         selected_approval = console.validate_selection(
                             user_input, self.approval_name_list
@@ -167,12 +181,24 @@ class DocumentProcessor:
                         break
                     except ValueError as e:
                         console.print_error(str(e))
+                        if attempt == max_retries - 1:
+                            logger.error(
+                                "담당자 선택 최대 재시도 횟수 초과: %s", title
+                            )
+                            return None, None
+
+                if selected_approval is None:
+                    logger.error("담당자 선택 실패: %s", title)
+                    return None, None
 
             # 공람자 선택
             console.print_separator()
             console.print_menu("공람자 선택", self.share_name_list)
-            while True:
+            selected_share = None
+            for attempt in range(max_retries):
                 try:
+                    if attempt > 0:
+                        console.print_warning(f"재시도 {attempt}/{max_retries - 1}")
                     user_input = console.get_input("번호를 선택하세요")
                     selected_share = console.validate_selection(
                         user_input, self.share_name_list
@@ -180,6 +206,13 @@ class DocumentProcessor:
                     break
                 except ValueError as e:
                     console.print_error(str(e))
+                    if attempt == max_retries - 1:
+                        logger.error("공람자 선택 최대 재시도 횟수 초과: %s", title)
+                        return None, None
+
+            if selected_share is None:
+                logger.error("공람자 선택 실패: %s", title)
+                return None, None
 
             return selected_approval, selected_share
         except Exception as e:
@@ -325,23 +358,55 @@ class DocumentProcessor:
 
     @log_execution_time(logger)
     def flush_pending_updates(self) -> None:
-        """대기 중인 모든 업데이트를 Supabase에 일괄 업로드"""
-        reception_count = len(self.pending_reception_updates)
-        card_count = len(self.pending_card_updates)
+        """
+        대기 중인 모든 업데이트를 Supabase에 일괄 업로드합니다.
 
-        if reception_count == 0 and card_count == 0:
+        Upstream deduplication을 수행하여 동일한 title에 대한 중복 업데이트를
+        제거하고 가장 최근 값만 유지합니다.
+        """
+        reception_count_original = len(self.pending_reception_updates)
+        card_count_original = len(self.pending_card_updates)
+
+        if reception_count_original == 0 and card_count_original == 0:
             logger.debug("대기 중인 업데이트가 없습니다.")
             return
 
         logger.info(
-            "배치 업데이트 시작 - 접수 문서: %d개, 과제 카드: %d개",
-            reception_count,
-            card_count,
+            "배치 업데이트 시작 (deduplication 전) - 접수 문서: %d개, 과제 카드: %d개",
+            reception_count_original,
+            card_count_original,
         )
+
+        # Deduplication: 동일한 title의 경우 가장 최근 값만 유지
+        deduplicated_receptions = self._deduplicate_updates(
+            self.pending_reception_updates, key="title"
+        )
+        deduplicated_cards = self._deduplicate_updates(
+            self.pending_card_updates, key="title"
+        )
+
+        reception_count = len(deduplicated_receptions)
+        card_count = len(deduplicated_cards)
+
+        if reception_count < reception_count_original:
+            logger.info(
+                "접수 문서 중복 제거: %d개 → %d개 (중복 %d개 제거)",
+                reception_count_original,
+                reception_count,
+                reception_count_original - reception_count,
+            )
+
+        if card_count < card_count_original:
+            logger.info(
+                "과제 카드 중복 제거: %d개 → %d개 (중복 %d개 제거)",
+                card_count_original,
+                card_count,
+                card_count_original - card_count,
+            )
 
         # 접수 문서 배치 업데이트
         success_count = 0
-        for update in self.pending_reception_updates:
+        for update in deduplicated_receptions:
             try:
                 self.supabase_service.upsert_reception_embedding(
                     update["title"], update["approval"], update["shared"]
@@ -358,7 +423,7 @@ class DocumentProcessor:
 
         # 과제 카드 배치 업데이트
         success_count = 0
-        for update in self.pending_card_updates:
+        for update in deduplicated_cards:
             try:
                 self.supabase_service.upsert_card_embedding(
                     update["title"], update["card_name"]
@@ -376,6 +441,32 @@ class DocumentProcessor:
         self.pending_card_updates.clear()
 
         logger.info("배치 업데이트 완료 - 모든 대기 중인 업데이트가 처리되었습니다.")
+
+    def _deduplicate_updates(
+        self, updates: list[dict[str, Any]], key: str
+    ) -> list[dict[str, Any]]:
+        """
+        업데이트 리스트를 중복 제거합니다.
+
+        동일한 키 값을 가진 항목이 여러 개 있을 경우, 가장 마지막(최근) 항목만 유지합니다.
+
+        Args:
+            updates: 업데이트 리스트
+            key: 중복 제거에 사용할 키
+
+        Returns:
+            list[dict[str, Any]]: 중복 제거된 업데이트 리스트
+        """
+        seen = {}
+        for idx, update in enumerate(updates):
+            key_value = update.get(key)
+            if key_value:
+                # 동일한 키의 경우 가장 마지막 인덱스 저장 (최신 값 우선)
+                seen[key_value] = idx
+
+        # seen에 있는 인덱스만 유지
+        deduplicated = [updates[idx] for idx in sorted(seen.values())]
+        return deduplicated
 
     def get_pending_updates_count(self) -> Tuple[int, int]:
         """대기 중인 업데이트 개수 반환 (접수 문서, 과제 카드)"""
