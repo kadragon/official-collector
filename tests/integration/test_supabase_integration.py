@@ -626,7 +626,8 @@ class TestMockIntegration:
                     "SUPABASE_KEY": "test-key",
                 },
             ):
-                service = SupabaseService()
+                embedding_service = mock_embedding_class()
+                service = SupabaseService(embedding_service)
 
                 # Test that embedding service is properly initialized
                 assert service.embedding_service is not None
@@ -641,7 +642,9 @@ class TestMockIntegration:
 
         # Test missing environment variables
         with patch.dict(os.environ, {}, clear=True):
-            with patch("services.supabase_service.OpenAIEmbeddingService") as mock_embedding:
+            with patch(
+                "services.supabase_service.OpenAIEmbeddingService"
+            ) as mock_embedding:
                 mock_embedding.return_value = MagicMock()
                 embedding_service = mock_embedding()
                 with pytest.raises(ValueError, match="SUPABASE_URL"):

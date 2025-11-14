@@ -6,7 +6,7 @@
 문서 처리 로직을 중앙화하고 코드 중복을 제거했습니다.
 """
 
-from typing import List, Tuple, Optional, Any
+from typing import List, Tuple, Optional, Any, cast
 from services.supabase_service import SupabaseService
 from ui.console_interface import (
     SelectionResult,
@@ -21,6 +21,9 @@ from utils.performance_logger import log_execution_time
 
 logger = setup_logger(__name__)
 console = RichConsole()
+
+# Auto-selection similarity threshold for recommendations
+AUTO_SELECTION_SIMILARITY_THRESHOLD = 0.85
 
 
 class DocumentProcessor:
@@ -116,7 +119,7 @@ class DocumentProcessor:
             if recommendations:
                 # 최고 유사도가 85% 이상이면 자동 선택
                 top_similarity = recommendations[0]["similarity"]
-                if top_similarity >= 0.85:
+                if top_similarity >= AUTO_SELECTION_SIMILARITY_THRESHOLD:
                     approval = recommendations[0]["approval"]
                     shared = recommendations[0]["share"]
                     logger.info(
@@ -288,9 +291,9 @@ class DocumentProcessor:
         card_name = self.supabase_service.retrieve_card_by_title(title)
         is_exact_match = card_name is not None
 
-        if is_exact_match and card_name is not None:
+        if is_exact_match:
             logger.info("정확한 제목 매칭 발견: %s -> %s", title, card_name)
-            return str(card_name)
+            return cast(str, card_name)  # is_exact_match ensures card_name is not None
 
         # 2. OpenAI 임베딩 기반 의미적 유사도로 추천 생성
         # 임베딩 재사용: 1회만 생성하여 검색과 저장에 모두 사용
@@ -310,8 +313,8 @@ class DocumentProcessor:
 
                 # 최고 유사도가 85% 이상이면 자동 선택
                 top_similarity = recommendations[0]["similarity"]
-                if top_similarity >= 0.85:
-                    card_name = str(recommendations[0]["task_title"])
+                if top_similarity >= AUTO_SELECTION_SIMILARITY_THRESHOLD:
+                    card_name = cast(str, recommendations[0]["task_title"])
                     logger.info(
                         "유사도 %.1f%% ≥ 85%% - 자동 선택: %s -> %s",
                         top_similarity * 100,
@@ -344,7 +347,7 @@ class DocumentProcessor:
                     if value is None:
                         raise ValueError("추천 선택 결과가 None입니다")
                     selected_index = recommendation_options.index(value)
-                    card_name = str(recommendations[selected_index]["task_title"])
+                    card_name = cast(str, recommendations[selected_index]["task_title"])
                     logger.info("임베딩 추천에서 선택: %s -> %s", title, card_name)
 
         # 3. 추천이 선택되지 않은 경우 미리 정의된 목록 제공
@@ -371,9 +374,9 @@ class DocumentProcessor:
         if card_name:
             # 임베딩이 생성되었으면 전달, 아니면 None
             embedding = embedding_response.embedding if embedding_response else None
-            self._queue_card_update(title, str(card_name), embedding)
+            self._queue_card_update(title, card_name, embedding)
             logger.info("과제 카드 매칭 완료: %s -> %s", title, card_name)
-            return str(card_name)
+            return cast(str, card_name)  # if check ensures card_name is not None
 
         logger.warning("과제 카드 매칭 실패: %s", title)
         return None

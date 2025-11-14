@@ -22,13 +22,24 @@ def mock_supabase_service():
     """모킹된 SupabaseService 제공"""
     mock_service = MagicMock(spec=SupabaseService)
 
+    # Mock embedding_service
+    mock_embedding_service = MagicMock()
+    mock_embedding_response = MagicMock()
+    mock_embedding_response.embedding = [0.1] * 1536  # Mock embedding vector
+    mock_embedding_service.create_embedding.return_value = mock_embedding_response
+    mock_service.embedding_service = mock_embedding_service
+
     # Mock 응답 설정
     mock_service.retrieve_reception_by_title.return_value = (None, None)
     mock_service.recommend_reception.return_value = []
+    mock_service.recommend_reception_with_embedding.return_value = []
     mock_service.retrieve_card_by_title.return_value = None
     mock_service.recommend_cards.return_value = []
+    mock_service.recommend_cards_with_embedding.return_value = []
     mock_service.upsert_reception_embedding.return_value = True
+    mock_service.upsert_reception_with_embedding.return_value = True
     mock_service.upsert_card_embedding.return_value = True
+    mock_service.upsert_card_with_embedding.return_value = True
     mock_service.get_document_count.return_value = 0
 
     return mock_service
@@ -133,12 +144,12 @@ class TestDocumentProcessorCompatibility:
         """배치 업데이트 워크플로우 테스트"""
         # Mock 설정: 정확한 매칭 없음 -> 추천으로 가서 사용자 선택 -> 큐에 추가
         mock_supabase_service.retrieve_reception_by_title.return_value = (None, None)
-        mock_supabase_service.recommend_reception.return_value = [
+        mock_supabase_service.recommend_reception_with_embedding.return_value = [
             {"approval": "김과장", "share": "이과장", "similarity": 0.95}
         ]
 
         mock_supabase_service.retrieve_card_by_title.return_value = None
-        mock_supabase_service.recommend_cards.return_value = [
+        mock_supabase_service.recommend_cards_with_embedding.return_value = [
             {"task_title": "공문관리", "similarity": 0.90}
         ]
 
@@ -146,12 +157,12 @@ class TestDocumentProcessorCompatibility:
         mock_get_choice.side_effect = [
             (
                 SelectionResult.SELECTED,
-                "김과장 (공람: 이과장, 유사도: 95.0%)",
-            ),  # reception
+                "95.0% | 김과장 | 이과장",
+            ),  # reception - updated format to match actual code
             (
                 SelectionResult.SELECTED,
-                "공문관리 (유사도: 90.0%)",
-            ),  # card
+                "90.0% | 공문관리",
+            ),  # card - updated format to match actual code
         ]
 
         # 문서 처리 (큐에 추가됨)
@@ -167,8 +178,15 @@ class TestDocumentProcessorCompatibility:
         document_processor.flush_pending_updates()
 
         # Supabase service 호출 확인
-        mock_supabase_service.upsert_reception_embedding.assert_called_once()
-        mock_supabase_service.upsert_card_embedding.assert_called_once()
+        # upsert_reception_with_embedding or upsert_reception_embedding should be called
+        assert (
+            mock_supabase_service.upsert_reception_embedding.call_count
+            + mock_supabase_service.upsert_reception_with_embedding.call_count
+        ) == 1
+        assert (
+            mock_supabase_service.upsert_card_embedding.call_count
+            + mock_supabase_service.upsert_card_with_embedding.call_count
+        ) == 1
 
         # 큐가 비워졌는지 확인
         reception_count, card_count = document_processor.get_pending_updates_count()

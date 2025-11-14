@@ -5,7 +5,7 @@ Supabase 데이터베이스 서비스 클래스
 
 import os
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, cast
 from datetime import datetime
 
 from supabase import create_client, Client
@@ -70,6 +70,48 @@ class SupabaseService:
             return data["handler"], data["share_target"]
         return None, None
 
+    def _process_reception_results(
+        self, result_data: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        접수 문서 검색 결과를 처리하여 중복 제거 및 정렬
+
+        Args:
+            result_data: RPC 검색 결과 데이터
+
+        Returns:
+            중복 제거 및 정렬된 추천 결과 리스트
+        """
+        recommendations = []
+        seen_combinations: dict[str, dict[str, Any]] = {}
+
+        if result_data:
+            for item in result_data:
+                approval = item["handler"]
+                share = item["share_target"] or "공람없음"
+                similarity = item.get("similarity", 0)
+                item_title = item["title"]
+
+                combo_key = f"{approval}|{share}"
+
+                if (
+                    combo_key not in seen_combinations
+                    or seen_combinations[combo_key]["similarity"] < similarity
+                ):
+                    seen_combinations[combo_key] = {
+                        "approval": approval,
+                        "share": share,
+                        "similarity": similarity,
+                        "title": item_title,
+                    }
+
+            recommendations = sorted(
+                seen_combinations.values(),
+                key=lambda x: x["similarity"],
+                reverse=True,
+            )
+        return recommendations
+
     @log_execution_time(logger)
     def recommend_reception(self, title: str, count: int = 3) -> List[Dict[str, Any]]:
         """벡터 유사도 기반 접수 문서 추천"""
@@ -96,40 +138,7 @@ class SupabaseService:
                         },
                     ).execute()
 
-                recommendations = []
-                seen_combinations: dict[str, dict[str, Any]] = (
-                    {}
-                )  # 중복 제거를 위한 딕셔너리
-
-                if result.data:
-                    for item in result.data:
-                        approval = item["handler"]
-                        share = item["share_target"] or "공람없음"
-                        similarity = item.get("similarity", 0)
-                        item_title = item["title"]
-
-                        # approval + share 조합을 키로 사용
-                        combo_key = f"{approval}|{share}"
-
-                        # 새로운 조합이거나 더 높은 유사도인 경우만 추가/업데이트
-                        if (
-                            combo_key not in seen_combinations
-                            or seen_combinations[combo_key]["similarity"] < similarity
-                        ):
-                            seen_combinations[combo_key] = {
-                                "approval": approval,
-                                "share": share,
-                                "similarity": similarity,
-                                "title": item_title,
-                            }
-
-                    # 딕셔너리 값을 리스트로 변환하고 유사도 순으로 정렬
-                    recommendations = sorted(
-                        seen_combinations.values(),
-                        key=lambda x: x["similarity"],
-                        reverse=True,
-                    )
-                return recommendations
+                return self._process_reception_results(result.data)
 
             except Exception as e:
                 logger.error("벡터 검색 실패: %s", e)
@@ -163,39 +172,44 @@ class SupabaseService:
                     },
                 ).execute()
 
-            recommendations = []
-            seen_combinations: dict[str, dict[str, Any]] = {}
-
-            if result.data:
-                for item in result.data:
-                    approval = item["handler"]
-                    share = item["share_target"] or "공람없음"
-                    similarity = item.get("similarity", 0)
-                    item_title = item["title"]
-
-                    combo_key = f"{approval}|{share}"
-
-                    if (
-                        combo_key not in seen_combinations
-                        or seen_combinations[combo_key]["similarity"] < similarity
-                    ):
-                        seen_combinations[combo_key] = {
-                            "approval": approval,
-                            "share": share,
-                            "similarity": similarity,
-                            "title": item_title,
-                        }
-
-                recommendations = sorted(
-                    seen_combinations.values(),
-                    key=lambda x: x["similarity"],
-                    reverse=True,
-                )
-            return recommendations
+            return self._process_reception_results(result.data)
 
         except Exception as e:
             logger.error("벡터 검색 실패 (재사용): %s", e)
             return []
+
+    def _process_card_results(
+        self, result_data: List[Dict[str, Any]], count: int
+    ) -> List[Dict[str, Any]]:
+        """
+        업무카드 검색 결과를 처리하여 중복 제거 및 정렬
+
+        Args:
+            result_data: RPC 검색 결과 데이터
+            count: 반환할 최대 결과 개수
+
+        Returns:
+            중복 제거 및 정렬된 추천 결과 리스트
+        """
+        recommendations = []
+        seen_cards: dict[str, float] = {}
+
+        if result_data:
+            for item in result_data:
+                task_title = item["task_title"]
+                similarity = item.get("similarity", 0)
+
+                if task_title not in seen_cards or seen_cards[task_title] < similarity:
+                    seen_cards[task_title] = similarity
+
+            recommendations = [
+                {"task_title": card, "similarity": seen_cards[card]}
+                for card in sorted(
+                    seen_cards.keys(), key=lambda x: seen_cards[x], reverse=True
+                )[:count]
+            ]
+
+        return recommendations
 
     @log_execution_time(logger)
     def retrieve_card_by_title(self, title: str) -> Optional[str]:
@@ -240,31 +254,7 @@ class SupabaseService:
                         },
                     ).execute()
 
-                recommendations = []
-                seen_cards: dict[str, float] = (
-                    {}
-                )  # 중복 제거를 위한 딕셔너리 (카드명 -> 최고 유사도)
-
-                if result.data:
-                    for item in result.data:
-                        task_title = item["task_title"]
-                        similarity = item.get("similarity", 0)
-
-                        # 새로운 카드이거나 더 높은 유사도인 경우만 추가/업데이트
-                        if (
-                            task_title not in seen_cards
-                            or seen_cards[task_title] < similarity
-                        ):
-                            seen_cards[task_title] = similarity
-
-                    # 유사도 순으로 정렬하여 카드명과 유사도를 함께 반환
-                    recommendations = [
-                        {"task_title": card, "similarity": seen_cards[card]}
-                        for card in sorted(
-                            seen_cards.keys(), key=lambda x: seen_cards[x], reverse=True
-                        )[:count]
-                    ]
-
+                recommendations = self._process_card_results(result.data, count)
                 logger.info(
                     "업무카드 추천 완료 (중복 제거 후): %d개", len(recommendations)
                 )
@@ -302,27 +292,7 @@ class SupabaseService:
                     },
                 ).execute()
 
-            recommendations = []
-            seen_cards: dict[str, float] = {}
-
-            if result.data:
-                for item in result.data:
-                    task_title = item["task_title"]
-                    similarity = item.get("similarity", 0)
-
-                    if (
-                        task_title not in seen_cards
-                        or seen_cards[task_title] < similarity
-                    ):
-                        seen_cards[task_title] = similarity
-
-                recommendations = [
-                    {"task_title": card, "similarity": seen_cards[card]}
-                    for card in sorted(
-                        seen_cards.keys(), key=lambda x: seen_cards[x], reverse=True
-                    )[:count]
-                ]
-
+            recommendations = self._process_card_results(result.data, count)
             logger.info(
                 "업무카드 추천 완료 (재사용, 중복 제거 후): %d개", len(recommendations)
             )
@@ -332,6 +302,107 @@ class SupabaseService:
             logger.error("벡터 검색 실패 (재사용): %s", e)
             return []
 
+    @log_execution_time(logger)
+    def upsert_reception_embedding(
+        self,
+        title: str,
+        handler: str,
+        share_target: str,
+        embedding: Optional[List[float]] = None,
+    ) -> bool:
+        """
+        접수 문서 정규 매핑 (임베딩 재사용 또는 생성)
+
+        Args:
+            title: 문서 제목
+            handler: 담당자
+            share_target: 공람 대상자
+            embedding: 이미 생성된 임베딩 벡터 (Optional)
+
+        Returns:
+            성공 여부
+        """
+        audit = get_audit_logger()
+        monitoring = get_monitoring_hooks()
+        start_time = datetime.now()
+
+        try:
+            # 임베딩이 제공되지 않으면 생성
+            embedding_reused = embedding is not None
+            if not embedding_reused:
+                embedding_response = self.embedding_service.create_embedding(
+                    title, f"reception_{title}"
+                )
+                embedding = embedding_response.embedding if embedding_response else None
+
+            data = {
+                "title": title,
+                "handler": handler,
+                "share_target": share_target,
+                "embedding": embedding,
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+
+            (
+                self.client.table("reception_mappings")
+                .upsert(data, on_conflict="title")
+                .execute()
+            )
+
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+
+            log_suffix = " (재사용)" if embedding_reused else ""
+            logger.info(
+                "접수 문서 정규 매핑%s: %s -> %s/%s",
+                log_suffix,
+                title,
+                handler,
+                share_target,
+            )
+
+            # Audit log
+            audit.log_update(
+                resource=AuditResource.RECEPTION_DOCUMENT,
+                resource_id=title,
+                status="success",
+                details={
+                    "handler": handler,
+                    "share_target": share_target,
+                    "has_embedding": embedding is not None,
+                    "embedding_reused": embedding_reused,
+                },
+                duration_ms=duration_ms,
+            )
+
+            monitoring.record_api_call(
+                service="supabase", success=True, response_time_ms=duration_ms
+            )
+
+            return True
+        except Exception as e:
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+            error_msg = str(e)
+
+            log_suffix = " (재사용)" if embedding_reused else ""
+            logger.error("접수 문서 정규 매핑 실패%s: %s", log_suffix, e)
+
+            audit.log_update(
+                resource=AuditResource.RECEPTION_DOCUMENT,
+                resource_id=title,
+                status="failure",
+                error_message=error_msg,
+                details={"handler": handler, "share_target": share_target},
+                duration_ms=duration_ms,
+            )
+
+            monitoring.record_database_error(
+                operation="upsert_reception_embedding",
+                error_message=error_msg,
+                details={"title": title},
+            )
+
+            return False
+
     def upsert_reception_with_embedding(
         self,
         title: str,
@@ -340,7 +411,10 @@ class SupabaseService:
         embedding: Optional[List[float]] = None,
     ) -> bool:
         """
-        임베딩을 직접 제공하여 접수 문서 매핑 (API 호출 없음)
+        임베딩을 직접 제공하여 접수 문서 매핑 (레거시 호환성 유지)
+
+        Note: This method now delegates to upsert_reception_embedding for maintainability.
+              Use upsert_reception_embedding directly in new code.
 
         Args:
             title: 문서 제목
@@ -351,41 +425,66 @@ class SupabaseService:
         Returns:
             성공 여부
         """
+        return cast(
+            bool,
+            self.upsert_reception_embedding(title, handler, share_target, embedding),
+        )
+
+    @log_execution_time(logger)
+    def upsert_card_embedding(
+        self, title: str, task_title: str, embedding: Optional[List[float]] = None
+    ) -> bool:
+        """
+        업무카드 정규 매핑 (임베딩 재사용 또는 생성)
+
+        Args:
+            title: 문서 제목
+            task_title: 과제 카드명
+            embedding: 이미 생성된 임베딩 벡터 (Optional)
+
+        Returns:
+            성공 여부
+        """
         audit = get_audit_logger()
         monitoring = get_monitoring_hooks()
         start_time = datetime.now()
 
         try:
+            # 임베딩이 제공되지 않으면 생성
+            embedding_reused = embedding is not None
+            if not embedding_reused:
+                embedding_response = self.embedding_service.create_embedding(
+                    title, f"task_card_{title}"
+                )
+                embedding = embedding_response.embedding if embedding_response else None
+
             data = {
                 "title": title,
-                "handler": handler,
-                "share_target": share_target,
+                "task_title": task_title,
                 "embedding": embedding,
                 "updated_at": datetime.utcnow().isoformat(),
             }
 
             (
-                self.client.table("reception_mappings")
+                self.client.table("task_card_mappings")
                 .upsert(data, on_conflict="title")
                 .execute()
             )
 
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
 
-            logger.info(
-                "접수 문서 정규 매핑 (재사용): %s -> %s/%s", title, handler, share_target
-            )
+            log_suffix = " (재사용)" if embedding_reused else ""
+            logger.info("업무카드 정규 매핑%s: %s -> %s", log_suffix, title, task_title)
 
             # Audit log
             audit.log_update(
-                resource=AuditResource.RECEPTION_DOCUMENT,
+                resource=AuditResource.TASK_CARD,
                 resource_id=title,
                 status="success",
                 details={
-                    "handler": handler,
-                    "share_target": share_target,
+                    "task_title": task_title,
                     "has_embedding": embedding is not None,
-                    "embedding_reused": True,
+                    "embedding_reused": embedding_reused,
                 },
                 duration_ms=duration_ms,
             )
@@ -399,100 +498,20 @@ class SupabaseService:
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             error_msg = str(e)
 
-            logger.error("접수 문서 정규 매핑 실패 (재사용): %s", e)
+            log_suffix = " (재사용)" if embedding_reused else ""
+            logger.error("업무카드 정규 매핑 실패%s: %s", log_suffix, e)
 
             audit.log_update(
-                resource=AuditResource.RECEPTION_DOCUMENT,
+                resource=AuditResource.TASK_CARD,
                 resource_id=title,
                 status="failure",
                 error_message=error_msg,
-                details={"handler": handler, "share_target": share_target},
+                details={"task_title": task_title},
                 duration_ms=duration_ms,
             )
 
             monitoring.record_database_error(
-                operation="upsert_reception_with_embedding",
-                error_message=error_msg,
-                details={"title": title},
-            )
-
-            return False
-
-    @log_execution_time(logger)
-    def upsert_reception_embedding(
-        self, title: str, handler: str, share_target: str
-    ) -> bool:
-        """접수 문서 정규 매핑 (선택적 업데이트)"""
-        audit = get_audit_logger()
-        monitoring = get_monitoring_hooks()
-        start_time = datetime.now()
-
-        try:
-            embedding_response = self.embedding_service.create_embedding(
-                title, f"reception_{title}"
-            )
-            embedding = embedding_response.embedding if embedding_response else None
-
-            data = {
-                "title": title,
-                "handler": handler,
-                "share_target": share_target,
-                "embedding": embedding,
-                "updated_at": datetime.utcnow().isoformat(),
-            }
-
-            (
-                self.client.table("reception_mappings")
-                .upsert(data, on_conflict="title")
-                .execute()
-            )
-
-            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-
-            logger.info(
-                "접수 문서 정규 매핑: %s -> %s/%s", title, handler, share_target
-            )
-
-            # Audit log
-            audit.log_update(
-                resource=AuditResource.RECEPTION_DOCUMENT,
-                resource_id=title,
-                status="success",
-                details={
-                    "handler": handler,
-                    "share_target": share_target,
-                    "has_embedding": embedding is not None,
-                },
-                duration_ms=duration_ms,
-            )
-
-            # Monitoring
-            monitoring.record_api_call(
-                service="supabase",
-                success=True,
-                response_time_ms=duration_ms,
-            )
-
-            return True
-        except Exception as e:
-            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-            error_msg = str(e)
-
-            logger.error("접수 문서 정규 매핑 실패: %s", e)
-
-            # Audit log failure
-            audit.log_update(
-                resource=AuditResource.RECEPTION_DOCUMENT,
-                resource_id=title,
-                status="failure",
-                error_message=error_msg,
-                details={"handler": handler, "share_target": share_target},
-                duration_ms=duration_ms,
-            )
-
-            # Monitoring
-            monitoring.record_database_error(
-                operation="upsert_reception_embedding",
+                operation="upsert_card_embedding",
                 error_message=error_msg,
                 details={"title": title},
             )
@@ -503,7 +522,10 @@ class SupabaseService:
         self, title: str, task_title: str, embedding: Optional[List[float]] = None
     ) -> bool:
         """
-        임베딩을 직접 제공하여 업무카드 매핑 (API 호출 없음)
+        임베딩을 직접 제공하여 업무카드 매핑 (레거시 호환성 유지)
+
+        Note: This method now delegates to upsert_card_embedding for maintainability.
+              Use upsert_card_embedding directly in new code.
 
         Args:
             title: 문서 제목
@@ -513,143 +535,7 @@ class SupabaseService:
         Returns:
             성공 여부
         """
-        audit = get_audit_logger()
-        monitoring = get_monitoring_hooks()
-        start_time = datetime.now()
-
-        try:
-            data = {
-                "title": title,
-                "task_title": task_title,
-                "embedding": embedding,
-                "updated_at": datetime.utcnow().isoformat(),
-            }
-
-            (
-                self.client.table("task_card_mappings")
-                .upsert(data, on_conflict="title")
-                .execute()
-            )
-
-            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-
-            logger.info("업무카드 정규 매핑 (재사용): %s -> %s", title, task_title)
-
-            # Audit log
-            audit.log_update(
-                resource=AuditResource.TASK_CARD,
-                resource_id=title,
-                status="success",
-                details={
-                    "task_title": task_title,
-                    "has_embedding": embedding is not None,
-                    "embedding_reused": True,
-                },
-                duration_ms=duration_ms,
-            )
-
-            monitoring.record_api_call(
-                service="supabase", success=True, response_time_ms=duration_ms
-            )
-
-            return True
-        except Exception as e:
-            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-            error_msg = str(e)
-
-            logger.error("업무카드 정규 매핑 실패 (재사용): %s", e)
-
-            audit.log_update(
-                resource=AuditResource.TASK_CARD,
-                resource_id=title,
-                status="failure",
-                error_message=error_msg,
-                details={"task_title": task_title},
-                duration_ms=duration_ms,
-            )
-
-            monitoring.record_database_error(
-                operation="upsert_card_with_embedding",
-                error_message=error_msg,
-                details={"title": title},
-            )
-
-            return False
-
-    @log_execution_time(logger)
-    def upsert_card_embedding(self, title: str, task_title: str) -> bool:
-        """업무카드 정규 매핑 (선택적 업데이트)"""
-        audit = get_audit_logger()
-        monitoring = get_monitoring_hooks()
-        start_time = datetime.now()
-
-        try:
-            embedding_response = self.embedding_service.create_embedding(
-                title, f"task_card_{title}"
-            )
-            embedding = embedding_response.embedding if embedding_response else None
-
-            data = {
-                "title": title,
-                "task_title": task_title,
-                "embedding": embedding,
-                "updated_at": datetime.utcnow().isoformat(),
-            }
-
-            (
-                self.client.table("task_card_mappings")
-                .upsert(data, on_conflict="title")
-                .execute()
-            )
-
-            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-
-            logger.info("업무카드 정규 매핑: %s -> %s", title, task_title)
-
-            # Audit log
-            audit.log_update(
-                resource=AuditResource.TASK_CARD,
-                resource_id=title,
-                status="success",
-                details={
-                    "task_title": task_title,
-                    "has_embedding": embedding is not None,
-                },
-                duration_ms=duration_ms,
-            )
-
-            # Monitoring
-            monitoring.record_api_call(
-                service="supabase",
-                success=True,
-                response_time_ms=duration_ms,
-            )
-
-            return True
-        except Exception as e:
-            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-            error_msg = str(e)
-
-            logger.error("업무카드 정규 매핑 실패: %s", e)
-
-            # Audit log failure
-            audit.log_update(
-                resource=AuditResource.TASK_CARD,
-                resource_id=title,
-                status="failure",
-                error_message=error_msg,
-                details={"task_title": task_title},
-                duration_ms=duration_ms,
-            )
-
-            # Monitoring
-            monitoring.record_database_error(
-                operation="upsert_card_embedding",
-                error_message=error_msg,
-                details={"title": title},
-            )
-
-            return False
+        return cast(bool, self.upsert_card_embedding(title, task_title, embedding))
 
     @log_execution_time(logger)
     def get_document_count(self, table_type: str = "task_card") -> int:
