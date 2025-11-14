@@ -353,7 +353,7 @@
     - src/main.py (added initialization, +17 lines)
     - src/services/openai_embedding_service.py (integrated audit/monitoring/quota, +86 lines)
     - src/services/supabase_service.py (integrated audit/monitoring, +120 lines)
-    - docs/RUNBOOK.md (new, 550+ lines)
+    - .governance/operations.md (new, 395 lines, migrated from docs/RUNBOOK.md)
   features_implemented:
     - "Audit logging: JSON Lines format, daily rotation, tracks all CRUD/API/SEARCH operations"
     - "Monitoring hooks: health metrics, alert system, 4 alert types (API failure, performance, rate limit, DB error)"
@@ -383,16 +383,16 @@
     Created comprehensive log analysis script (src/utils/phase3_analysis.py) with
     features: log parsing for performance metrics, statistical analysis (avg/min/max/stddev),
     baseline storage and comparison, and markdown report generation. Created detailed
-    documentation (docs/PHASE3_ANALYSIS.md) covering usage, workflows, and CI/CD integration.
+    documentation in .governance/patterns.md covering usage, workflows, and CI/CD integration.
     All Phase 3 operations now tracked: ensure_payment_info_window, handle_reception_confirmation,
     handle_circulation_completion, handle_approval_confirmation, handle_approval_result,
-    handle_reception_result. Total: 2 new files created, 450+ lines of analysis code.
+    handle_reception_result. Total: 2 files created (1 script, 1 governance pattern).
   test_refs:
     - TEST-performance-1
     - TEST-performance-2
   files_changed:
     - src/utils/phase3_analysis.py (new, 398 lines)
-    - docs/PHASE3_ANALYSIS.md (new, 234 lines)
+    - .governance/patterns.md (added Performance Analysis Workflow section)
   features_implemented:
     - "Log parsing: Extracts ⏱️ performance metrics from log files"
     - "Statistics: Calculates count, avg, min, max, stddev, success rate per operation"
