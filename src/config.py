@@ -44,14 +44,15 @@ class TimeoutConfig:
     APPROVAL_RESULT = 0.5
     PAYMENT_INFO_WINDOW = 2.0
 
-    # Fast dialog search timeouts
-    FAST_DIALOG_IMMEDIATE = 0.3
-    FAST_DIALOG_INTERVAL = 0.02
-    FAST_DIALOG_DESKTOP = 0.8
+    # Fast dialog search timeouts (성능 최적화)
+    FAST_DIALOG_IMMEDIATE = 0.1  # 0.3 → 0.1 (3배 속도 향상)
+    FAST_DIALOG_INTERVAL = 0.01  # 0.02 → 0.01 (2배 속도 향상)
+    FAST_DIALOG_DESKTOP = 0.5  # 0.8 → 0.5
 
     # Sleep delays (in seconds)
     MINIMAL_DELAY = 0.05
     SHORT_DELAY = 0.1
+    FOCUS_SETTLE_DELAY = 0.02  # 포커스 설정 후 안정화 대기
 
 
 class OpenAIPricingConfig:
