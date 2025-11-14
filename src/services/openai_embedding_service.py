@@ -19,6 +19,7 @@ from utils.config_manager import get_openai_embedding_price
 from utils.audit_logger import get_audit_logger, AuditResource
 from utils.monitoring_hooks import get_monitoring_hooks
 from utils.quota_manager import get_quota_manager
+from utils.embedding_cache import get_embedding_cache
 
 # 환경변수 로드
 load_dotenv()
@@ -105,6 +106,19 @@ class OpenAIEmbeddingService:
             logger.warning("빈 텍스트에 대한 임베딩 요청")
             return None
 
+        # Check cache first
+        cache = get_embedding_cache()
+        cached_embedding = cache.get(text)
+        if cached_embedding is not None:
+            logger.info("임베딩 캐시 적중: %s", identifier or text[:50])
+            return EmbeddingResponse(
+                identifier=identifier or f"embed_{int(time.time())}",
+                embedding=cached_embedding,
+                text=text,
+                token_count=0,  # No API call made
+                metadata=metadata or {},
+            )
+
         # Get monitoring and quota managers
         monitoring = get_monitoring_hooks()
         quota = get_quota_manager()
@@ -170,6 +184,9 @@ class OpenAIEmbeddingService:
                     token_count=token_count,
                     metadata=metadata or {},
                 )
+
+                # Store in cache
+                cache.put(text, embedding_data.embedding, identifier or text[:50])
 
                 logger.debug("임베딩 생성 완료: %s, 토큰: %d", identifier, token_count)
                 return result
