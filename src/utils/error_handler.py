@@ -273,22 +273,16 @@ def handle_supabase_error(
             try:
                 return func(*args, **kwargs)
             except (ConnectionError, TimeoutError) as e:
-                logger.error(
-                    "%s 실패 - 네트워크 연결 오류: %s", operation_name, str(e)
-                )
+                logger.error("%s 실패 - 네트워크 연결 오류: %s", operation_name, str(e))
                 return default_return
             except ValueError as e:
                 logger.error("%s 실패 - 잘못된 데이터: %s", operation_name, str(e))
                 return default_return
             except KeyError as e:
-                logger.error(
-                    "%s 실패 - 필수 필드 누락: %s", operation_name, str(e)
-                )
+                logger.error("%s 실패 - 필수 필드 누락: %s", operation_name, str(e))
                 return default_return
             except AttributeError as e:
-                logger.error(
-                    "%s 실패 - 속성 접근 오류: %s", operation_name, str(e)
-                )
+                logger.error("%s 실패 - 속성 접근 오류: %s", operation_name, str(e))
                 return default_return
             except Exception as e:
                 # Log full traceback for unexpected errors
@@ -335,7 +329,14 @@ def handle_pywinauto_error(
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            last_exception = None
+            last_exception: (
+                AttributeError
+                | RuntimeError
+                | TimeoutError
+                | OSError
+                | Exception
+                | None
+            ) = None
 
             for attempt in range(max_retries + 1):
                 try:
@@ -364,9 +365,7 @@ def handle_pywinauto_error(
                         return default_return
                 except TimeoutError as e:
                     last_exception = e
-                    logger.error(
-                        "%s 실패 - 작업 타임아웃: %s", operation_name, str(e)
-                    )
+                    logger.error("%s 실패 - 작업 타임아웃: %s", operation_name, str(e))
                     return default_return
                 except OSError as e:
                     last_exception = e
@@ -393,4 +392,3 @@ def handle_pywinauto_error(
         return wrapper
 
     return decorator
-

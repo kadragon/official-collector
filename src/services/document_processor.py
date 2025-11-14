@@ -108,10 +108,8 @@ class DocumentProcessor:
                 return None, None
 
             # 생성된 임베딩으로 검색
-            recommendations = (
-                self.supabase_service.recommend_reception_with_embedding(
-                    embedding_response.embedding, count=3
-                )
+            recommendations = self.supabase_service.recommend_reception_with_embedding(
+                embedding_response.embedding, count=3
             )
             logger.info("pgvector 유사도 기반 담당자 추천: %s", recommendations)
 
@@ -179,8 +177,13 @@ class DocumentProcessor:
         )  # 사용자에게는 원본 제목 표시
 
         if approval and shared:
-            # 성공한 매칭을 배치 업데이트 리스트에 추가
-            self._queue_reception_update(processed_title, approval, shared)
+            # 성공한 매칭을 배치 업데이트 리스트에 추가 (임베딩 재사용)
+            self._queue_reception_update(
+                processed_title,
+                approval,
+                shared,
+                embedding_response.embedding if embedding_response else None,
+            )
             logger.info(
                 "수동 선택 완료: %s -> %s/%s", processed_title, approval, shared
             )
@@ -367,11 +370,7 @@ class DocumentProcessor:
         # 성공한 매칭을 배치 업데이트 리스트에 추가 (임베딩 재사용)
         if card_name:
             # 임베딩이 생성되었으면 전달, 아니면 None
-            embedding = (
-                embedding_response.embedding
-                if embedding_response
-                else None
-            )
+            embedding = embedding_response.embedding if embedding_response else None
             self._queue_card_update(title, str(card_name), embedding)
             logger.info("과제 카드 매칭 완료: %s -> %s", title, card_name)
             return str(card_name)

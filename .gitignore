@@ -179,3 +179,5 @@ cython_debug/
 # chroma
 .chroma_db/
 .chroma_db_test/
+
+/logs/*

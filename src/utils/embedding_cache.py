@@ -118,7 +118,7 @@ class EmbeddingCache:
         self._miss_count = 0
         logger.info("Embedding cache cleared (%d entries removed)", size)
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> Dict[str, int | float]:
         """
         Get cache statistics.
 
@@ -134,7 +134,7 @@ class EmbeddingCache:
             "hits": self._hit_count,
             "misses": self._miss_count,
             "total_requests": total,
-            "hit_rate_percent": round(hit_rate, 2),
+            "hit_rate_percent": hit_rate,
         }
 
 
