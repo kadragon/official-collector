@@ -29,7 +29,12 @@ class ButtonController:
         self, button_type: str = "confirm", confirm_dialog: Any = None
     ) -> bool:
         """
-        대화상자에서 버튼을 클릭하는 통합 메서드.
+        대화상자에서 버튼을 클릭하는 통합 메서드 - 성능 최적화 버전.
+
+        전략: 키보드 우선 → click_input() → click() 순서로 시도
+        - 키보드 입력: 가장 빠름 (blocking 없음)
+        - click_input(): 빠름 (마우스 시뮬레이션)
+        - click(): 느림 (wait for idle)
 
         Args:
             button_type: 클릭할 버튼 유형 ("confirm" 또는 "cancel")
@@ -38,12 +43,6 @@ class ButtonController:
         Returns:
             bool: 버튼 클릭 성공 여부
         """
-        # 버튼 패턴 가져오기
-        button_patterns = UIConfig.DIALOG_BUTTON_PATTERNS.get(button_type, [])
-        if not button_patterns:
-            logger.warning("알 수 없는 버튼 유형: %s", button_type)
-            return False
-
         # 대화상자 확인
         target_dialog = confirm_dialog
         if target_dialog is None:
@@ -58,7 +57,33 @@ class ButtonController:
                 logger.debug("확인 창 존재 여부 확인 실패: %s", e)
                 return True
 
-        # 버튼 패턴으로 클릭 시도
+        # 전략 1: 키보드 입력 우선 (가장 빠름 - blocking 없음)
+        try:
+            # 대화상자에 포커스 설정 (안정성 확보)
+            if target_dialog:
+                target_dialog.set_focus()
+                time.sleep(0.02)  # 최소 대기
+
+            # 키 전송
+            if button_type == "confirm":
+                keyboard.send_keys("{ENTER}")
+                logger.debug("키보드 ENTER로 %s 버튼 클릭 시도", button_type)
+            else:
+                keyboard.send_keys("{ESC}")
+                logger.debug("키보드 ESC로 %s 버튼 클릭 시도", button_type)
+
+            time.sleep(TimeoutConfig.MINIMAL_DELAY)
+            return True
+
+        except Exception as e:
+            logger.debug("키보드 입력 실패 (%s), 버튼 찾기로 전환: %s", button_type, e)
+
+        # 전략 2: 버튼 찾아서 click_input() 사용 (중간 속도)
+        button_patterns = UIConfig.DIALOG_BUTTON_PATTERNS.get(button_type, [])
+        if not button_patterns:
+            logger.warning("알 수 없는 버튼 유형: %s", button_type)
+            return False
+
         for title, class_name in button_patterns:
             # 먼저 대화상자에서 찾기
             if target_dialog:
@@ -67,46 +92,54 @@ class ButtonController:
                         title=title, class_name=class_name
                     )
                     if button.exists() and button.is_enabled():
-                        button.click()
-                        logger.debug("%s 버튼 클릭 완료 (버튼: %s)", button_type, title)
+                        button.click_input()  # click() → click_input()로 변경
+                        logger.debug(
+                            "%s 버튼 click_input() 완료 (버튼: %s)", button_type, title
+                        )
                         return True
                 except Exception as e:
                     logger.debug(
-                        "대화상자에서 버튼 찾기 실패 (%s/%s): %s", button_type, title, e
+                        "대화상자에서 click_input() 실패 (%s/%s): %s",
+                        button_type,
+                        title,
+                        e,
                     )
 
             # 메인 다이얼로그에서도 시도
             try:
                 button = self.dlg.child_window(title=title, class_name=class_name)
                 if button.exists() and button.is_enabled():
-                    button.click()
+                    button.click_input()  # click() → click_input()로 변경
                     logger.debug(
-                        "메인 창에서 %s 버튼 클릭 완료 (버튼: %s)", button_type, title
+                        "메인 창에서 %s 버튼 click_input() 완료 (버튼: %s)",
+                        button_type,
+                        title,
                     )
                     return True
             except Exception as e:
-                logger.debug("메인 창에서 버튼 찾기 실패 (%s/%s): %s", button_type, title, e)
+                logger.debug(
+                    "메인 창에서 click_input() 실패 (%s/%s): %s", button_type, title, e
+                )
 
-        # 버튼을 찾지 못한 경우 키보드로 시도
-        try:
-            if button_type == "confirm":
-                logger.debug("버튼을 찾지 못해 키보드로 시도 (%s)", button_type)
-                keyboard.send_keys("y")
-                time.sleep(TimeoutConfig.MINIMAL_DELAY)
-            else:
-                logger.debug("버튼을 찾지 못해 키보드 ESC로 시도 (%s)", button_type)
-                keyboard.send_keys("{ESC}")
-                time.sleep(TimeoutConfig.MINIMAL_DELAY)
-            return True
-        except Exception as e:
-            logger.warning("%s 버튼 클릭 실패, 키보드로 재시도: %s", button_type, e)
-            try:
-                keyboard.send_keys("{ENTER}")
-                time.sleep(TimeoutConfig.SHORT_DELAY)
-                return True
-            except Exception as ke:
-                logger.error("키보드 입력도 실패 (%s): %s", button_type, ke)
-                return False
+        # 전략 3: 최후 fallback - 기존 click() 사용
+        logger.debug("click_input() 실패, 기존 click()으로 최종 시도")
+        for title, class_name in button_patterns:
+            if target_dialog:
+                try:
+                    button = target_dialog.child_window(
+                        title=title, class_name=class_name
+                    )
+                    if button.exists() and button.is_enabled():
+                        button.click()
+                        logger.debug("%s 버튼 click() 완료 (버튼: %s)", button_type, title)
+                        return True
+                except Exception as e:
+                    logger.debug(
+                        "대화상자에서 click() 실패 (%s/%s): %s", button_type, title, e
+                    )
+
+        logger.warning("%s 버튼 클릭 모든 시도 실패", button_type)
+        return False
 
     def click_cancel_button(self) -> bool:
         """
