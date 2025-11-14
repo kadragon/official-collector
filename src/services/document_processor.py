@@ -101,8 +101,27 @@ class DocumentProcessor:
             logger.info("pgvector 유사도 기반 담당자 추천: %s", recommendations)
 
             if recommendations:
+                # 최고 유사도가 85% 이상이면 자동 선택
+                top_similarity = recommendations[0]["similarity"]
+                if top_similarity >= 0.85:
+                    approval = recommendations[0]["approval"]
+                    shared = recommendations[0]["share"]
+                    logger.info(
+                        "유사도 %.1f%% ≥ 85%% - 자동 선택: %s -> %s/%s",
+                        top_similarity * 100,
+                        processed_title,
+                        approval,
+                        shared,
+                    )
+                    console.print_success(
+                        f"유사도 {top_similarity:.1%} - 자동 선택: {approval} | {shared}"
+                    )
+                    # 성공한 매칭을 배치 업데이트 리스트에 추가
+                    self._queue_reception_update(processed_title, approval, shared)
+                    return approval, shared
+
                 recommendation_options = [
-                    f"{rec['approval']} (공람: {rec['share']}, 유사도: {rec['similarity']:.1%})"
+                    f"{rec['similarity']:.1%} | {rec['approval']} | {rec['share']}"
                     for rec in recommendations
                 ]
                 status, value = get_user_choice_from_recommendations(
@@ -171,9 +190,7 @@ class DocumentProcessor:
                 for attempt in range(max_retries):
                     try:
                         if attempt > 0:
-                            console.print_warning(
-                                f"재시도 {attempt}/{max_retries - 1}"
-                            )
+                            console.print_warning(f"재시도 {attempt}/{max_retries - 1}")
                         user_input = console.get_input("번호를 선택하세요")
                         selected_approval = console.validate_selection(
                             user_input, self.approval_name_list
@@ -182,9 +199,7 @@ class DocumentProcessor:
                     except ValueError as e:
                         console.print_error(str(e))
                         if attempt == max_retries - 1:
-                            logger.error(
-                                "담당자 선택 최대 재시도 횟수 초과: %s", title
-                            )
+                            logger.error("담당자 선택 최대 재시도 횟수 초과: %s", title)
                             return None, None
 
                 if selected_approval is None:
@@ -245,17 +260,35 @@ class DocumentProcessor:
         card_name = self.supabase_service.retrieve_card_by_title(title)
         is_exact_match = card_name is not None
 
-        if is_exact_match:
+        if is_exact_match and card_name is not None:
             logger.info("정확한 제목 매칭 발견: %s -> %s", title, card_name)
-            return card_name
+            return str(card_name)
 
         # 2. OpenAI 임베딩 기반 의미적 유사도로 추천 생성
         recommendations = self.supabase_service.recommend_cards(title, count=5)
         if recommendations:
             logger.info("pgvector 유사도 기반 추천 과제 카드: %s", recommendations)
+
+            # 최고 유사도가 85% 이상이면 자동 선택
+            top_similarity = recommendations[0]["similarity"]
+            if top_similarity >= 0.85:
+                card_name = str(recommendations[0]["task_title"])
+                logger.info(
+                    "유사도 %.1f%% ≥ 85%% - 자동 선택: %s -> %s",
+                    top_similarity * 100,
+                    title,
+                    card_name,
+                )
+                console.print_success(
+                    f"유사도 {top_similarity:.1%} - 자동 선택: {card_name}"
+                )
+                # 성공한 매칭을 배치 업데이트 리스트에 추가
+                self._queue_card_update(title, card_name)
+                return card_name
+
             # 유사도 포함한 문자열 리스트로 변환
             recommendation_options = [
-                f"{rec['task_title']} (유사도: {rec['similarity']:.1%})"
+                f"{rec['similarity']:.1%} | {rec['task_title']}"
                 for rec in recommendations
             ]
             status, value = get_user_choice_from_recommendations(
@@ -270,7 +303,7 @@ class DocumentProcessor:
                 if value is None:
                     raise ValueError("추천 선택 결과가 None입니다")
                 selected_index = recommendation_options.index(value)
-                card_name = recommendations[selected_index]["task_title"]
+                card_name = str(recommendations[selected_index]["task_title"])
                 logger.info("임베딩 추천에서 선택: %s -> %s", title, card_name)
 
         # 3. 추천이 선택되지 않은 경우 미리 정의된 목록 제공
@@ -295,9 +328,9 @@ class DocumentProcessor:
 
         # 성공한 매칭을 배치 업데이트 리스트에 추가
         if card_name:
-            self._queue_card_update(title, card_name)
+            self._queue_card_update(title, str(card_name))
             logger.info("과제 카드 매칭 완료: %s -> %s", title, card_name)
-            return card_name
+            return str(card_name)
 
         logger.warning("과제 카드 매칭 실패: %s", title)
         return None
