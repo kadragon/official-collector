@@ -52,6 +52,7 @@ class TimeoutConfig:
     # Sleep delays (in seconds)
     MINIMAL_DELAY = 0.05
     SHORT_DELAY = 0.1
+    FOCUS_SETTLE_DELAY = 0.02  # 포커스 설정 후 안정화 대기
 
 
 class OpenAIPricingConfig:
