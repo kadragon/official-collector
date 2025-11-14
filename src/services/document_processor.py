@@ -6,7 +6,7 @@
 문서 처리 로직을 중앙화하고 코드 중복을 제거했습니다.
 """
 
-from typing import List, Tuple, Optional, Any
+from typing import List, Tuple, Optional, Any, cast
 from services.supabase_service import SupabaseService
 from ui.console_interface import (
     SelectionResult,
@@ -21,6 +21,9 @@ from utils.performance_logger import log_execution_time
 
 logger = setup_logger(__name__)
 console = RichConsole()
+
+# Auto-selection similarity threshold for recommendations
+AUTO_SELECTION_SIMILARITY_THRESHOLD = 0.85
 
 
 class DocumentProcessor:
@@ -94,15 +97,52 @@ class DocumentProcessor:
             return approval, shared
 
         # 2. OpenAI 임베딩 기반 의미적 유사도로 담당자 추천
+        # 임베딩 재사용: 1회만 생성하여 검색과 저장에 모두 사용
+        embedding_response = None
         if processed_title:
-            recommendations = self.supabase_service.recommend_reception(
-                processed_title, count=3
+            # 임베딩 생성 (1회만)
+            embedding_response = (
+                self.supabase_service.embedding_service.create_embedding(
+                    processed_title, f"reception_{processed_title}"
+                )
+            )
+            if not embedding_response:
+                logger.warning("임베딩 생성 실패: %s", processed_title)
+                return None, None
+
+            # 생성된 임베딩으로 검색
+            recommendations = self.supabase_service.recommend_reception_with_embedding(
+                embedding_response.embedding, count=3
             )
             logger.info("pgvector 유사도 기반 담당자 추천: %s", recommendations)
 
             if recommendations:
+                # 최고 유사도가 85% 이상이면 자동 선택
+                top_similarity = recommendations[0]["similarity"]
+                if top_similarity >= AUTO_SELECTION_SIMILARITY_THRESHOLD:
+                    approval = recommendations[0]["approval"]
+                    shared = recommendations[0]["share"]
+                    logger.info(
+                        "유사도 %.1f%% ≥ 85%% - 자동 선택: %s -> %s/%s",
+                        top_similarity * 100,
+                        processed_title,
+                        approval,
+                        shared,
+                    )
+                    console.print_success(
+                        f"유사도 {top_similarity:.1%} - 자동 선택: {approval} | {shared}"
+                    )
+                    # 성공한 매칭을 배치 업데이트 리스트에 추가 (임베딩 재사용)
+                    self._queue_reception_update(
+                        processed_title,
+                        approval,
+                        shared,
+                        embedding_response.embedding if embedding_response else None,
+                    )
+                    return approval, shared
+
                 recommendation_options = [
-                    f"{rec['approval']} (공람: {rec['share']}, 유사도: {rec['similarity']:.1%})"
+                    f"{rec['similarity']:.1%} | {rec['approval']} | {rec['share']}"
                     for rec in recommendations
                 ]
                 status, value = get_user_choice_from_recommendations(
@@ -124,8 +164,13 @@ class DocumentProcessor:
                         shared,
                     )
 
-                    # 성공한 매칭을 배치 업데이트 리스트에 추가
-                    self._queue_reception_update(processed_title, approval, shared)
+                    # 성공한 매칭을 배치 업데이트 리스트에 추가 (임베딩 재사용)
+                    self._queue_reception_update(
+                        processed_title,
+                        approval,
+                        shared,
+                        embedding_response.embedding if embedding_response else None,
+                    )
                     return approval, shared
 
         # 3. 수동 선택 단계
@@ -135,8 +180,13 @@ class DocumentProcessor:
         )  # 사용자에게는 원본 제목 표시
 
         if approval and shared:
-            # 성공한 매칭을 배치 업데이트 리스트에 추가
-            self._queue_reception_update(processed_title, approval, shared)
+            # 성공한 매칭을 배치 업데이트 리스트에 추가 (임베딩 재사용)
+            self._queue_reception_update(
+                processed_title,
+                approval,
+                shared,
+                embedding_response.embedding if embedding_response else None,
+            )
             logger.info(
                 "수동 선택 완료: %s -> %s/%s", processed_title, approval, shared
             )
@@ -171,9 +221,7 @@ class DocumentProcessor:
                 for attempt in range(max_retries):
                     try:
                         if attempt > 0:
-                            console.print_warning(
-                                f"재시도 {attempt}/{max_retries - 1}"
-                            )
+                            console.print_warning(f"재시도 {attempt}/{max_retries - 1}")
                         user_input = console.get_input("번호를 선택하세요")
                         selected_approval = console.validate_selection(
                             user_input, self.approval_name_list
@@ -182,9 +230,7 @@ class DocumentProcessor:
                     except ValueError as e:
                         console.print_error(str(e))
                         if attempt == max_retries - 1:
-                            logger.error(
-                                "담당자 선택 최대 재시도 횟수 초과: %s", title
-                            )
+                            logger.error("담당자 선택 최대 재시도 횟수 초과: %s", title)
                             return None, None
 
                 if selected_approval is None:
@@ -247,31 +293,62 @@ class DocumentProcessor:
 
         if is_exact_match:
             logger.info("정확한 제목 매칭 발견: %s -> %s", title, card_name)
-            return card_name
+            return cast(str, card_name)  # is_exact_match ensures card_name is not None
 
         # 2. OpenAI 임베딩 기반 의미적 유사도로 추천 생성
-        recommendations = self.supabase_service.recommend_cards(title, count=5)
-        if recommendations:
-            logger.info("pgvector 유사도 기반 추천 과제 카드: %s", recommendations)
-            # 유사도 포함한 문자열 리스트로 변환
-            recommendation_options = [
-                f"{rec['task_title']} (유사도: {rec['similarity']:.1%})"
-                for rec in recommendations
-            ]
-            status, value = get_user_choice_from_recommendations(
-                title, recommendation_options
-            )  # 사용자에게는 원본 제목 표시
-            logger.info("추천 선택 결과: status=%s, value=%s", status, value)
-            if status == SelectionResult.SKIPPED:
-                card_name = None  # 사용자가 '추천 없음' 선택
-                logger.info("추천 없음 선택됨 - 다음 단계로 이동")
-            elif status == SelectionResult.SELECTED:
-                # 유사도 정보 제거하고 실제 카드명만 추출
-                if value is None:
-                    raise ValueError("추천 선택 결과가 None입니다")
-                selected_index = recommendation_options.index(value)
-                card_name = recommendations[selected_index]["task_title"]
-                logger.info("임베딩 추천에서 선택: %s -> %s", title, card_name)
+        # 임베딩 재사용: 1회만 생성하여 검색과 저장에 모두 사용
+        embedding_response = self.supabase_service.embedding_service.create_embedding(
+            title, f"task_card_{title}"
+        )
+        if not embedding_response:
+            logger.warning("임베딩 생성 실패: %s", title)
+            card_name = None
+        else:
+            # 생성된 임베딩으로 검색
+            recommendations = self.supabase_service.recommend_cards_with_embedding(
+                embedding_response.embedding, count=5
+            )
+            if recommendations:
+                logger.info("pgvector 유사도 기반 추천 과제 카드: %s", recommendations)
+
+                # 최고 유사도가 85% 이상이면 자동 선택
+                top_similarity = recommendations[0]["similarity"]
+                if top_similarity >= AUTO_SELECTION_SIMILARITY_THRESHOLD:
+                    card_name = cast(str, recommendations[0]["task_title"])
+                    logger.info(
+                        "유사도 %.1f%% ≥ 85%% - 자동 선택: %s -> %s",
+                        top_similarity * 100,
+                        title,
+                        card_name,
+                    )
+                    console.print_success(
+                        f"유사도 {top_similarity:.1%} - 자동 선택: {card_name}"
+                    )
+                    # 성공한 매칭을 배치 업데이트 리스트에 추가 (임베딩 재사용)
+                    self._queue_card_update(
+                        title, card_name, embedding_response.embedding
+                    )
+                    return card_name
+
+                # 유사도 포함한 문자열 리스트로 변환
+                recommendation_options = [
+                    f"{rec['similarity']:.1%} | {rec['task_title']}"
+                    for rec in recommendations
+                ]
+                status, value = get_user_choice_from_recommendations(
+                    title, recommendation_options
+                )  # 사용자에게는 원본 제목 표시
+                logger.info("추천 선택 결과: status=%s, value=%s", status, value)
+                if status == SelectionResult.SKIPPED:
+                    card_name = None  # 사용자가 '추천 없음' 선택
+                    logger.info("추천 없음 선택됨 - 다음 단계로 이동")
+                elif status == SelectionResult.SELECTED:
+                    # 유사도 정보 제거하고 실제 카드명만 추출
+                    if value is None:
+                        raise ValueError("추천 선택 결과가 None입니다")
+                    selected_index = recommendation_options.index(value)
+                    card_name = cast(str, recommendations[selected_index]["task_title"])
+                    logger.info("임베딩 추천에서 선택: %s -> %s", title, card_name)
 
         # 3. 추천이 선택되지 않은 경우 미리 정의된 목록 제공
         logger.info("3단계 진입 전 card_name 상태: %s", card_name)
@@ -293,11 +370,13 @@ class DocumentProcessor:
                     card_name = value
                     logger.info("전체 목록에서 선택: %s -> %s", title, card_name)
 
-        # 성공한 매칭을 배치 업데이트 리스트에 추가
+        # 성공한 매칭을 배치 업데이트 리스트에 추가 (임베딩 재사용)
         if card_name:
-            self._queue_card_update(title, card_name)
+            # 임베딩이 생성되었으면 전달, 아니면 None
+            embedding = embedding_response.embedding if embedding_response else None
+            self._queue_card_update(title, card_name, embedding)
             logger.info("과제 카드 매칭 완료: %s -> %s", title, card_name)
-            return card_name
+            return cast(str, card_name)  # if check ensures card_name is not None
 
         logger.warning("과제 카드 매칭 실패: %s", title)
         return None
@@ -344,16 +423,31 @@ class DocumentProcessor:
     # 배치 업데이트 메서드들
     # ============================================================================
 
-    def _queue_reception_update(self, title: str, approval: str, shared: Any) -> None:
-        """접수 문서 업데이트를 큐에 추가"""
+    def _queue_reception_update(
+        self,
+        title: str,
+        approval: str,
+        shared: Any,
+        embedding: Optional[List[float]] = None,
+    ) -> None:
+        """접수 문서 업데이트를 큐에 추가 (임베딩 포함)"""
         self.pending_reception_updates.append(
-            {"title": title, "approval": approval, "shared": shared}
+            {
+                "title": title,
+                "approval": approval,
+                "shared": shared,
+                "embedding": embedding,
+            }
         )
         logger.debug("접수 문서 업데이트 큐에 추가: %s", title)
 
-    def _queue_card_update(self, title: str, card_name: str) -> None:
-        """과제 카드 업데이트를 큐에 추가"""
-        self.pending_card_updates.append({"title": title, "card_name": card_name})
+    def _queue_card_update(
+        self, title: str, card_name: str, embedding: Optional[List[float]] = None
+    ) -> None:
+        """과제 카드 업데이트를 큐에 추가 (임베딩 포함)"""
+        self.pending_card_updates.append(
+            {"title": title, "card_name": card_name, "embedding": embedding}
+        )
         logger.debug("과제 카드 업데이트 큐에 추가: %s", title)
 
     @log_execution_time(logger)
@@ -404,13 +498,22 @@ class DocumentProcessor:
                 card_count_original - card_count,
             )
 
-        # 접수 문서 배치 업데이트
+        # 접수 문서 배치 업데이트 (임베딩 재사용)
         success_count = 0
         for update in deduplicated_receptions:
             try:
-                self.supabase_service.upsert_reception_embedding(
-                    update["title"], update["approval"], update["shared"]
-                )
+                # 임베딩이 있으면 재사용, 없으면 기존 메서드 사용
+                if update.get("embedding") is not None:
+                    self.supabase_service.upsert_reception_with_embedding(
+                        update["title"],
+                        update["approval"],
+                        update["shared"],
+                        update["embedding"],
+                    )
+                else:
+                    self.supabase_service.upsert_reception_embedding(
+                        update["title"], update["approval"], update["shared"]
+                    )
                 success_count += 1
             except Exception as e:
                 logger.error(
@@ -421,13 +524,19 @@ class DocumentProcessor:
             "접수 문서 배치 업데이트 완료: %d/%d", success_count, reception_count
         )
 
-        # 과제 카드 배치 업데이트
+        # 과제 카드 배치 업데이트 (임베딩 재사용)
         success_count = 0
         for update in deduplicated_cards:
             try:
-                self.supabase_service.upsert_card_embedding(
-                    update["title"], update["card_name"]
-                )
+                # 임베딩이 있으면 재사용, 없으면 기존 메서드 사용
+                if update.get("embedding") is not None:
+                    self.supabase_service.upsert_card_with_embedding(
+                        update["title"], update["card_name"], update["embedding"]
+                    )
+                else:
+                    self.supabase_service.upsert_card_embedding(
+                        update["title"], update["card_name"]
+                    )
                 success_count += 1
             except Exception as e:
                 logger.error(

@@ -6,7 +6,7 @@ Handles dialog analysis, text extraction, and flow state management.
 import time
 import io
 import sys
-from typing import Any
+from typing import Any, Callable
 from pywinauto import Desktop
 from pywinauto.findwindows import ElementNotFoundError
 
@@ -87,7 +87,7 @@ class DialogHandler:
         return None
 
     def _wait_for_dialog_condition(
-        self, condition: callable, timeout: float, interval: float
+        self, condition: Callable, timeout: float, interval: float
     ) -> bool:
         """
         대화상자 조건을 확인합니다 (간소화 버전).
@@ -362,7 +362,7 @@ class DialogHandler:
 
     @log_execution_time(logger)
     def handle_reception_confirmation(
-        self, wait_for_condition_callback: callable
+        self, wait_for_condition_callback: Callable
     ) -> None:
         """
         '문서를 접수하시겠습니까?' 확인 대화상자를 처리합니다.
@@ -401,7 +401,7 @@ class DialogHandler:
 
     @log_execution_time(logger)
     def handle_circulation_completion(
-        self, wait_for_condition_callback: callable
+        self, wait_for_condition_callback: Callable
     ) -> None:
         """
         '공람지정을 완료하였습니다.' 확인 대화상자를 처리합니다.
@@ -435,7 +435,7 @@ class DialogHandler:
 
     @log_execution_time(logger)
     def handle_reception_result(
-        self, wait_for_condition_callback: callable, handle_confirm_callback: callable
+        self, wait_for_condition_callback: Callable, handle_confirm_callback: Callable
     ) -> None:
         """
         접수 후 결과 처리 (종료 또는 다음 문서).
@@ -466,7 +466,7 @@ class DialogHandler:
 
     @log_execution_time(logger)
     def handle_approval_confirmation(
-        self, wait_for_condition_callback: callable, handle_confirm_callback: callable
+        self, wait_for_condition_callback: Callable, handle_confirm_callback: Callable
     ) -> None:
         """
         '결재를 진행하시겠습니까?' 확인 대화상자를 처리합니다.
@@ -527,7 +527,7 @@ class DialogHandler:
                 logger.info("결재 진행 확인 대화상자가 나타나지 않음")
 
     @log_execution_time(logger)
-    def handle_approval_result(self, click_confirm_callback: callable) -> None:
+    def handle_approval_result(self, click_confirm_callback: Callable) -> None:
         """
         결재 결과를 처리합니다 (완료 또는 다음 문서) - 초고속 최적화 버전.
 

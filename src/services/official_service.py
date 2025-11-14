@@ -324,11 +324,13 @@ class OfficialCollector:
             if state == DocumentFlowState.CONTINUE:
                 if auto_continue:
                     logger.info("자동으로 다음 문서 처리 계속")
-                    return self.button_controller.click_dialog_button_unified("confirm")
+                    self.button_controller.click_dialog_button_unified("confirm")
+                    return True
                 else:
                     # 사용자에게 선택 권한 제공
                     logger.info("다음 문서 처리 여부를 사용자가 결정")
-                    return self.button_controller.click_dialog_button_unified("confirm")
+                    self.button_controller.click_dialog_button_unified("confirm")
+                    return True
             elif state == DocumentFlowState.EXIT:
                 logger.info("문서 처리 종료 확인")
                 self.button_controller.click_dialog_button_unified("confirm")
@@ -336,6 +338,9 @@ class OfficialCollector:
             elif state == DocumentFlowState.UNKNOWN:
                 logger.warning("알 수 없는 대화상자 - 기본 처리")
                 self.button_controller.click_dialog_button_unified("confirm")
+                return False
+            else:
+                logger.warning("알 수 없는 상태: %s", state)
                 return False
         except Exception as e:
             logger.error("문서 흐름 대화상자 처리 중 오류: %s", e)

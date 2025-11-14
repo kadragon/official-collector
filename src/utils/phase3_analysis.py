@@ -164,8 +164,12 @@ class Phase3Analyzer:
         ]
 
         stats = self.get_all_statistics()
-        total_operations = sum(
-            s["count"] if isinstance(s, dict) and "count" in s else 0
+        total_operations: int = sum(
+            (
+                (s["count"] if isinstance(s["count"], int) else 0)
+                if isinstance(s, dict) and "count" in s
+                else 0
+            )
             for s in stats.values()
         )
 
@@ -180,11 +184,8 @@ class Phase3Analyzer:
             report_lines.append(f"### {op_display} (`{op_name}`)\n")
 
             op_stats = stats.get(op_name, {})
-            if isinstance(op_stats, dict) and "error" in op_stats:
+            if not isinstance(op_stats, dict) or "error" in op_stats:
                 report_lines.append("*No data collected for this operation.*\n")
-                continue
-
-            if not isinstance(op_stats, dict):
                 continue
 
             count = op_stats.get("count", 0)
@@ -217,9 +218,7 @@ class Phase3Analyzer:
         return report_content
 
     @staticmethod
-    def compare_baselines(
-        baseline1_path: Path, baseline2_path: Path
-    ) -> dict[str, Any]:
+    def compare_baselines(baseline1_path: Path, baseline2_path: Path) -> dict[str, Any]:
         """
         Compare two baseline files and show performance differences.
 
@@ -296,9 +295,7 @@ def main() -> None:
     parser.add_argument(
         "--save-baseline", type=str, help="Save statistics as baseline to this file"
     )
-    parser.add_argument(
-        "--report", type=str, help="Save markdown report to this file"
-    )
+    parser.add_argument("--report", type=str, help="Save markdown report to this file")
     parser.add_argument(
         "--compare",
         nargs=2,
@@ -364,9 +361,7 @@ def main() -> None:
         return
 
     # Generate report
-    report = analyzer.generate_report(
-        Path(args.report) if args.report else None
-    )
+    report = analyzer.generate_report(Path(args.report) if args.report else None)
     print("\n" + report)
 
     # Save baseline if requested
