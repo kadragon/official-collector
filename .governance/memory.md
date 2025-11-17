@@ -142,6 +142,25 @@ task_id: TASK-001
   - All systems work together: audit logs show what happened, monitoring shows system health, quota prevents budget violations
   - Ready for safe production deployment with comprehensive observability
 
+## Session Log (2025-11-14 Documentation Consolidation)
+- **Migrated `/docs` folder to `.governance` structure** per SDD principles
+- **Extracted performance analysis patterns** from `PHASE3_ANALYSIS.md` into `.governance/patterns.md`:
+  - Added "Performance Analysis Workflow" section with baseline management strategy
+  - Documented phase3_analysis.py script usage for regression detection and improvement validation
+  - Integrated 40-50% throughput improvement target into governance knowledge
+- **Created `.governance/operations.md`** (395 lines) consolidating all production operational knowledge from `RUNBOOK.md`:
+  - System architecture and environment configuration
+  - Monitoring & alerting procedures (health metrics, 4 alert types)
+  - Audit logging structure and review commands
+  - API quota management (budget tracking, quota status levels)
+  - Common operations (startup, health checks, performance monitoring)
+  - Troubleshooting guides (5 common issues with diagnosis/resolution)
+  - Emergency procedures (shutdown, data recovery, contacts)
+  - Deployment checklist and configuration reference
+- **Deleted `/docs` folder** - all user-facing documentation now unified into AI-readable `.governance` structure
+- **Key insight**: Separating "user docs" vs "AI knowledge" created duplication; SDD principles require single source of truth in `.governance`
+- **Trace compliance**: All new governance files maintain `spec_id: SPEC-governance-doc-structure-1` and `task_id: TASK-001`
+
 ## Next Session Targets
 1. Finish Phase 3 instrumentation work (TASK-003), focusing on payment info and circulation dialog flows.
 2. Harden configuration and vector-threshold management (TASK-004) so prod deployments do not require code edits.

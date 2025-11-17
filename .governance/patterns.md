@@ -20,6 +20,13 @@ task_id: TASK-001
 - Always verify target windows via helper functions (`_ensure_payment_info_window`) before interacting; log failures with actionable detail for debugging.
 - Provide interactive CLI fallbacks with explicit timeout/backoff so automation does not hang on manual prompts.
 
+## Performance Analysis Workflow
+- Use `phase3_analysis.py` script to extract Phase 3+ metrics from logs (`⏱️ operation_name 완료 (소요시간: X.XXX초)` pattern).
+- Save performance baselines as JSON (`--save-baseline data/phase3_baseline_YYYYMMDD.json`) after major optimizations or deployments.
+- Compare baselines with `--compare old.json new.json` to detect regressions (>10% slowdown) or validate improvements (>20% speedup).
+- Generate Markdown reports (`--report reports/phase3_report.md`) for stakeholder review showing avg/min/max/stddev per operation.
+- Target: 40-50% throughput improvement over non-instrumented baseline; monitor for degradation after changes.
+
 ## Exception Handling Patterns
 - **Use specific exception types** instead of broad `except Exception` to improve debugging and error handling granularity.
 - **Apply decorators for common patterns** to reduce boilerplate and ensure consistent error logging across the codebase.
