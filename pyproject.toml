@@ -27,6 +27,12 @@ dev = [
     "pytest-mock>=3.14.0",
 ]
 
+[tool.uv]
+constraint-dependencies = [
+    "pyjwt>=2.12.0",
+    "pygments>=2.20.0",
+]
+
 [tool.mypy]
 python_version = "3.12"
 namespace_packages = true
