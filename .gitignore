@@ -175,6 +175,7 @@ cython_debug/
 # Claude Code
 .mcp.json
 .claude/
+plan.md
 
 # chroma
 .chroma_db/
