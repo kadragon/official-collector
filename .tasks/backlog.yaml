@@ -43,7 +43,8 @@
     - "error_handler.py: Add @handle_supabase_error decorator ✓"
     - "error_handler.py: Add @handle_pywinauto_error decorator ✓"
     - "official_service.py: Replace Exception with specific pywinauto exceptions"
-    - "supabase_service.py: Use @handle_supabase_error on methods (1/N methods done)"
+    - "supabase_service.py: Use @handle_supabase_error on methods (13/N done) ✓ Phase 2"
+    - "official_service.py: Replace Exception with specific pywinauto exceptions (next)"
     - "Document common exception patterns in .governance/patterns.md ✓"
   test_refs:
     - TEST-cleanup-5
@@ -55,6 +56,8 @@
   notes:
     - "Can be done incrementally over multiple PRs"
     - "Focus on high-traffic code paths first"
-    - "Phase 1 complete: Decorators created, documented, and applied to retrieve_reception_by_title()"
+    - "Phase 1: Decorators created, documented, applied to retrieve_reception_by_title() ✓"
+    - "Phase 2 (2026-04-26): 12 additional methods decorated; default_factory added to decorator; 26→10 broad excepts remain"
+    - "Skipped: recommend_*/upsert_* (audit/nested), delete_all_* (guard pattern), get_connection_status (error detail)"
 
 # TASK-020, TASK-021 completed - see done.yaml
