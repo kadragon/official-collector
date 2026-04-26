@@ -297,7 +297,7 @@ def _handle_task_card_deletion(
 ) -> None:
     """과제 카드 삭제 처리"""
     try:
-        cards = service.list_all_cards()
+        cards = list(service.iter_all_cards())
         selected_indices = console.show_items_for_deletion(cards, "과제 카드")
 
         if selected_indices:
@@ -318,7 +318,7 @@ def _handle_reception_deletion(
 ) -> None:
     """접수 문서 삭제 처리"""
     try:
-        receptions = service.list_all_receptions()
+        receptions = list(service.iter_all_receptions())
         selected_indices = console.show_items_for_deletion(receptions, "접수 문서")
 
         if selected_indices:

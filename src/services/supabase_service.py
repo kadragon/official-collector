@@ -5,7 +5,7 @@ Supabase 데이터베이스 서비스 클래스
 
 import os
 import logging
-from typing import List, Dict, Any, Optional, Tuple, cast
+from typing import List, Dict, Any, Optional, Tuple, cast, Iterator
 from datetime import datetime
 
 from supabase import create_client, Client
@@ -673,6 +673,34 @@ class SupabaseService:
         except Exception as e:
             logger.error("접수 문서 목록 조회 실패: %s", e)
             return []
+
+    def iter_all_cards(
+        self, batch_size: int = 500
+    ) -> Iterator[Tuple[str, str, str]]:
+        """모든 업무카드를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터"""
+        offset = 0
+        while True:
+            batch = self.list_all_cards(limit=batch_size, offset=offset)
+            if not batch:
+                break
+            yield from batch
+            if len(batch) < batch_size:
+                break
+            offset += batch_size
+
+    def iter_all_receptions(
+        self, batch_size: int = 500
+    ) -> Iterator[Tuple[str, str, str, str]]:
+        """모든 접수 문서를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터"""
+        offset = 0
+        while True:
+            batch = self.list_all_receptions(limit=batch_size, offset=offset)
+            if not batch:
+                break
+            yield from batch
+            if len(batch) < batch_size:
+                break
+            offset += batch_size
 
     def bulk_delete_cards(self, titles: List[str]) -> int:
         """업무카드 일괄 삭제"""
