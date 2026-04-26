@@ -4,11 +4,16 @@
 - task_id: TASK-006
   spec_id: SPEC-supabase-migration-1
   title: "Paginate Supabase list APIs"
-  status: pending
+  status: done
   priority: 3
+  completed_at: "2026-04-26"
   description: >
     Add limit/offset controls to `list_all_cards()`/`list_all_receptions()` and stream data when the record count
     exceeds safe in-memory limits to avoid production outages.
+  outcome: >
+    Added iter_all_cards() and iter_all_receptions() generators (batch_size=500) that paginate
+    through all records. Updated main.py callers to use iterators. list_all_cards/receptions
+    remain as single-page helpers used by the generators.
   test_refs:
     - TEST-supabase-2
 
