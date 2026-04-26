@@ -1,5 +1,6 @@
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
+import itertools
 import sys
 import time
 from typing import List
@@ -297,7 +298,7 @@ def _handle_task_card_deletion(
 ) -> None:
     """과제 카드 삭제 처리"""
     try:
-        cards = list(service.iter_all_cards())
+        cards = list(itertools.islice(service.iter_all_cards(), 10_000))
         selected_indices = console.show_items_for_deletion(cards, "과제 카드")
 
         if selected_indices:
@@ -318,7 +319,7 @@ def _handle_reception_deletion(
 ) -> None:
     """접수 문서 삭제 처리"""
     try:
-        receptions = list(service.iter_all_receptions())
+        receptions = list(itertools.islice(service.iter_all_receptions(), 10_000))
         selected_indices = console.show_items_for_deletion(receptions, "접수 문서")
 
         if selected_indices:

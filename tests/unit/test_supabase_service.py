@@ -86,6 +86,106 @@ def fixture_supabase_service(monkeypatch):
     return service
 
 
+class SequencedFakeTable:
+    """Returns pre-set page responses in order, then empty pages."""
+
+    def __init__(self, pages):
+        self._pages = list(pages)
+        self._idx = 0
+
+    def select(self, *_args, **_kwargs):
+        return self
+
+    def order(self, *_args, **_kwargs):
+        return self
+
+    def range(self, *_args, **_kwargs):
+        return self
+
+    def execute(self):
+        if self._idx < len(self._pages):
+            data = self._pages[self._idx]
+            self._idx += 1
+        else:
+            data = []
+        return types.SimpleNamespace(data=data)
+
+
+def test_iter_all_cards_multi_page(supabase_service, monkeypatch):
+    """iter_all_cards yields all records across multiple pages."""
+    pages = [
+        [
+            {"title": "t1", "task_title": "task1", "created_at": "d1"},
+            {"title": "t2", "task_title": "task2", "created_at": "d2"},
+        ],
+        [{"title": "t3", "task_title": "task3", "created_at": "d3"}],
+    ]
+    fake_table = SequencedFakeTable(pages)
+    monkeypatch.setattr(supabase_service.client, "table", lambda _name: fake_table)
+
+    result = list(supabase_service.iter_all_cards(batch_size=2))
+
+    assert result == [
+        ("t1", "task1", "d1"),
+        ("t2", "task2", "d2"),
+        ("t3", "task3", "d3"),
+    ]
+
+
+def test_iter_all_cards_exact_multiple_of_batch(supabase_service, monkeypatch):
+    """iter_all_cards terminates cleanly when count is exact multiple of batch_size."""
+    full_batch = [{"title": "t", "task_title": "t", "created_at": "d"}] * 2
+    fake_table = SequencedFakeTable([full_batch, full_batch, []])
+    monkeypatch.setattr(supabase_service.client, "table", lambda _name: fake_table)
+
+    result = list(supabase_service.iter_all_cards(batch_size=2))
+
+    assert len(result) == 4
+
+
+def test_iter_all_cards_error_propagates(supabase_service, monkeypatch):
+    """iter_all_cards must propagate exceptions instead of silently truncating."""
+
+    class ErrorFakeTable:
+        def select(self, *_args, **_kwargs):
+            return self
+
+        def order(self, *_args, **_kwargs):
+            return self
+
+        def range(self, *_args, **_kwargs):
+            return self
+
+        def execute(self):
+            raise RuntimeError("connection timeout")
+
+    monkeypatch.setattr(supabase_service.client, "table", lambda _name: ErrorFakeTable())
+
+    with pytest.raises(RuntimeError, match="connection timeout"):
+        list(supabase_service.iter_all_cards())
+
+
+def test_iter_all_receptions_multi_page(supabase_service, monkeypatch):
+    """iter_all_receptions yields all records across multiple pages."""
+    pages = [
+        [
+            {"title": "r1", "handler": "h1", "share_target": "s1", "created_at": "d1"},
+            {"title": "r2", "handler": "h2", "share_target": "s2", "created_at": "d2"},
+        ],
+        [{"title": "r3", "handler": "h3", "share_target": "s3", "created_at": "d3"}],
+    ]
+    fake_table = SequencedFakeTable(pages)
+    monkeypatch.setattr(supabase_service.client, "table", lambda _name: fake_table)
+
+    result = list(supabase_service.iter_all_receptions(batch_size=2))
+
+    assert result == [
+        ("r1", "h1", "s1", "d1"),
+        ("r2", "h2", "s2", "d2"),
+        ("r3", "h3", "s3", "d3"),
+    ]
+
+
 def test_upsert_card_embedding_uses_single_upsert(supabase_service):
     """Verify card embeddings rely on a single upsert call."""
     supabase_service.upsert_card_embedding("업무 지시", "카드 제목")

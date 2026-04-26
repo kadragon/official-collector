@@ -5,7 +5,7 @@ Supabase 데이터베이스 서비스 클래스
 
 import os
 import logging
-from typing import List, Dict, Any, Optional, Tuple, cast, Iterator
+from typing import Callable, List, Dict, Any, Optional, Tuple, cast, Iterator
 from datetime import datetime
 
 from supabase import create_client, Client
@@ -639,6 +639,7 @@ class SupabaseService:
             result = (
                 self.client.table("task_card_mappings")
                 .select("title", "task_title", "created_at")
+                .order("id")
                 .range(offset, offset + limit - 1)
                 .execute()
             )
@@ -658,6 +659,7 @@ class SupabaseService:
             result = (
                 self.client.table("reception_mappings")
                 .select("title", "handler", "share_target", "created_at")
+                .order("id")
                 .range(offset, offset + limit - 1)
                 .execute()
             )
@@ -674,33 +676,69 @@ class SupabaseService:
             logger.error("접수 문서 목록 조회 실패: %s", e)
             return []
 
-    def iter_all_cards(
-        self, batch_size: int = 500
-    ) -> Iterator[Tuple[str, str, str]]:
-        """모든 업무카드를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터"""
+    def _iter_table(
+        self,
+        fetch: Callable[[int, int], list],
+        batch_size: int,
+    ) -> Iterator:
+        """페이지네이션 공통 로직. fetch(limit, offset) 예외를 그대로 전파."""
         offset = 0
         while True:
-            batch = self.list_all_cards(limit=batch_size, offset=offset)
+            batch = fetch(batch_size, offset)
             if not batch:
                 break
             yield from batch
+            offset += len(batch)
             if len(batch) < batch_size:
                 break
-            offset += batch_size
+
+    def iter_all_cards(
+        self, batch_size: int = 500
+    ) -> Iterator[Tuple[str, str, str]]:
+        """모든 업무카드를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터.
+
+        batch_size=500은 Supabase 응답 한도(1000행) 대비 안전 마진.
+        오류 발생 시 예외를 전파하며, 호출자의 try/except에서 처리됨.
+        """
+
+        def _fetch(limit: int, offset: int) -> List[Tuple[str, str, str]]:
+            result = (
+                self.client.table("task_card_mappings")
+                .select("title", "task_title", "created_at")
+                .order("id")
+                .range(offset, offset + limit - 1)
+                .execute()
+            )
+            return [
+                (item["title"], item["task_title"], item["created_at"])
+                for item in result.data
+            ]
+
+        yield from self._iter_table(_fetch, batch_size)
 
     def iter_all_receptions(
         self, batch_size: int = 500
     ) -> Iterator[Tuple[str, str, str, str]]:
-        """모든 접수 문서를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터"""
-        offset = 0
-        while True:
-            batch = self.list_all_receptions(limit=batch_size, offset=offset)
-            if not batch:
-                break
-            yield from batch
-            if len(batch) < batch_size:
-                break
-            offset += batch_size
+        """모든 접수 문서를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터.
+
+        batch_size=500은 Supabase 응답 한도(1000행) 대비 안전 마진.
+        오류 발생 시 예외를 전파하며, 호출자의 try/except에서 처리됨.
+        """
+
+        def _fetch(limit: int, offset: int) -> List[Tuple[str, str, str, str]]:
+            result = (
+                self.client.table("reception_mappings")
+                .select("title", "handler", "share_target", "created_at")
+                .order("id")
+                .range(offset, offset + limit - 1)
+                .execute()
+            )
+            return [
+                (item["title"], item["handler"], item["share_target"], item["created_at"])
+                for item in result.data
+            ]
+
+        yield from self._iter_table(_fetch, batch_size)
 
     def bulk_delete_cards(self, titles: List[str]) -> int:
         """업무카드 일괄 삭제"""
