@@ -10,7 +10,7 @@ dependencies = [
     "langchain-community",
     "langchain-core",
     "supabase>=2.29.0",
-    "openai>=2.32.0",
+    "openai>=2.33.0",
     "python-dotenv>=1.2.2",
     "pywin32>=311",
     "rich>=13.0.0",
