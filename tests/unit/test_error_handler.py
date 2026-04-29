@@ -17,7 +17,7 @@ import sys
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from utils.error_handler import cleanup_old_logs, setup_logger
+from utils.error_handler import cleanup_old_logs, handle_supabase_error, setup_logger
 
 
 class TestSetupLogger:
@@ -347,6 +347,64 @@ class TestLoggingIntegration:
                 print("Logging failed, using fallback")
 
         # Should handle gracefully without crashing application
+
+
+class TestHandleSupabaseError:
+    """Test handle_supabase_error decorator behaviour."""
+
+    def setup_method(self):
+        self.logger = MagicMock()
+
+    def test_default_factory_returns_new_instance_each_call(self):
+        """default_factory must produce a new object per exception — core reason it was added."""
+
+        @handle_supabase_error("test", self.logger, default_factory=list)
+        def always_fails():
+            raise Exception("fail")
+
+        result1 = always_fails()
+        result2 = always_fails()
+        assert result1 == []
+        assert result1 is not result2
+
+    def test_default_return_used_when_no_factory(self):
+        @handle_supabase_error("test", self.logger, default_return=42)
+        def always_fails():
+            raise ValueError("bad data")
+
+        assert always_fails() == 42
+
+    def test_default_factory_takes_precedence_over_default_return(self):
+        @handle_supabase_error("test", self.logger, default_return=0, default_factory=list)
+        def always_fails():
+            raise Exception("fail")
+
+        assert always_fails() == []
+
+    def test_success_path_returns_value(self):
+        @handle_supabase_error("test", self.logger, default_return=None)
+        def succeeds():
+            return "ok"
+
+        assert succeeds() == "ok"
+
+    def test_connection_error_logged_and_default_returned(self):
+        @handle_supabase_error("연결 테스트", self.logger, default_factory=list)
+        def raises_connection():
+            raise ConnectionError("timeout")
+
+        result = raises_connection()
+        assert result == []
+        self.logger.error.assert_called_once()
+        assert "연결 테스트" in self.logger.error.call_args[0][0]
+
+    def test_unexpected_exception_uses_logger_exception(self):
+        @handle_supabase_error("예외 테스트", self.logger, default_return=None)
+        def raises_runtime():
+            raise RuntimeError("unexpected")
+
+        raises_runtime()
+        self.logger.exception.assert_called_once()
 
 
 class TestCleanupOldLogsRetention:

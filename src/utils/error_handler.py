@@ -244,6 +244,7 @@ def handle_supabase_error(
     logger: logging.Logger,
     default_return: Any = None,
     raise_on_auth_error: bool = True,
+    default_factory: Optional[Callable[[], Any]] = None,
 ) -> Callable[[Callable], Callable]:
     """
     Supabase 데이터베이스 오류를 처리하는 데코레이터.
@@ -253,8 +254,10 @@ def handle_supabase_error(
     Args:
         operation_name: 작업 이름 (로깅용)
         logger: 사용할 로거
-        default_return: 오류 발생 시 반환할 기본값
+        default_return: 오류 발생 시 반환할 기본값 (불변 타입에 사용)
         raise_on_auth_error: 인증 오류 시 예외를 재발생시킬지 여부
+        default_factory: 오류 발생 시 기본값을 생성하는 callable (list, dict 등 가변 타입에 사용).
+            지정 시 default_return보다 우선함.
 
     Returns:
         Callable: 데코레이터 함수
@@ -267,6 +270,9 @@ def handle_supabase_error(
         - Exception: Catch-all for unexpected errors
     """
 
+    def _default() -> Any:
+        return default_factory() if default_factory is not None else default_return
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -274,22 +280,21 @@ def handle_supabase_error(
                 return func(*args, **kwargs)
             except (ConnectionError, TimeoutError) as e:
                 logger.error("%s 실패 - 네트워크 연결 오류: %s", operation_name, str(e))
-                return default_return
+                return _default()
             except ValueError as e:
                 logger.error("%s 실패 - 잘못된 데이터: %s", operation_name, str(e))
-                return default_return
+                return _default()
             except KeyError as e:
                 logger.error("%s 실패 - 필수 필드 누락: %s", operation_name, str(e))
-                return default_return
+                return _default()
             except AttributeError as e:
                 logger.error("%s 실패 - 속성 접근 오류: %s", operation_name, str(e))
-                return default_return
+                return _default()
             except Exception as e:
-                # Log full traceback for unexpected errors
                 logger.exception(
                     "%s 실패 - 예상치 못한 오류: %s", operation_name, str(e)
                 )
-                return default_return
+                return _default()
 
         return wrapper
 
