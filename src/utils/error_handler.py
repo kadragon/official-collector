@@ -254,8 +254,10 @@ def handle_supabase_error(
     Args:
         operation_name: 작업 이름 (로깅용)
         logger: 사용할 로거
-        default_return: 오류 발생 시 반환할 기본값
+        default_return: 오류 발생 시 반환할 기본값 (불변 타입에 사용)
         raise_on_auth_error: 인증 오류 시 예외를 재발생시킬지 여부
+        default_factory: 오류 발생 시 기본값을 생성하는 callable (list, dict 등 가변 타입에 사용).
+            지정 시 default_return보다 우선함.
 
     Returns:
         Callable: 데코레이터 함수
