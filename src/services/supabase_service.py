@@ -5,7 +5,7 @@ Supabase 데이터베이스 서비스 클래스
 
 import os
 import logging
-from typing import Callable, List, Dict, Any, Optional, Tuple, cast, Iterator
+from typing import Callable, List, Dict, Any, Optional, Tuple, cast, Iterator, NamedTuple
 from datetime import datetime
 
 from supabase import create_client, Client
@@ -21,6 +21,20 @@ from utils.error_handler import handle_supabase_error
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+class CardRow(NamedTuple):
+    title: str
+    task_title: str
+    created_at: str
+
+
+class ReceptionRow(NamedTuple):
+    title: str
+    handler: str
+    share_target: str
+    created_at: str
+
 
 
 class SupabaseService:
@@ -602,7 +616,7 @@ class SupabaseService:
     @handle_supabase_error("업무카드 목록 조회", logger, default_factory=list)
     def list_all_cards(
         self, limit: int = 1000, offset: int = 0
-    ) -> List[Tuple[str, str, str]]:
+    ) -> List[CardRow]:
         """모든 업무카드 매핑 목록 조회 (title, task_title, created_at)"""
         result = (
             self.client.table("task_card_mappings")
@@ -612,14 +626,14 @@ class SupabaseService:
             .execute()
         )
         return [
-            (item["title"], item["task_title"], item["created_at"])
+            CardRow(item["title"], item["task_title"], item["created_at"])
             for item in result.data
         ]
 
     @handle_supabase_error("접수 문서 목록 조회", logger, default_factory=list)
     def list_all_receptions(
         self, limit: int = 1000, offset: int = 0
-    ) -> List[Tuple[str, str, str, str]]:
+    ) -> List[ReceptionRow]:
         """모든 접수 문서 매핑 목록 조회 (title, handler, share_target, created_at)"""
         result = (
             self.client.table("reception_mappings")
@@ -629,12 +643,7 @@ class SupabaseService:
             .execute()
         )
         return [
-            (
-                item["title"],
-                item["handler"],
-                item["share_target"],
-                item["created_at"],
-            )
+            ReceptionRow(item["title"], item["handler"], item["share_target"], item["created_at"])
             for item in result.data
         ]
 
@@ -656,14 +665,14 @@ class SupabaseService:
 
     def iter_all_cards(
         self, batch_size: int = 500
-    ) -> Iterator[Tuple[str, str, str]]:
+    ) -> Iterator[CardRow]:
         """모든 업무카드를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터.
 
         batch_size=500은 Supabase 응답 한도(1000행) 대비 안전 마진.
         오류 발생 시 예외를 전파하며, 호출자의 try/except에서 처리됨.
         """
 
-        def _fetch(limit: int, offset: int) -> List[Tuple[str, str, str]]:
+        def _fetch(limit: int, offset: int) -> List[CardRow]:
             result = (
                 self.client.table("task_card_mappings")
                 .select("title", "task_title", "created_at")
@@ -672,7 +681,7 @@ class SupabaseService:
                 .execute()
             )
             return [
-                (item["title"], item["task_title"], item["created_at"])
+                CardRow(item["title"], item["task_title"], item["created_at"])
                 for item in result.data
             ]
 
@@ -680,14 +689,14 @@ class SupabaseService:
 
     def iter_all_receptions(
         self, batch_size: int = 500
-    ) -> Iterator[Tuple[str, str, str, str]]:
+    ) -> Iterator[ReceptionRow]:
         """모든 접수 문서를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터.
 
         batch_size=500은 Supabase 응답 한도(1000행) 대비 안전 마진.
         오류 발생 시 예외를 전파하며, 호출자의 try/except에서 처리됨.
         """
 
-        def _fetch(limit: int, offset: int) -> List[Tuple[str, str, str, str]]:
+        def _fetch(limit: int, offset: int) -> List[ReceptionRow]:
             result = (
                 self.client.table("reception_mappings")
                 .select("title", "handler", "share_target", "created_at")
@@ -696,7 +705,7 @@ class SupabaseService:
                 .execute()
             )
             return [
-                (item["title"], item["handler"], item["share_target"], item["created_at"])
+                ReceptionRow(item["title"], item["handler"], item["share_target"], item["created_at"])
                 for item in result.data
             ]
 
