@@ -162,7 +162,9 @@ class OfficialCollector:
             confirm_btn.wait("enabled", timeout=TimeoutConfig.WINDOW_READY)
             confirm_btn.click()
             logger.info("결재선 지정 완료: %s", approval_name)
-        except (PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError) as e:
+        except (
+            PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError
+        ) as e:
             logger.error("결재선 설정 중 오류 발생: %s", e)
             raise
 
@@ -211,7 +213,9 @@ class OfficialCollector:
                 self._wait_for_condition, self.button_controller.click_confirm_button
             )
             logger.info("접수 처리 완료")
-        except (PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError) as e:
+        except (
+            PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError
+        ) as e:
             logger.error("접수 처리 중 오류 발생: %s", e)
             raise
 
@@ -267,7 +271,9 @@ class OfficialCollector:
                 )
             )
             logger.info("문서 분류 처리 완료")
-        except (PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError) as e:
+        except (
+            PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError
+        ) as e:
             logger.error("문서 분류 중 오류 발생: %s", e)
             raise
 
@@ -319,7 +325,8 @@ class OfficialCollector:
             bool: 처리 계속 여부 (True: 계속, False: 종료)
         """
         if state == DocumentFlowState.CONTINUE:
-            logger.info("자동으로 다음 문서 처리 계속" if auto_continue else "다음 문서 처리 여부를 사용자가 결정")
+            msg = "자동으로 다음 문서 처리 계속" if auto_continue else "다음 문서 처리 여부를 사용자가 결정"
+            logger.info(msg)
             self.button_controller.click_dialog_button_unified("confirm")
             return True
         elif state == DocumentFlowState.EXIT:
