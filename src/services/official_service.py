@@ -12,7 +12,7 @@ from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
 from pywinauto.findwindows import ElementNotFoundError
 
 from config import TimeoutConfig
-from utils.error_handler import setup_logger
+from utils.error_handler import setup_logger, handle_pywinauto_error
 from utils.performance_logger import log_execution_time
 from dialogs.dialog_classifier import DialogClassifier, DialogAction
 from utils.text_utils import remove_numbers_from_title
@@ -162,11 +162,10 @@ class OfficialCollector:
             confirm_btn.wait("enabled", timeout=TimeoutConfig.WINDOW_READY)
             confirm_btn.click()
             logger.info("결재선 지정 완료: %s", approval_name)
-        except (PyWinAutoTimeoutError, ElementNotFoundError) as e:
+        except (
+            PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError
+        ) as e:
             logger.error("결재선 설정 중 오류 발생: %s", e)
-            raise
-        except Exception as e:
-            logger.error("결재선 설정 중 예상치 못한 오류: %s", e)
             raise
 
     @log_execution_time(logger, "접수 버튼 처리")
@@ -214,7 +213,9 @@ class OfficialCollector:
                 self._wait_for_condition, self.button_controller.click_confirm_button
             )
             logger.info("접수 처리 완료")
-        except Exception as e:
+        except (
+            PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError
+        ) as e:
             logger.error("접수 처리 중 오류 발생: %s", e)
             raise
 
@@ -270,7 +271,9 @@ class OfficialCollector:
                 )
             )
             logger.info("문서 분류 처리 완료")
-        except Exception as e:
+        except (
+            PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError
+        ) as e:
             logger.error("문서 분류 중 오류 발생: %s", e)
             raise
 
@@ -307,6 +310,7 @@ class OfficialCollector:
         """
         return self.dialog_handler.check_document_flow_state()
 
+    @handle_pywinauto_error("문서 흐름 대화상자 처리", logger, default_return=False)
     def handle_document_flow_dialog(
         self, state: str, auto_continue: bool = True
     ) -> bool:
@@ -320,30 +324,21 @@ class OfficialCollector:
         Returns:
             bool: 처리 계속 여부 (True: 계속, False: 종료)
         """
-        try:
-            if state == DocumentFlowState.CONTINUE:
-                if auto_continue:
-                    logger.info("자동으로 다음 문서 처리 계속")
-                    self.button_controller.click_dialog_button_unified("confirm")
-                    return True
-                else:
-                    # 사용자에게 선택 권한 제공
-                    logger.info("다음 문서 처리 여부를 사용자가 결정")
-                    self.button_controller.click_dialog_button_unified("confirm")
-                    return True
-            elif state == DocumentFlowState.EXIT:
-                logger.info("문서 처리 종료 확인")
-                self.button_controller.click_dialog_button_unified("confirm")
-                return False
-            elif state == DocumentFlowState.UNKNOWN:
-                logger.warning("알 수 없는 대화상자 - 기본 처리")
-                self.button_controller.click_dialog_button_unified("confirm")
-                return False
-            else:
-                logger.warning("알 수 없는 상태: %s", state)
-                return False
-        except Exception as e:
-            logger.error("문서 흐름 대화상자 처리 중 오류: %s", e)
+        if state == DocumentFlowState.CONTINUE:
+            msg = "자동으로 다음 문서 처리 계속" if auto_continue else "다음 문서 처리 여부를 사용자가 결정"
+            logger.info(msg)
+            self.button_controller.click_dialog_button_unified("confirm")
+            return True
+        elif state == DocumentFlowState.EXIT:
+            logger.info("문서 처리 종료 확인")
+            self.button_controller.click_dialog_button_unified("confirm")
+            return False
+        elif state == DocumentFlowState.UNKNOWN:
+            logger.warning("알 수 없는 대화상자 - 기본 처리")
+            self.button_controller.click_dialog_button_unified("confirm")
+            return False
+        else:
+            logger.warning("알 수 없는 상태: %s", state)
             return False
 
     def handle_cancel_dialog(self) -> bool:
