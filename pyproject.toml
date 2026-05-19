@@ -10,7 +10,7 @@ dependencies = [
     "langchain-community",
     "langchain-core",
     "supabase>=2.30.0",
-    "openai>=2.36.0",
+    "openai>=2.37.0",
     "python-dotenv>=1.2.2",
     "pywin32>=311",
     "rich>=13.0.0",
@@ -19,7 +19,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "bandit>=1.9.4",
-    "black>=25.9.0",
+    "black>=26.5.0",
     "mypy>=2.1.0",
     "pylint>=4.0.5",
     "pre-commit>=4.6.0",
