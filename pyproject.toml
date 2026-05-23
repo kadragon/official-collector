@@ -31,7 +31,12 @@ dev = [
 constraint-dependencies = [
     "pyjwt>=2.12.0",
     "pygments>=2.20.0",
+    "langsmith>=0.8.0",
+    "langchain-classic>=1.0.7",
 ]
+
+[tool.pyright]
+extraPaths = ["src"]
 
 [tool.mypy]
 python_version = "3.12"
