@@ -35,6 +35,9 @@ constraint-dependencies = [
     "langchain-classic>=1.0.7",
 ]
 
+[tool.pyright]
+extraPaths = ["src"]
+
 [tool.mypy]
 python_version = "3.12"
 namespace_packages = true
