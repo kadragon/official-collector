@@ -117,7 +117,7 @@ class TestEnvironmentManager:
             if os.path.exists(temp_dir):
                 try:
                     shutil.rmtree(temp_dir)
-                except Exception:  # nosec B110
+                except Exception:
                     pass  # 정리 실패는 무시
 
         self.temp_dirs.clear()

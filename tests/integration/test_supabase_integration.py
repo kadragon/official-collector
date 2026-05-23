@@ -64,7 +64,7 @@ def temp_supabase_service() -> Generator[SupabaseService, None, None]:
                 service.client.table("reception_mappings").delete().like(
                     "title", "pytest_%"
                 ).execute()
-            except Exception:  # nosec B110
+            except Exception:
                 pass
 
 
