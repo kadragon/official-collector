@@ -9,11 +9,11 @@ dependencies = [
     "pywinauto>=0.6.9",
     "langchain-community",
     "langchain-core",
-    "supabase>=2.30.1",
-    "openai>=2.38.0",
+    "supabase>=2.31.0",
+    "openai>=2.41.0",
     "python-dotenv>=1.2.2",
-    "pywin32>=311",
-    "rich>=13.0.0",
+    "pywin32>=312",
+    "rich>=15.0.0",
 ]
 
 [dependency-groups]
