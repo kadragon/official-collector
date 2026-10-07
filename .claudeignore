@@ -1,0 +1,36 @@
+# Logs & temp
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Editor / OS
+.vscode/
+.fleet/
+.idea/
+
+# Maps & archives
+*.map
+*.zip
+*.tar.gz
+
+# Python
+__pycache__/
+.venv/
+venv/
+env/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+htmlcov/
+*.egg-info/
+
+# Local runtime (regenerated)
+.cache/
+logs/
+chroma_db/
+*.jsonl

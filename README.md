@@ -1,10 +1,13 @@
-# Trace:
-#   spec_id: SPEC-governance-doc-structure-1
-#   task_id: TASK-001
+<!-- Trace:
+  spec_id: SPEC-governance-doc-structure-1
+  task_id: TASK-001
+-->
 # Official Collector
 
-Official Collector is a Python 3.12+ RPA system that automates reception and electronic official documents.  
+Official Collector is a Python 3.12+ RPA system that automates reception and electronic official documents.
 Supabase (pgvector) and OpenAI embeddings power intelligent handler/task-card matching, while pywinauto drives Windows UI automation.
+
+> Agent contributors: start at `AGENTS.md` (entry map) — `docs/runbook.md` for commands, `docs/architecture.md` for structure, `docs/conventions.md` for rules, `docs/workflows.md` for the work cycle.
 
 ## Architecture At A Glance
 - **Services**: `DocumentProcessor` orchestrates flows; `SupabaseService` handles CRUD/vector search; `OpenAIEmbeddingService` tracks embedding cost and retries.
@@ -18,12 +21,16 @@ Supabase (pgvector) and OpenAI embeddings power intelligent handler/task-card ma
 Follow the loop: read the spec -> add/update tests -> implement -> refactor -> update `.tasks/` -> summarize in `.governance/memory.md`.
 
 ## Setup
+
+Prerequisites: Python 3.12+, `uv`, Windows with GUI access to the target official-document client.
+
 ```powershell
-uv install                # install dependencies
-uv sync --group dev       # optional: install dev dependencies
+uv sync                  # install dependencies
+uv sync --group dev      # dev dependencies (pytest, pylint, mypy, bandit, black)
+Copy-Item .env.example .env   # then fill in real credentials
 ```
-Populate `.env` with OpenAI + Supabase credentials (`OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).  
-Windows automation prerequisites: pywinauto, win32 extensions, and GUI access to the target official-document client.
+Populate `.env` with OpenAI + Supabase credentials (`OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
+Full variable reference: `docs/runbook.md` → Environment Variables.
 
 ## Running & Testing
 ```powershell
@@ -45,3 +52,4 @@ uv run pylint src/
 - Always load `.governance/` and `.tasks/current.yaml` before coding; every commit must reference a `spec_id` and a `task_id`.
 - Interactive prompts during DocumentProcessor fallback must include timeouts to keep RPA flows safe.
 - When ambiguity exists in specs, add a backlog entry instead of guessing.
+- Production safety: set `ENVIRONMENT=production` to block destructive operations; the `--delete` workflow requires explicit opt-in there.
