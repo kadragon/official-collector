@@ -396,7 +396,7 @@ class TestHandleSupabaseError:
         result = raises_connection()
         assert result == []
         self.logger.error.assert_called_once()
-        assert "연결 테스트" in self.logger.error.call_args[0][0]
+        assert self.logger.error.call_args[0][1] == "연결 테스트"
 
     def test_unexpected_exception_uses_logger_exception(self):
         @handle_supabase_error("예외 테스트", self.logger, default_return=None)
