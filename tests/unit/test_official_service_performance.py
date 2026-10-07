@@ -117,18 +117,18 @@ class TestMaximumTimeoutOptimization:
 class TestPostActionWaitTimeOptimization:
     """Test suite for post-action wait time reduction (0.3s/0.5s → 0.1s)."""
 
-    @patch("services.official_service.time.sleep")
+    @patch("services.official_service.settle")
     @patch("services.official_service.keyboard")
     @patch("services.official_service.mouse")
     @patch("services.official_service.pyperclip")
     def test_task_card_selection_uses_reduced_sleep(
-        self, mock_pyperclip, mock_mouse, mock_keyboard, mock_sleep
+        self, mock_pyperclip, mock_mouse, mock_keyboard, mock_settle
     ):
         """
-        Test that _perform_task_card_selection uses 0.1s sleeps instead of 0.3s.
+        Test that _perform_task_card_selection uses 0.1s settle pauses instead of 0.3s.
 
-        This test verifies that the post-keyboard-input sleep times have been
-        reduced from 300ms to 100ms for faster task card selection.
+        Settle pauses route through utils.wait_helpers.settle; this verifies the
+        post-keyboard-input pauses stay at 100ms (reduced from 300ms).
         """
         # Given: An OfficialCollector instance (mock the connection)
         with patch("services.official_service.WindowManager.connect_to_window"):
@@ -148,19 +148,50 @@ class TestPostActionWaitTimeOptimization:
             # When: We perform task card selection
             collector._perform_task_card_selection("test_card")
 
-        # Then: time.sleep should be called with 0.1 (not 0.3)
-        sleep_calls = [
-            call[0][0] for call in mock_sleep.call_args_list if call[0][0] in [0.1, 0.3]
+        # Then: settle should be called with 0.1 (not 0.3)
+        settle_calls = [
+            call[0][0]
+            for call in mock_settle.call_args_list
+            if call[0][0] in [0.1, 0.3]
         ]
 
-        # We expect 2 sleep calls in this method (after two ENTER keys)
-        assert len(sleep_calls) == 2, f"Expected 2 sleep calls, got {len(sleep_calls)}"
+        # We expect 2 settle calls in this method (after two ENTER keys)
+        assert len(settle_calls) == 2, (
+            f"Expected 2 settle calls, got {len(settle_calls)}"
+        )
 
-        for sleep_time in sleep_calls:
-            assert sleep_time == 0.1, (
-                f"Expected 0.1s sleep (optimized), got {sleep_time}s. "
-                "Sleep time should be reduced from 0.3s to 0.1s"
+        for settle_time in settle_calls:
+            assert settle_time == 0.1, (
+                f"Expected 0.1s settle (optimized), got {settle_time}s. "
+                "Settle time should be reduced from 0.3s to 0.1s"
             )
+
+
+class TestPollingHelperExceptions:
+    """Polling helpers swallow only transient UI errors (backlog.md Now)."""
+
+    def test_wait_for_condition_propagates_unexpected_errors(self):
+        """Programming bugs must surface instead of timing out silently."""
+        with patch("services.official_service.WindowManager.connect_to_window"):
+            collector = OfficialCollector()
+
+        def buggy_condition():
+            raise ZeroDivisionError("bug in predicate")
+
+        with pytest.raises(ZeroDivisionError, match="bug in predicate"):
+            collector._wait_for_condition(buggy_condition, timeout=0.2)
+
+    def test_wait_for_element_still_tolerates_transient_errors(self):
+        """ElementNotFoundError keeps polling until timeout, then False."""
+        from pywinauto.findwindows import ElementNotFoundError
+
+        with patch("services.official_service.WindowManager.connect_to_window"):
+            collector = OfficialCollector()
+
+        def missing():
+            raise ElementNotFoundError("no such element")
+
+        assert collector._wait_for_element(missing, timeout=0.2) is False
 
 
 if __name__ == "__main__":

@@ -24,6 +24,8 @@ from utils.text_utils import (
     normalize_text,
     truncate_text,
     extract_keywords,
+    classify_stage,
+    STAGE_3_COMPLETION_MARKERS,
 )
 
 
@@ -332,3 +334,39 @@ class TestTextUtilsIntegration:
         assert cleaned == test_case["expected_clean"]
         assert is_reception == test_case["is_reception"]
         assert len(doc_id) == 36
+
+
+class TestClassifyStage:
+    """Tests for the 1/2/3 document-stage splitter (backlog.md Now)."""
+
+    def test_reception_title_is_stage_1(self):
+        assert classify_stage("접수: 2024년 예산안") == 1
+
+    def test_reception_title_wins_over_rows(self):
+        assert classify_stage("접수: 예산안", ["접수", "업무담당자"]) == 1
+
+    def test_stage_2_signature_needs_both_markers(self):
+        # Verified 2026-10-07: 접수 row + 업무담당자 row, no superior/completion row.
+        assert classify_stage("전자결재: [x] [y] 안내", ["접수", "업무담당자"]) == 2
+
+    def test_stage_2_ignores_row_order_and_whitespace(self):
+        assert classify_stage("전자결재: 안내", [" 업무담당자 ", "접수"]) == 2
+
+    def test_stage_3_completion_marker(self):
+        assert (
+            classify_stage(
+                "전자결재: 안내",
+                ["접수", "업무담당자", "승인"],
+                completion_markers=["승인"],
+            )
+            == 3
+        )
+
+    def test_unknown_rows_default_to_stage_3_legacy(self):
+        # Empty/unreadable List1 keeps the pre-splitter behavior (task-card path).
+        assert classify_stage("전자결재: 안내") == 3
+        assert classify_stage("전자결재: 안내", ["업무담당자"]) == 3
+
+    def test_stage_3_markers_still_tbd(self):
+        # Exact stage-3 marker strings need a live dump (backlog.md Next) — never guess.
+        assert STAGE_3_COMPLETION_MARKERS == ()

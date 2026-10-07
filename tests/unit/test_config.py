@@ -318,3 +318,47 @@ class TestGlobalConfigInstance:
 
         except ImportError:
             pytest.skip("Global config instance not implemented")
+
+
+class TestSimilarityThreshold:
+    """Lock the evaluated threshold decision (backlog.md Now).
+
+    Evaluated 2026-10-07: the 0.3 default stays. It is a shared
+    candidate-filter for both backends (Supabase pgvector 1536-dim and local
+    FastEmbed 384-dim); per-backend retuning needs production similarity
+    samples that do not exist yet, so changing it now would be guessing.
+    """
+
+    def setup_method(self) -> None:
+        from config import UnifiedConfig, VectorConfig
+
+        self.config_class = UnifiedConfig
+        self.vector_config = VectorConfig
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_default_stays_0_3(self) -> None:
+        config = self.config_class(allow_fallback=True)
+        assert config.get_vector_similarity_threshold() == 0.3
+        assert self.vector_config.DEFAULT_SIMILARITY_THRESHOLD == 0.3
+
+    @patch.dict("os.environ", {"VECTOR_SIMILARITY_THRESHOLD": "0.5"}, clear=True)
+    def test_env_override_honored(self) -> None:
+        config = self.config_class(allow_fallback=True)
+        assert config.get_vector_similarity_threshold() == 0.5
+
+    @patch.dict("os.environ", {"VECTOR_SIMILARITY_THRESHOLD": "2.0"}, clear=True)
+    def test_out_of_range_falls_back_to_default(self) -> None:
+        config = self.config_class(allow_fallback=True)
+        assert config.get_vector_similarity_threshold() == 0.3
+
+    @patch.dict("os.environ", {"VECTOR_SIMILARITY_THRESHOLD": "abc"}, clear=True)
+    def test_invalid_value_falls_back_to_default(self) -> None:
+        config = self.config_class(allow_fallback=True)
+        assert config.get_vector_similarity_threshold() == 0.3
+
+    def test_default_within_bounds(self) -> None:
+        assert (
+            self.vector_config.MIN_SIMILARITY_THRESHOLD
+            <= self.vector_config.DEFAULT_SIMILARITY_THRESHOLD
+            <= self.vector_config.MAX_SIMILARITY_THRESHOLD
+        )

@@ -1,9 +1,9 @@
+# Trace: backlog.md Now — env reads centralized in config.py (DI credentials)
 """
 OpenAI 임베딩 서비스 클래스
 텍스트 임베딩 생성, 배치 처리, 에러 핸들링, 비용 추적 기능 제공
 """
 
-import os
 import logging
 import time
 from typing import List, Dict, Any, Optional, Union
@@ -13,8 +13,9 @@ import json
 
 import openai
 from dotenv import load_dotenv
-from config import OpenAIPricingConfig
+from config import OpenAIPricingConfig, TimeoutConfig, UnifiedConfig
 from utils.performance_logger import log_execution_time
+from utils.wait_helpers import backoff, pace
 from utils.config_manager import get_openai_embedding_price
 from utils.audit_logger import get_audit_logger, AuditResource
 from utils.monitoring_hooks import get_monitoring_hooks
@@ -68,11 +69,24 @@ class CostTracker:
 class OpenAIEmbeddingService:
     """OpenAI 임베딩 서비스"""
 
-    def __init__(self, model: str = "text-embedding-3-small", max_retry: int = 3):
-        """OpenAI 임베딩 서비스 초기화"""
-        self.api_key = os.getenv("OPENAI_API_KEY")
+    def __init__(
+        self,
+        model: str = "text-embedding-3-small",
+        max_retry: int = 3,
+        *,
+        api_key: Optional[str] = None,
+    ):
+        """OpenAI 임베딩 서비스 초기화.
+
+        The key arrives via dependency injection (main.py passes the config.py
+        value). The config.py fallback re-reads the environment through a
+        fresh UnifiedConfig. No key literal is read here — see config.py.
+        """
+        if api_key is None:
+            api_key = UnifiedConfig(allow_fallback=True).openai_api_key
+        self.api_key = api_key
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY 환경변수가 필요합니다")
+            raise ValueError("OpenAI credentials are missing (see .env.example)")
 
         openai.api_key = self.api_key
         self.client = openai.OpenAI(api_key=self.api_key)
@@ -200,7 +214,7 @@ class OpenAIEmbeddingService:
                 # Record rate limit event
                 monitoring.record_rate_limit("openai", retry_after=wait_time)
 
-                time.sleep(wait_time)
+                backoff(wait_time)
 
             except (openai.APIError, Exception) as e:
                 response_time_ms = (time.time() - start_time) * 1000
@@ -231,7 +245,7 @@ class OpenAIEmbeddingService:
 
                 if attempt == self.max_retry - 1:
                     raise
-                time.sleep(1)
+                backoff(TimeoutConfig.API_RETRY_DELAY)
 
         return None
 
@@ -302,7 +316,7 @@ class OpenAIEmbeddingService:
                         )
 
                     if batch_num < total_batches:
-                        time.sleep(0.1)
+                        pace(TimeoutConfig.SHORT_DELAY)
 
                     index += len(batch)
                     break
@@ -331,7 +345,7 @@ class OpenAIEmbeddingService:
                         index += len(batch)
                         break
 
-                    time.sleep(wait_time)
+                    backoff(wait_time)
 
                 except openai.APIError as error:
                     attempts += 1
@@ -344,7 +358,7 @@ class OpenAIEmbeddingService:
                     )
                     if attempts >= self.max_retry:
                         raise
-                    time.sleep(1)
+                    backoff(TimeoutConfig.API_RETRY_DELAY)
 
                 except Exception as error:
                     logger.error("Batch %d processing failed: %s", batch_num, error)

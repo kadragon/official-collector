@@ -13,6 +13,7 @@ from pywinauto.findwindows import ElementNotFoundError
 from config import TimeoutConfig
 from utils.error_handler import setup_logger
 from utils.performance_logger import log_execution_time
+from utils.wait_helpers import poll, settle
 from dialogs.dialog_classifier import DialogClassifier, DialogAction
 
 logger = setup_logger(__name__)
@@ -107,7 +108,7 @@ class DialogHandler:
                     return True
             except Exception as e:
                 logger.debug("조건 확인 중 오류: %s", e)
-            time.sleep(interval)
+            poll(interval)
         return False
 
     def analyze_dialog_content(self, confirm_dialog: Any) -> str:
@@ -535,7 +536,7 @@ class DialogHandler:
             click_confirm_callback: 확인 버튼 클릭 콜백 함수
         """
         logger.info("결재 결과 대화상자 대기 시작 - handle_approval_result() 호출됨")
-        time.sleep(TimeoutConfig.MINIMAL_DELAY)
+        settle(TimeoutConfig.MINIMAL_DELAY)
 
         # 초고속 대화상자 찾기
         confirm_dialog = self.find_confirm_dialog()

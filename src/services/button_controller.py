@@ -3,12 +3,12 @@ Button controller module for official document automation.
 Handles all button click operations with unified logic.
 """
 
-import time
 from typing import Any
 from pywinauto import keyboard
 
 from config import UIConfig, TimeoutConfig
 from utils.error_handler import setup_logger
+from utils.wait_helpers import settle
 
 logger = setup_logger(__name__)
 
@@ -135,7 +135,7 @@ class ButtonController:
             # 대화상자에 포커스 설정 (안정성 확보)
             if target_dialog:
                 target_dialog.set_focus()
-                time.sleep(TimeoutConfig.FOCUS_SETTLE_DELAY)
+                settle(TimeoutConfig.FOCUS_SETTLE_DELAY)
 
             # 키 전송
             if button_type == "confirm":
@@ -145,7 +145,7 @@ class ButtonController:
                 keyboard.send_keys("{ESC}")
                 logger.debug("키보드 ESC로 %s 버튼 클릭 시도", button_type)
 
-            time.sleep(TimeoutConfig.MINIMAL_DELAY)
+            settle(TimeoutConfig.MINIMAL_DELAY)
             return True
 
         except Exception as e:

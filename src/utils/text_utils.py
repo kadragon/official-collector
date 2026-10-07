@@ -1,3 +1,4 @@
+# Trace: backlog.md Now — classify_stage 1/2/3 splitter
 """
 Text utility helpers used across the automation project.
 
@@ -96,6 +97,49 @@ def is_approval_document(title: str) -> bool:
     if not title or not isinstance(title, str):
         return False
     return bool(re.match(r"^\s*승인요청\s*[:\-]", title))
+
+
+# --------------------------------------------------------------------------- #
+# Document stage splitter (reception / assigned-to-me / post-approval)
+# --------------------------------------------------------------------------- #
+
+#: Stage-3 (post-approval) completion markers for the List1 결재방법 column.
+#: Still TBD — capture a stage-3 live dump before adding strings here
+#: (backlog.md Next). Never guess marker strings.
+STAGE_3_COMPLETION_MARKERS: tuple = ()
+
+#: Verified 2026-10-07 (stage-2 live dump): the List1 결재방법 column shows a
+#: 접수 row plus a 업무담당자 row with no superior/completion row staged.
+_STAGE_2_METHODS = frozenset({"접수", "업무담당자"})
+
+
+def classify_stage(
+    title: str,
+    approval_methods: Iterable[str] = (),
+    completion_markers: Iterable[str] = STAGE_3_COMPLETION_MARKERS,
+) -> int:
+    """Split a document into stage 1 (reception), 2 (assigned-to-me), or 3.
+
+    Args:
+        title: Main window title.
+        approval_methods: List1 결재방법 column values in display order.
+        completion_markers: Known stage-3 completion strings.
+
+    Returns:
+        1 when the title carries the 접수 prefix; 3 when any row matches a
+        completion marker; 2 for the verified stage-2 signature (접수 plus
+        업무담당자 rows, no completion row); 3 otherwise, which preserves the
+        pre-splitter task-card path for unreadable or unexpected List1 data.
+    """
+    if is_reception_document(title):
+        return 1
+    methods = {str(method).strip() for method in approval_methods}
+    methods.discard("")
+    if methods & set(completion_markers):
+        return 3
+    if _STAGE_2_METHODS <= methods:
+        return 2
+    return 3
 
 
 # --------------------------------------------------------------------------- #

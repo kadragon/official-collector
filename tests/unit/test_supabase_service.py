@@ -196,3 +196,40 @@ def test_upsert_card_embedding_uses_single_upsert(supabase_service):
     assert not table.select_called
     assert not table.update_called
     assert not table.insert_called
+
+
+class ExplodingEmbeddingService:
+    """Simulates a programming bug (not a transient I/O failure)."""
+
+    def create_embedding(self, text, identifier):
+        raise RuntimeError("bug in embedding wiring")
+
+
+def test_recommend_reception_unexpected_error_propagates(
+    supabase_service, monkeypatch
+):
+    """Non-transient errors must surface, not sink into [] (backlog.md Now)."""
+    monkeypatch.setattr(
+        supabase_service, "embedding_service", ExplodingEmbeddingService()
+    )
+
+    with pytest.raises(RuntimeError, match="bug in embedding wiring"):
+        supabase_service.recommend_reception("예산안")
+
+
+def test_explicit_credentials_skip_env(monkeypatch):
+    """Constructor accepts credentials via DI (backlog.md Now constraint)."""
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_KEY", raising=False)
+    monkeypatch.setattr(
+        supabase_module, "create_client", lambda url, key: FakeClient()
+    )
+
+    service = SupabaseService(
+        FakeEmbeddingService(),
+        supabase_url="https://di.example",
+        supabase_key="di-key",
+    )
+
+    assert service.url == "https://di.example"
+    assert service.key == "di-key"

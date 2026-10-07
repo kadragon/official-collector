@@ -3,13 +3,14 @@
 """
 
 import logging
-import time
 import functools
 import os
 from datetime import datetime, timedelta
 from typing import Callable, Any, Optional
 from pathlib import Path
 from rich.logging import RichHandler
+
+from utils.wait_helpers import backoff
 
 
 # Global variable to store the current execution's log file path
@@ -203,7 +204,7 @@ def handle_connection_error(
                         attempt + 1,
                         max_attempts,
                     )
-                    time.sleep(wait_time)
+                    backoff(wait_time)
 
             return None
 
@@ -359,7 +360,7 @@ def handle_pywinauto_error(
                             max_retries,
                             str(e),
                         )
-                        time.sleep(retry_delay)
+                        backoff(retry_delay)
                         continue
                     else:
                         logger.error(

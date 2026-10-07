@@ -17,6 +17,9 @@ from typing import Optional, Dict, List, Any, Union
 from pywinauto import Application
 from ui.rich_console import RichConsole
 
+from config import TimeoutConfig
+from utils.wait_helpers import monitor_tick, poll
+
 # Ensure debug log directory exists
 project_root = Path(__file__).parent.parent.parent
 log_dir = project_root / "logs" / "debug"
@@ -240,7 +243,7 @@ class UnifiedDebugManager:
                 if self.interactive:
                     logger.info("No dialogs found")
 
-            time.sleep(interval)
+            monitor_tick(interval)
 
         logger.info("Dialog monitoring completed")
         return dialogs_found
@@ -423,7 +426,7 @@ class UnifiedDebugManager:
             except Exception as e:
                 logger.debug("Error searching for circulation dialog: %s", e)
 
-            time.sleep(0.1)
+            poll(TimeoutConfig.SHORT_DELAY)
 
         logger.info("No circulation completion dialog found within timeout")
         return None

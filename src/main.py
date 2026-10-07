@@ -1,22 +1,28 @@
+# Trace: backlog.md Now — classify_stage 1/2/3 splitter wiring
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
 import itertools
 import sys
-import time
-from typing import List, Union
+from typing import List, Optional, Union
 from rich import traceback
 
 # Enable rich tracebacks globally for better error display
 traceback.install(show_locals=True, width=120, theme="monokai")
 
-from config import config
+from config import TimeoutConfig, config
 from services.official_service import OfficialCollector, DocumentFlowState
+from services.approval_line_handler import Approver
 from services.supabase_service import SupabaseService
 from services.openai_embedding_service import OpenAIEmbeddingService
 from services.local_embedding_service import LocalEmbeddingService
 from services.local_vector_service import LocalVectorService
 from services.document_processor import DocumentProcessor
-from utils.text_utils import is_reception_document, extract_title_from_approval
+from utils.text_utils import (
+    classify_stage,
+    extract_title_from_approval,
+    is_reception_document,
+)
+from utils.wait_helpers import pause_between_documents
 from utils.error_handler import setup_logger
 from utils.audit_logger import init_audit_logger
 from utils.monitoring_hooks import init_monitoring_hooks
@@ -64,12 +70,17 @@ class Main:
 
         # 서비스 생성 (의존성 주입 패턴, VECTOR_BACKEND에 따라 백엔드 선택)
         # supabase_service에는 SupabaseService 또는 LocalVectorService가 담긴다
+        # 자격증명은 config.py에서만 읽고 생성자로 전달한다 (backlog.md Now)
         if config.get_vector_backend() == "local":
             supabase_service: Union[SupabaseService, LocalVectorService] = (
                 LocalVectorService(LocalEmbeddingService())
             )
         else:
-            supabase_service = SupabaseService(OpenAIEmbeddingService())
+            supabase_service = SupabaseService(
+                OpenAIEmbeddingService(api_key=config.openai_api_key),
+                supabase_url=config.supabase_url,
+                supabase_key=config.supabase_key,
+            )
 
         # 통합된 문서 처리기
         self.document_processor = DocumentProcessor(
@@ -151,7 +162,8 @@ class Main:
             title = self.collector.get_official_title()
             processed_count += 1
 
-            if is_reception_document(title):
+            stage = self._classify_current_document(title)
+            if stage == 1:
                 print_document_info(title, "접수 문서")
 
                 approval, shared = self.document_processor.process_reception_document(
@@ -172,8 +184,23 @@ class Main:
 
                     # 문서 처리 완료 후 잠시 대기하고 화면 정리
                     print_info("문서 처리가 완료되었습니다. 다음 문서를 준비합니다...")
-                    time.sleep(2)
+                    pause_between_documents(TimeoutConfig.DOCUMENT_TRANSITION_DELAY)
                     clear_screen()
+            elif stage == 2:
+                # 나에게 배정된 문서: 상위 결재권자를 결재선에 추가
+                if self._process_assigned_document(title):
+                    success_count += 1
+                    print_info(
+                        "결재선 지정이 완료되었습니다. 다음 문서를 준비합니다..."
+                    )
+                else:
+                    print_info(
+                        "결재선 지정을 건너뛰었습니다. 다음 문서를 준비합니다..."
+                    )
+
+                # 문서 처리 완료 후 잠시 대기하고 화면 정리
+                pause_between_documents(TimeoutConfig.DOCUMENT_TRANSITION_DELAY)
+                clear_screen()
             else:
                 # 전자결재 문서 처리
                 processed_title = extract_title_from_approval(title)
@@ -188,10 +215,89 @@ class Main:
                     print_info("문서 분류를 건너뛰었습니다. 다음 문서를 준비합니다...")
 
                 # 문서 처리 완료 후 잠시 대기하고 화면 정리
-                time.sleep(2)
+                pause_between_documents(TimeoutConfig.DOCUMENT_TRANSITION_DELAY)
                 clear_screen()
 
         print_final_result(success_count, processed_count)
+
+    def _classify_current_document(
+        self, title: str, approval_methods: Optional[List[str]] = None
+    ) -> int:
+        """Split the current document into stage 1/2/3 before branching.
+
+        Args:
+            title: Main window title.
+            approval_methods: Injected List1 결재방법 values (tests); live
+                runs read them via _read_staged_approval_methods.
+
+        Returns:
+            1 (reception), 2 (assigned-to-me), or 3 (post-approval legacy path).
+        """
+        if is_reception_document(title):
+            return 1
+        methods = (
+            approval_methods
+            if approval_methods is not None
+            else self._read_staged_approval_methods()
+        )
+        try:
+            return classify_stage(title, methods)
+        except Exception as e:
+            logger.warning("문서 단계 분류 실패, 기존 경로로 처리: %s", e)
+            return 3
+
+    def _read_staged_approval_methods(self) -> List[str]:
+        """Best-effort read of the staged List1 결재방법 column.
+
+        Returns [] until backlog.md Next lands the live List1 reader with a
+        safe dialog open/close lifecycle (opening 결재정보 read-only today
+        would leave the dialog open with no verified close path).
+        """
+        return []
+
+    def _resolve_stage2_superiors(
+        self, handler_names: Optional[List[str]] = None
+    ) -> List[Approver]:
+        """Resolve the superior approvers for a stage-2 document.
+
+        Unresolved until Review Backlog P1 wires the department source:
+        List1 carries names without departments, and runtime handler identity
+        is still an open question (docs/design/document-stages.md).
+        """
+        if handler_names:
+            logger.debug("2단계 담당자 확인: %s", handler_names)
+        return []
+
+    def _process_assigned_document(self, title: str) -> bool:
+        """Add superior approvers to a stage-2 (assigned-to-me) document.
+
+        Returns:
+            bool: True when the approval line was staged, False when skipped.
+        """
+        superiors = self._resolve_stage2_superiors()
+        if not superiors:
+            logger.warning(
+                "2단계 문서 결재선 지정 보류 (상위 결재권자 미확인, Review Backlog P1 참조): %s",
+                title,
+            )
+            print_warning(
+                "나에게 배정된 문서의 상위 결재권자를 확인할 수 없어 건너뜁니다 (P1 항목 참조)"
+            )
+            return False
+        try:
+            staged = self.collector.set_approval_line(superiors)
+        except Exception as e:
+            logger.error("2단계 결재선 지정 중 오류 발생: %s", e)
+            return False
+        if not staged:
+            logger.warning("2단계 결재선 지정 실패: %s", title)
+            return False
+        logger.info(
+            "2단계 결재선 지정 완료: %s -> %s",
+            title,
+            [approver.name for approver in superiors],
+        )
+        return True
 
     def _flush_all_pending_updates(self) -> None:
         """대기 중인 모든 업데이트를 Supabase에 일괄 업로드"""
@@ -271,12 +377,17 @@ def run_deletion_interface() -> None:
 
     try:
         # 서비스 초기화 (의존성 주입 패턴, VECTOR_BACKEND에 따라 백엔드 선택)
+        # 자격증명은 config.py에서만 읽고 생성자로 전달한다 (backlog.md Now)
         if config.get_vector_backend() == "local":
             supabase_service: Union[SupabaseService, LocalVectorService] = (
                 LocalVectorService(LocalEmbeddingService())
             )
         else:
-            supabase_service = SupabaseService(OpenAIEmbeddingService())
+            supabase_service = SupabaseService(
+                OpenAIEmbeddingService(api_key=config.openai_api_key),
+                supabase_url=config.supabase_url,
+                supabase_key=config.supabase_key,
+            )
     except Exception as e:
         print_error(f"Supabase 서비스 초기화 실패: {e}")
         print_error("삭제 기능을 사용하려면 Supabase 환경변수가 필요합니다.")

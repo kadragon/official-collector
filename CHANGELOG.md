@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [done] Now sprint: classify_stage splitter, DI credentials, named waits, narrowed excepts, threshold kept at 0.3 (2026-10-07) → docs/architecture.md
 - [analysis] Document 3-stage routing (reception / assigned-to-me / post-approval) + backlog items for classify_stage() split (2026-10-07) → docs/design/document-stages.md
 - [done] Verify stage-2 live signals: List1 [직위, 직급, 결재방법, 결재자] rows 접수+업무담당자, 과제카드ComboBox empty in 결재정보 (2026-10-07) → docs/design/document-stages.md
 

@@ -51,6 +51,7 @@ All persistence goes through `SupabaseService`: tables `reception_documents`, `t
 - Local model is pinned to `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, L2-normalized) — `multilingual-e5-small` is not shipped; verify before switching names.
 - `sqlite-vec` KNN distance is L2 by default; cosine comes from `1-d^2/2` on normalized vectors.
 - The local DB file is dimension-pinned: opening a DB built with another dimension fails fast with a reindex hint — Supabase 1536-dim vectors do not transfer, reindex required.
+- Similarity threshold `0.3` (`VectorConfig`) is a shared candidate-filter for both backends — evaluated 2026-10-07 and kept (per-backend retuning needs production similarity samples; see runbook for the `VECTOR_SIMILARITY_THRESHOLD` tuning procedure). Switching backends never transfers vectors: reindex, never copy.
 - Bandit `-ll` flags f-string SQL (B608): hoist SQL into module-level templates, keep values as bound params.
 
 ## Key Abstractions

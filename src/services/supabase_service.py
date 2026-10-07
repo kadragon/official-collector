@@ -1,3 +1,4 @@
+# Trace: backlog.md Now — env reads centralized in config.py (DI credentials)
 """
 Supabase 데이터베이스 서비스 클래스
 벡터 유사도 검색, CRUD 연산, 배치 업데이트 기능 제공
@@ -10,7 +11,10 @@ from datetime import datetime, timezone
 
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from config import get_config
+import httpx
+from openai import OpenAIError
+from postgrest.exceptions import APIError as PostgrestAPIError
+from config import UnifiedConfig, get_config
 from .openai_embedding_service import OpenAIEmbeddingService
 from utils.performance_logger import log_execution_time, timer
 from utils.audit_logger import get_audit_logger, AuditResource
@@ -21,6 +25,23 @@ from utils.error_handler import handle_supabase_error
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+# Narrow transient-failure vocabulary for query/upsert/delete helpers
+# (backlog.md Now): transport and data errors return graceful fallbacks,
+# while programming errors propagate to callers instead of sinking silently.
+_SUPABASE_TRANSPORT_ERRORS = (
+    PostgrestAPIError,
+    httpx.HTTPError,
+    ConnectionError,
+    TimeoutError,
+)
+_SUPABASE_OPERATION_ERRORS = _SUPABASE_TRANSPORT_ERRORS + (
+    OpenAIError,
+    ValueError,
+    KeyError,
+    AttributeError,
+)
 
 
 class CardRow(NamedTuple):
@@ -40,18 +61,37 @@ class ReceptionRow(NamedTuple):
 class SupabaseService:
     """Supabase 데이터베이스 서비스"""
 
-    def __init__(self, embedding_service: OpenAIEmbeddingService) -> None:
+    def __init__(
+        self,
+        embedding_service: OpenAIEmbeddingService,
+        *,
+        supabase_url: Optional[str] = None,
+        supabase_key: Optional[str] = None,
+    ) -> None:
         """Supabase 클라이언트 초기화
+
+        Credentials arrive via dependency injection (main.py passes the
+        config.py values). The config.py fallback re-reads the environment
+        through a fresh UnifiedConfig so test monkeypatching keeps working.
+        No key literal is read here — see config.py.
 
         Args:
             embedding_service: OpenAI 임베딩 서비스 인스턴스 (의존성 주입)
+            supabase_url: Supabase project URL (defaults to config value).
+            supabase_key: Supabase access key (defaults to config value).
         """
         self.config = get_config()
-        self.url = os.getenv("SUPABASE_URL")
-        self.key = os.getenv("SUPABASE_KEY")
+        if supabase_url is None or supabase_key is None:
+            fresh_config = UnifiedConfig(allow_fallback=True)
+            if supabase_url is None:
+                supabase_url = fresh_config.supabase_url
+            if supabase_key is None:
+                supabase_key = fresh_config.supabase_key
+        self.url = supabase_url
+        self.key = supabase_key
 
         if not self.url or not self.key:
-            raise ValueError("SUPABASE_URL과 SUPABASE_KEY 환경변수가 필요합니다")
+            raise ValueError("Supabase credentials are missing (see .env.example)")
 
         self.client: Client = create_client(self.url, self.key)
 
@@ -154,11 +194,11 @@ class SupabaseService:
 
                 return self._process_reception_results(result.data)
 
-            except Exception as e:
+            except _SUPABASE_TRANSPORT_ERRORS as e:
                 logger.error("벡터 검색 실패: %s", e)
                 return []
 
-        except Exception as e:
+        except _SUPABASE_OPERATION_ERRORS as e:
             logger.error("접수 문서 추천 실패: %s", e)
             return []
 
@@ -258,11 +298,11 @@ class SupabaseService:
                 )
                 return recommendations
 
-            except Exception as e:
+            except _SUPABASE_TRANSPORT_ERRORS as e:
                 logger.error("벡터 검색 실패: %s", e)
                 return []
 
-        except Exception as e:
+        except _SUPABASE_OPERATION_ERRORS as e:
             logger.error("업무카드 추천 실패: %s", e)
             return []
 
@@ -364,7 +404,7 @@ class SupabaseService:
             )
 
             return True
-        except Exception as e:
+        except _SUPABASE_OPERATION_ERRORS as e:
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             error_msg = str(e)
 
@@ -479,7 +519,7 @@ class SupabaseService:
             )
 
             return True
-        except Exception as e:
+        except _SUPABASE_OPERATION_ERRORS as e:
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             error_msg = str(e)
 
@@ -555,7 +595,7 @@ class SupabaseService:
                 "url": self.url,
                 "tables": ["task_card_mappings", "reception_mappings"],
             }
-        except Exception as e:
+        except _SUPABASE_TRANSPORT_ERRORS as e:
             return {"connected": False, "error": str(e)}
 
     def clear_all_data(self) -> bool:
@@ -595,7 +635,7 @@ class SupabaseService:
             )
 
             return True
-        except Exception as e:
+        except _SUPABASE_TRANSPORT_ERRORS as e:
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             error_msg = str(e)
 
@@ -810,7 +850,7 @@ class SupabaseService:
             deleted_count = len(result.data) if result.data else 0
             logger.warning("모든 업무카드 삭제 완료: %d개", deleted_count)
             return deleted_count
-        except Exception as e:
+        except _SUPABASE_TRANSPORT_ERRORS as e:
             logger.error("모든 업무카드 삭제 실패: %s", e)
             return 0
 
@@ -831,6 +871,6 @@ class SupabaseService:
             deleted_count = len(result.data) if result.data else 0
             logger.warning("모든 접수 문서 삭제 완료: %d개", deleted_count)
             return deleted_count
-        except Exception as e:
+        except _SUPABASE_TRANSPORT_ERRORS as e:
             logger.error("모든 접수 문서 삭제 실패: %s", e)
             return 0

@@ -15,6 +15,7 @@ from pywinauto.findwindows import ElementNotFoundError
 from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger, handle_pywinauto_error
 from utils.performance_logger import log_execution_time
+from utils.wait_helpers import poll, settle
 from dialogs.dialog_classifier import DialogClassifier, DialogAction
 from utils.text_utils import remove_numbers_from_title
 
@@ -71,11 +72,17 @@ class OfficialCollector:
                 element = element_selector()
                 if element.exists() and element.is_enabled():
                     return True
-            except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+            except (
+                ElementNotFoundError,
+                PyWinAutoTimeoutError,
+                AttributeError,
+                RuntimeError,
+                OSError,
+            ) as e:
+                # Transient UI/COM failures only — anything else surfaces so
+                # wiring bugs fail fast instead of timing out (backlog.md Now).
                 logger.debug("요소 대기 중 오류 (계속 시도): %s", e)
-            except Exception as e:
-                logger.warning("요소 대기 중 예상치 못한 오류: %s", e)
-            time.sleep(interval)
+            poll(interval)
         return False
 
     def _wait_for_condition(
@@ -100,18 +107,22 @@ class OfficialCollector:
             try:
                 if condition():
                     return True
-            except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+            except (
+                ElementNotFoundError,
+                PyWinAutoTimeoutError,
+                AttributeError,
+                RuntimeError,
+            ) as e:
                 logger.debug("조건 확인 중 오류 (계속 시도): %s", e)
             except OSError as e:
                 # COM 오류 (-2147220991, '이벤트에서 가입자를 불러낼 수 없습니다') 처리
                 if e.args[0] == -2147220991:
                     logger.debug("COM 이벤트 오류 (계속 시도): %s", e)
-                    time.sleep(TimeoutConfig.SHORT_DELAY)  # 약간의 추가 대기
+                    settle(TimeoutConfig.SHORT_DELAY)  # 약간의 추가 대기
                 else:
                     logger.warning("조건 확인 중 OS 오류: %s", e)
-            except Exception as e:
-                logger.warning("조건 확인 중 예상치 못한 오류: %s", e)
-            time.sleep(interval)
+            # Anything else surfaces so wiring bugs fail fast (backlog.md Now).
+            poll(interval)
         return False
 
     @log_execution_time(logger)
@@ -332,12 +343,12 @@ class OfficialCollector:
         pyperclip.copy(document_group_name)
         keyboard.send_keys("^v")
         keyboard.send_keys("{ENTER}")
-        time.sleep(TimeoutConfig.SHORT_DELAY)
+        settle(TimeoutConfig.SHORT_DELAY)
         keyboard.send_keys("{TAB}")
         keyboard.send_keys("{SPACE}")
         keyboard.send_keys("{TAB 3}")
         keyboard.send_keys("{ENTER}")
-        time.sleep(TimeoutConfig.SHORT_DELAY)
+        settle(TimeoutConfig.SHORT_DELAY)
         keyboard.send_keys("{ENTER}")
         logger.info("문서카드 선택 완료: %s", document_group_name)
 

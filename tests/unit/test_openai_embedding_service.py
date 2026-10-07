@@ -4,7 +4,6 @@ Unit tests for OpenAIEmbeddingService batching behaviour.
 
 import sys
 import types
-import time
 from pathlib import Path
 
 import openai
@@ -50,7 +49,9 @@ def test_create_embeddings_batch_retries_on_rate_limit(monkeypatch):
     dummy_endpoint = DummyEmbeddings()
     dummy_client = types.SimpleNamespace(embeddings=dummy_endpoint)
     monkeypatch.setattr(openai, "OpenAI", lambda api_key: dummy_client)
-    monkeypatch.setattr(time, "sleep", lambda _: None)
+    monkeypatch.setattr(
+        "services.openai_embedding_service.backoff", lambda _: None
+    )
 
     service = OpenAIEmbeddingService()
     requests = [
@@ -62,3 +63,15 @@ def test_create_embeddings_batch_retries_on_rate_limit(monkeypatch):
 
     assert len(responses) == 2
     assert dummy_endpoint.calls == 2
+
+
+def test_explicit_api_key_skips_env(monkeypatch):
+    """Constructor accepts the API key via DI (backlog.md Now constraint)."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        openai, "OpenAI", lambda api_key: types.SimpleNamespace(api_key=api_key)
+    )
+
+    service = OpenAIEmbeddingService(api_key="di-key")
+
+    assert service.api_key == "di-key"

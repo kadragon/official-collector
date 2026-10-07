@@ -56,6 +56,8 @@ class TimeoutConfig:
     MINIMAL_DELAY = 0.05
     SHORT_DELAY = 0.1
     FOCUS_SETTLE_DELAY = 0.02  # 포커스 설정 후 안정화 대기
+    DOCUMENT_TRANSITION_DELAY = 2.0  # 문서 처리 완료 후 다음 문서 준비 대기
+    API_RETRY_DELAY = 1.0  # API 오류 재시도 전 대기 (OpenAI 등)
 
 
 class OpenAIPricingConfig:
