@@ -204,3 +204,10 @@ task_id: TASK-001
   - All I/O operations instrumented
 - **Total Estimated Effort**: 21 hours (2.5 days)
 - **Analysis artifacts** stored in `.spec/codebase-cleanup/spec.yaml` and `.tasks/backlog.yaml`
+
+## Session Log (2026-10-07 Local vector backend)
+- Completed TASK-102 (SPEC-codebase-cleanup-1): removed dead langchain/chroma/ollama refs, regenerated lockfile, unit suite green.
+- Completed TASK-103 (SPEC-local-vector-backend-1): FastEmbed + sqlite-vec backend behind `VECTOR_BACKEND`, Supabase default unchanged.
+- Verified facts: FastEmbed ships `paraphrase-multilingual-MiniLM-L12-v2` (384 dims) but not `multilingual-e5-small`; sqlite-vec default `distance` is L2, so cosine comes from `1-d^2/2` on normalized vectors; `sqlite-vec`/`fastembed` load fine on Win x64 Python 3.12.
+- Gotcha: bandit `-ll` flags f-string SQL (B608) — hoist SQL into module templates, keep values as bound params.
+- Open: local similarity threshold likely needs retuning vs 0.3; Supabase 1536-dim vectors cannot transfer (reindex required).

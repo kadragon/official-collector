@@ -3,7 +3,7 @@
 import itertools
 import sys
 import time
-from typing import List
+from typing import List, Union
 from rich import traceback
 
 # Enable rich tracebacks globally for better error display
@@ -13,6 +13,8 @@ from config import config
 from services.official_service import OfficialCollector, DocumentFlowState
 from services.supabase_service import SupabaseService
 from services.openai_embedding_service import OpenAIEmbeddingService
+from services.local_embedding_service import LocalEmbeddingService
+from services.local_vector_service import LocalVectorService
 from services.document_processor import DocumentProcessor
 from utils.text_utils import is_reception_document, extract_title_from_approval
 from utils.error_handler import setup_logger
@@ -60,9 +62,14 @@ class Main:
 
         self.collector = OfficialCollector()
 
-        # 서비스 생성 (의존성 주입 패턴)
-        embedding_service = OpenAIEmbeddingService()
-        supabase_service = SupabaseService(embedding_service)
+        # 서비스 생성 (의존성 주입 패턴, VECTOR_BACKEND에 따라 백엔드 선택)
+        # supabase_service에는 SupabaseService 또는 LocalVectorService가 담긴다
+        if config.get_vector_backend() == "local":
+            supabase_service: Union[SupabaseService, LocalVectorService] = (
+                LocalVectorService(LocalEmbeddingService())
+            )
+        else:
+            supabase_service = SupabaseService(OpenAIEmbeddingService())
 
         # 통합된 문서 처리기
         self.document_processor = DocumentProcessor(
@@ -263,9 +270,13 @@ def run_deletion_interface() -> None:
     )
 
     try:
-        # 서비스 초기화 (의존성 주입 패턴)
-        embedding_service = OpenAIEmbeddingService()
-        supabase_service = SupabaseService(embedding_service)
+        # 서비스 초기화 (의존성 주입 패턴, VECTOR_BACKEND에 따라 백엔드 선택)
+        if config.get_vector_backend() == "local":
+            supabase_service: Union[SupabaseService, LocalVectorService] = (
+                LocalVectorService(LocalEmbeddingService())
+            )
+        else:
+            supabase_service = SupabaseService(OpenAIEmbeddingService())
     except Exception as e:
         print_error(f"Supabase 서비스 초기화 실패: {e}")
         print_error("삭제 기능을 사용하려면 Supabase 환경변수가 필요합니다.")
@@ -294,7 +305,8 @@ def run_deletion_interface() -> None:
 
 
 def _handle_task_card_deletion(
-    service: SupabaseService, console: ConsoleInterface
+    service: Union[SupabaseService, LocalVectorService],
+    console: ConsoleInterface,
 ) -> None:
     """과제 카드 삭제 처리"""
     try:
@@ -315,7 +327,8 @@ def _handle_task_card_deletion(
 
 
 def _handle_reception_deletion(
-    service: SupabaseService, console: ConsoleInterface
+    service: Union[SupabaseService, LocalVectorService],
+    console: ConsoleInterface,
 ) -> None:
     """접수 문서 삭제 처리"""
     try:
@@ -336,7 +349,7 @@ def _handle_reception_deletion(
 
 
 def _handle_individual_deletion(
-    service: SupabaseService,
+    service: Union[SupabaseService, LocalVectorService],
     console: ConsoleInterface,
     item_type: str,
     service_type: str,
@@ -368,7 +381,10 @@ def _handle_individual_deletion(
     input("엔터를 눌러 계속...")
 
 
-def _handle_bulk_deletion(service: SupabaseService, console: ConsoleInterface) -> None:
+def _handle_bulk_deletion(
+    service: Union[SupabaseService, LocalVectorService],
+    console: ConsoleInterface,
+) -> None:
     """일괄 삭제 처리"""
     try:
         if console.confirm_bulk_deletion():

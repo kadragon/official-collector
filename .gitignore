@@ -165,6 +165,9 @@ cython_debug/
 #.idea/
 
 /data/*.json
+/data/*.db
+/data/*.db-wal
+/data/*.db-shm
 /data/backup
 
 # Configuration files (use .example files as templates)

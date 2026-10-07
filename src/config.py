@@ -78,6 +78,20 @@ class VectorConfig:
     MAX_SIMILARITY_THRESHOLD = 1.0
 
 
+class LocalVectorConfig:
+    """Configuration for the offline vector backend (FastEmbed + SQLite)."""
+
+    # Valid VECTOR_BACKEND values; default keeps cloud behavior unchanged.
+    BACKEND_SUPABASE = "supabase"
+    BACKEND_LOCAL = "local"
+
+    # Verified FastEmbed model with Korean coverage (384 dims, ONNX quantized).
+    DEFAULT_EMBEDDING_MODEL = (
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
+    DEFAULT_DB_FILENAME = "local_vectors.db"
+
+
 class UIConfig:
     """Centralized UI configuration for dialog patterns and window titles."""
 
@@ -206,6 +220,44 @@ class UnifiedConfig:
                 VectorConfig.DEFAULT_SIMILARITY_THRESHOLD,
             )
             return VectorConfig.DEFAULT_SIMILARITY_THRESHOLD
+
+    def get_vector_backend(self) -> str:
+        """
+        Return the active vector backend ("supabase" or "local").
+
+        Reads from VECTOR_BACKEND environment variable, defaults to supabase
+        so existing deployments keep cloud behavior unchanged.
+        """
+        value = self._env_value("VECTOR_BACKEND")
+        if value is None:
+            return LocalVectorConfig.BACKEND_SUPABASE
+        normalized = value.strip().lower()
+        if normalized not in (
+            LocalVectorConfig.BACKEND_SUPABASE,
+            LocalVectorConfig.BACKEND_LOCAL,
+        ):
+            logger.warning(
+                "Unknown VECTOR_BACKEND (%s), falling back to supabase", value
+            )
+            return LocalVectorConfig.BACKEND_SUPABASE
+        return normalized
+
+    def get_local_embedding_model(self) -> str:
+        """Return the FastEmbed model name for the local backend."""
+        return (
+            self._env_value("LOCAL_EMBEDDING_MODEL")
+            or LocalVectorConfig.DEFAULT_EMBEDDING_MODEL
+        )
+
+    def get_local_vector_db_path(self) -> Path:
+        """Return the SQLite database path for the local backend."""
+        value = self._env_value("LOCAL_VECTOR_DB_PATH")
+        if value:
+            candidate = Path(value)
+            if not candidate.is_absolute():
+                candidate = self.project_root / candidate
+            return candidate
+        return self.data_dir / LocalVectorConfig.DEFAULT_DB_FILENAME
 
     def allow_destructive_operations(self) -> bool:
         """

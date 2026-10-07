@@ -33,6 +33,8 @@ class AuditResource(Enum):
     EMBEDDING = "embedding"
     SUPABASE = "supabase"
     OPENAI = "openai"
+    LOCAL_EMBEDDING = "local_embedding"
+    LOCAL_VECTOR = "local_vector"
     CONFIGURATION = "configuration"
 
 

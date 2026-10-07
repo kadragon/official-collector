@@ -476,3 +476,32 @@
     - "Graceful failure: Returns (None, None) after max retries instead of hanging"
     - "Deduplication logging: Reports duplicate removal statistics"
   governance_ref: "SPEC-core-automation-1, patterns.md, TEST-core-automation-2, TEST-core-automation-3"
+- task_id: TASK-102
+  spec_id: SPEC-codebase-cleanup-1
+  title: "Remove dead langchain/chroma/ollama references"
+  completed_at: "2026-10-07T00:00:00+09:00"
+  outcome: >
+    Removed unused langchain-community/core (+langchain-classic/langsmith pins) from
+    pyproject.toml, dropped the Ollama/Chroma legacy block from .env.example,
+    cleaned pytest.ini/.gitignore/.claudeignore chroma mentions, renamed
+    chroma_backup_dir to backup_dir in .governance/env.yaml, and regenerated
+    uv.lock (83 packages). Verified src/ and tests/ contain zero matches and
+    pytest tests/unit passes (191 tests).
+  test_refs:
+    - TEST-cleanup-5
+- task_id: TASK-103
+  spec_id: SPEC-local-vector-backend-1
+  title: "Offline vector backend (FastEmbed + sqlite-vec)"
+  completed_at: "2026-10-07T00:00:00+09:00"
+  outcome: >
+    Added LocalEmbeddingService (FastEmbed paraphrase-multilingual-MiniLM-L12-v2,
+    384 dims, L2-normalized, lazy load into .cache/fastembed) and LocalVectorService
+    (SQLite + sqlite-vec, SupabaseService-identical surface, dimension-pinned DB,
+    cosine via 1-d^2/2). Wired VECTOR_BACKEND selector through config.py/.env with
+    main.py DI branches. Verified with 14 new unit tests, real-model Korean E2E
+    (0.81 vs 0.34), and gates: pytest 205 green, pylint/bandit clean on new files,
+    mypy at pre-existing baseline (41 errors, 0 new).
+  test_refs:
+    - TEST-local-vector-1
+    - TEST-local-vector-2
+    - TEST-local-vector-3

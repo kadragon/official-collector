@@ -6,8 +6,8 @@
 |-------|-----------|
 | Language | Python 3.12+, strict typing (mypy) |
 | RPA | pywinauto + pywin32 (Windows-only) |
-| Database | Supabase PostgreSQL + pgvector (HNSW), `supabase` SDK |
-| Embeddings | OpenAI `text-embedding-3-small` (1536 dims) |
+| Database | Supabase PostgreSQL + pgvector (HNSW), `supabase` SDK — or local SQLite + sqlite-vec when `VECTOR_BACKEND=local` |
+| Embeddings | OpenAI `text-embedding-3-small` (1536 dims) — or local FastEmbed `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, L2-normalized) when `VECTOR_BACKEND=local` |
 | UI | Rich (panels, tables, trees, prompts) via `src/ui/rich_console.py` singleton |
 | Config | `src/config.py` (`UnifiedConfig`) + `.env` |
 | CI | GitHub Actions (Bandit); pre-commit (black, mypy, pylint, bandit) |
@@ -21,7 +21,9 @@ src/
   services/
     document_processor.py # orchestrates reception + task-card flows
     supabase_service.py   # CRUD + vector search (only module touching the client)
+    local_vector_service.py  # SQLite + sqlite-vec mirror of SupabaseService (VECTOR_BACKEND=local)
     openai_embedding_service.py  # embeddings, quota, retry, cost tracking
+    local_embedding_service.py  # FastEmbed offline embeddings, same response shape
     official_service.py   # pywinauto flows (1047 lines, mid-split — see below)
     window_manager.py / dialog_handler.py / button_controller.py  # RPA splits
   ui/                     # Rich console wrapper + console interface
