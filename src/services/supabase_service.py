@@ -3,14 +3,16 @@ Supabase 데이터베이스 서비스 클래스
 벡터 유사도 검색, CRUD 연산, 배치 업데이트 기능 제공
 """
 
-import os
+# Trace: Narrow remaining broad excepts in polling helpers (backlog Now)
+
 import logging
 from typing import Callable, List, Dict, Any, Optional, Tuple, cast, Iterator, NamedTuple
 from datetime import datetime, timezone
 
+from postgrest.exceptions import APIError
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from config import get_config
+from config import get_config, load_environment_variables
 from .openai_embedding_service import OpenAIEmbeddingService
 from utils.performance_logger import log_execution_time, timer
 from utils.audit_logger import get_audit_logger, AuditResource
@@ -46,12 +48,15 @@ class SupabaseService:
         Args:
             embedding_service: OpenAI 임베딩 서비스 인스턴스 (의존성 주입)
         """
+        # Refresh from the live environment so construction sees the
+        # current process env (tests set fakes via monkeypatch).
+        load_environment_variables()
         self.config = get_config()
-        self.url = os.getenv("SUPABASE_URL")
-        self.key = os.getenv("SUPABASE_KEY")
+        self.url = self.config.supabase_url
+        self.key = self.config.supabase_key
 
         if not self.url or not self.key:
-            raise ValueError("SUPABASE_URL과 SUPABASE_KEY 환경변수가 필요합니다")
+            raise ValueError("Supabase URL과 키 환경변수가 필요합니다")
 
         self.client: Client = create_client(self.url, self.key)
 
@@ -154,11 +159,17 @@ class SupabaseService:
 
                 return self._process_reception_results(result.data)
 
-            except Exception as e:
-                logger.error("벡터 검색 실패: %s", e)
+            except (ConnectionError, TimeoutError, RuntimeError) as e:
+                logger.error("벡터 검색 실패 (전송 오류): %s", e)
+                return []
+            except APIError as e:
+                logger.error("벡터 검색 실패 (Supabase API): %s", e)
+                return []
+            except (ValueError, KeyError, AttributeError) as e:
+                logger.error("벡터 검색 실패 (응답 처리): %s", e)
                 return []
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, RuntimeError, ValueError) as e:
             logger.error("접수 문서 추천 실패: %s", e)
             return []
 
@@ -258,11 +269,17 @@ class SupabaseService:
                 )
                 return recommendations
 
-            except Exception as e:
-                logger.error("벡터 검색 실패: %s", e)
+            except (ConnectionError, TimeoutError, RuntimeError) as e:
+                logger.error("벡터 검색 실패 (전송 오류): %s", e)
+                return []
+            except APIError as e:
+                logger.error("벡터 검색 실패 (Supabase API): %s", e)
+                return []
+            except (ValueError, KeyError, AttributeError) as e:
+                logger.error("벡터 검색 실패 (응답 처리): %s", e)
                 return []
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, RuntimeError, ValueError) as e:
             logger.error("업무카드 추천 실패: %s", e)
             return []
 
@@ -564,7 +581,7 @@ class SupabaseService:
         start_time = datetime.now()
 
         # 프로덕션 환경에서는 데이터 삭제 금지
-        if os.getenv("ENVIRONMENT", "development") == "production":
+        if self.config.get_environment() == "production":
             logger.error("프로덕션 환경에서는 데이터 삭제를 수행할 수 없습니다")
             audit.log_delete(
                 resource=AuditResource.SUPABASE,
@@ -589,7 +606,7 @@ class SupabaseService:
                 status="success",
                 details={
                     "tables": ["task_card_mappings", "reception_mappings"],
-                    "environment": os.getenv("ENVIRONMENT", "development"),
+                    "environment": self.config.get_environment(),
                 },
                 duration_ms=duration_ms,
             )

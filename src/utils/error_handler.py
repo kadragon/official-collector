@@ -2,8 +2,9 @@
 에러 처리 및 로깅을 위한 유틸리티 모듈.
 """
 
+# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
+
 import logging
-import time
 import functools
 import os
 from datetime import datetime, timedelta
@@ -11,6 +12,7 @@ from typing import Callable, Any, Optional
 from pathlib import Path
 from rich.logging import RichHandler
 
+from utils.wait_helpers import wait_for_retry_backoff
 
 # Global variable to store the current execution's log file path
 _current_log_file: Optional[str] = None
@@ -203,7 +205,7 @@ def handle_connection_error(
                         attempt + 1,
                         max_attempts,
                     )
-                    time.sleep(wait_time)
+                    wait_for_retry_backoff(wait_time)
 
             return None
 
@@ -359,7 +361,7 @@ def handle_pywinauto_error(
                             max_retries,
                             str(e),
                         )
-                        time.sleep(retry_delay)
+                        wait_for_retry_backoff(retry_delay)
                         continue
                     else:
                         logger.error(

@@ -73,8 +73,21 @@ No deploy pipeline — runs as a local Windows workstation process. Production c
 
 ### Vector search returns nothing
 **Symptom:** Empty recommendation lists.
-**Cause:** `VECTOR_SIMILARITY_THRESHOLD` too strict (default `0.3`), or missing embeddings.
-**Fix:** Lower threshold (`VECTOR_SIMILARITY_THRESHOLD=0.2`); verify counts via `get_document_count()`.
+**Cause:** Similarity threshold too strict, or missing embeddings. The Supabase
+backend defaults to `VECTOR_SIMILARITY_THRESHOLD=0.3`; the local FastEmbed
+backend defaults to `LOCAL_VECTOR_SIMILARITY_THRESHOLD=0.5` (retuned 2026-10-07:
+sample Korean titles score ~0.95 near-duplicate, 0.49–0.64 related, 0.21–0.45
+unrelated on the 384-dim model, so 0.3 admits unrelated pairs).
+**Fix:** Lower the threshold for the active backend (`VECTOR_BACKEND=supabase`
+vs `local`); verify counts via `get_document_count()`.
+
+### Local vector DB dimension mismatch
+**Symptom:** `ValueError: Local vector DB dimension mismatch` on startup.
+**Cause:** The SQLite DB is pinned to one embedding dimension (`vector_meta`).
+Supabase 1536-dim OpenAI vectors do not transfer to the local 384-dim store —
+switching models/backends requires a reindex, never a copy.
+**Fix:** Delete the local DB file (default `data/local_vectors.db`) or clear and
+reindex from source documents; keep one embedding model per DB.
 
 ### Quota exceeded
 **Symptom:** "Quota check failed", API calls blocked.
@@ -94,7 +107,8 @@ No deploy pipeline — runs as a local Windows workstation process. Production c
 | `SUPABASE_URL` / `SUPABASE_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | yes | Supabase access |
 | `ENVIRONMENT` | no | `production` blocks destructive ops |
 | `ALLOW_DESTRUCTIVE_OPERATIONS` | no | `true` re-enables deletes in production |
-| `VECTOR_SIMILARITY_THRESHOLD` | no | Default `0.3`, range `0.0–1.0` |
+| `VECTOR_SIMILARITY_THRESHOLD` | no | Supabase backend prefilter, default `0.3`, range `0.0–1.0` |
+| `LOCAL_VECTOR_SIMILARITY_THRESHOLD` | no | Local backend prefilter, default `0.5`, range `0.0–1.0` |
 | `OPENAI_DAILY_BUDGET_USD` / `OPENAI_MONTHLY_BUDGET_USD` | no | Defaults `10.0` / `300.0` |
 | `QUOTA_AUTO_STOP` | no | `true` blocks all API calls once exceeded |
 | `LOG_LEVEL` / `DEBUG_MODE` / `LOG_RETENTION_DAYS` | no | Logging tuning |
