@@ -24,6 +24,12 @@
 - [ ] [P1] Wire main.py 접수 flow to OfficialCollector.set_approval_line (needs department source for vector-matched approvers; approval() still live)
 - [ ] [P2] Match staged ListView rows on (department, name): List1 carries no department column, so cross-department homonyms resolve by name only
 
+### PR #107 — fix/now review (2026-10-07)
+
+- [ ] [debt] Extract Main.run() stage branches into handlers; complexity rose 17→20 branches / 72→81 stmts (introduced here) (source: review) — src/main.py:93
+- [ ] [constraint] Narrow remaining broad excepts outside PR #107 scope (approval_line_handler 15, dialog_handler 19, document_processor 5, window_manager 5 incl. bare :123, main.py deletion helpers) (source: review) — src/services/window_manager.py:123
+- [ ] [debt] Narrow broad raise in confirm-button fallback (source: review) — src/services/button_controller.py:209
+
 ## Approval store (local-only)
 
 - [ ] [FEAT] Local approval_lines store + Supabase legacy no-op (spec docs/design/approval-decision-memory.md)
