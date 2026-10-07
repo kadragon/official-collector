@@ -4,15 +4,15 @@ Rules agents get wrong that the linter does not own. Tooling-owned style (black,
 
 ## Trace Headers
 
-Every code change cites its spec and task. New/edited source files carry:
+Every code change cites its backlog item. New/edited source files carry:
 
 ```python
-# Trace:
-#   spec_id: SPEC-<slug>-1
-#   task_id: TASK-<NNN>
+# Trace: <backlog.md item or sprint title>
 ```
 
-Commits reference both IDs as well. Ambiguity in a spec is never guessed — file a `.tasks/backlog.yaml` entry instead.
+Old `spec_id`/`task_id` headers remain as history; replace with the one-liner on touch, never add new `SPEC-*`/`TASK-*` IDs.
+
+Commits reference the backlog item or sprint title as well. Spec ambiguity is never guessed — file a `backlog.md` entry instead.
 
 ## Git Conventions
 
@@ -38,7 +38,7 @@ Branch before the first edit of any task: `git checkout -b <type>/<slug>`. Never
 - **DI, not construction:** services receive collaborators as constructor args from `main.py`. A service importing and instantiating a sibling is a violation, even when it "works".
 - **Errors via decorators:** Supabase paths use `@handle_supabase_error`, pywinauto paths use `@handle_pywinauto_error` (`utils/error_handler.py`). Bare `except`/`pass` is forbidden — log with context.
 - **Logging:** `logger.info("msg %s", arg)` — lazy `%s` args, never f-strings; keep messages UTF-8 clean (Korean log text is fine).
-- **Instrumentation:** every I/O-heavy function gets `@log_execution_time` (or `tracked_timer` for blocks).
+- **Instrumentation:** every I/O-heavy function gets `@log_execution_time` (or `tracked_timer` for blocks). Analyze `⏱️` log lines with `src/utils/phase3_analysis.py` (baselines, regression compare, markdown reports).
 
 ## RPA Rules
 

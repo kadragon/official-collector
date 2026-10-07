@@ -6,8 +6,8 @@
 |-------|-----------|
 | Language | Python 3.12+, strict typing (mypy) |
 | RPA | pywinauto + pywin32 (Windows-only) |
-| Database | Supabase PostgreSQL + pgvector (HNSW), `supabase` SDK |
-| Embeddings | OpenAI `text-embedding-3-small` (1536 dims) |
+| Database | Supabase PostgreSQL + pgvector (HNSW), `supabase` SDK — or local SQLite + sqlite-vec when `VECTOR_BACKEND=local` |
+| Embeddings | OpenAI `text-embedding-3-small` (1536 dims) — or local FastEmbed `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, L2-normalized) when `VECTOR_BACKEND=local` |
 | UI | Rich (panels, tables, trees, prompts) via `src/ui/rich_console.py` singleton |
 | Config | `src/config.py` (`UnifiedConfig`) + `.env` |
 | CI | GitHub Actions (Bandit); pre-commit (black, mypy, pylint, bandit) |
@@ -21,7 +21,9 @@ src/
   services/
     document_processor.py # orchestrates reception + task-card flows
     supabase_service.py   # CRUD + vector search (only module touching the client)
+    local_vector_service.py  # SQLite + sqlite-vec mirror of SupabaseService (VECTOR_BACKEND=local)
     openai_embedding_service.py  # embeddings, quota, retry, cost tracking
+    local_embedding_service.py  # FastEmbed offline embeddings, same response shape
     official_service.py   # pywinauto flows (1047 lines, mid-split — see below)
     window_manager.py / dialog_handler.py / button_controller.py  # RPA splits
   ui/                     # Rich console wrapper + console interface
@@ -35,7 +37,7 @@ src/
 Dependency flows downward: `main.py` → `services/` → `utils/` + `config.py`. Upper layers import lower ones, never the reverse.
 
 - `main.py` is the only place that constructs services and injects them downward.
-- A service never instantiates a sibling service (known violation being repaired: `SupabaseService` creating its own embedding service — see `.tasks/backlog.yaml` TASK-013 lineage).
+- A service never instantiates a sibling service.
 - `supabase_service.py` is the only module that imports the Supabase client; embedding calls go through `OpenAIEmbeddingService`.
 - `official_service.py` is mid-split into `window_manager` / `dialog_handler` / `button_controller` — put new RPA logic in the split modules, not the monolith.
 - `data/base_data.json` seeds lists; runtime caches live in `data/backup/` and `.cache/`.
@@ -43,6 +45,13 @@ Dependency flows downward: `main.py` → `services/` → `utils/` + `config.py`.
 ## Data Access
 
 All persistence goes through `SupabaseService`: tables `reception_documents`, `task_cards`, `document_embeddings`. Similarity search runs in SQL (CTE dedup); service-side dedup is fallback only. Batch RPA mutations accumulate in memory and flush once via `flush_pending_updates()`. Large reads stream through `iter_all_cards()` / `iter_all_receptions()` (batch 500) — never load full tables into memory.
+
+## Local Backend Gotchas
+
+- Local model is pinned to `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, L2-normalized) — `multilingual-e5-small` is not shipped; verify before switching names.
+- `sqlite-vec` KNN distance is L2 by default; cosine comes from `1-d^2/2` on normalized vectors.
+- The local DB file is dimension-pinned: opening a DB built with another dimension fails fast with a reindex hint — Supabase 1536-dim vectors do not transfer, reindex required.
+- Bandit `-ll` flags f-string SQL (B608): hoist SQL into module-level templates, keep values as bound params.
 
 ## Key Abstractions
 

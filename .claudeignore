@@ -32,5 +32,4 @@ htmlcov/
 # Local runtime (regenerated)
 .cache/
 logs/
-chroma_db/
 *.jsonl

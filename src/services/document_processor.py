@@ -6,8 +6,9 @@
 문서 처리 로직을 중앙화하고 코드 중복을 제거했습니다.
 """
 
-from typing import List, Tuple, Optional, Any, cast
+from typing import List, Tuple, Optional, Any, Union, cast
 from services.supabase_service import SupabaseService
+from services.local_vector_service import LocalVectorService
 from ui.console_interface import (
     SelectionResult,
     get_user_choice_from_list,
@@ -35,7 +36,7 @@ class DocumentProcessor:
 
     def __init__(
         self,
-        supabase_service: SupabaseService,
+        supabase_service: Union[SupabaseService, LocalVectorService],
         approval_name_list: List[str],
         share_name_list: List[str],
         predefined_card_list: List[str],
@@ -44,7 +45,7 @@ class DocumentProcessor:
         초기화
 
         Args:
-            supabase_service: Supabase 데이터베이스 서비스 (통합)
+            supabase_service: 벡터 저장소 서비스 (Supabase 또는 Local, 통합)
             approval_name_list: 담당자 목록
             share_name_list: 공람 대상자 목록
             predefined_card_list: 미리 정의된 카드 목록

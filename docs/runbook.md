@@ -57,7 +57,7 @@ Pre-commit runs all four (`black --check`, `mypy`, `pylint`, `bandit`); CI runs 
 
 ## Deploy
 
-No deploy pipeline — runs as a local Windows workstation process. Production checklist (full version: `.governance/operations.md`):
+No deploy pipeline — runs as a local Windows workstation process. Production checklist:
 
 - [ ] `.env` holds real `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] `ENVIRONMENT=production` set (blocks `clear_all_data` unless `ALLOW_DESTRUCTIVE_OPERATIONS=true`)

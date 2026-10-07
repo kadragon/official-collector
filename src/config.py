@@ -1,3 +1,4 @@
+# Trace: backlog.md - Build 접수 approval line from org chart in predetermined order
 """
 Configuration module for the official document automation system.
 """
@@ -43,6 +44,8 @@ class TimeoutConfig:
     APPROVAL_CONFIRMATION_BACKUP = 2.0
     APPROVAL_RESULT = 0.5
     PAYMENT_INFO_WINDOW = 2.0
+    # Per-step bound for org-chart approval-line ops (add/reorder/verify)
+    APPROVAL_LINE_WAIT = 5.0
 
     # Fast dialog search timeouts (성능 최적화)
     FAST_DIALOG_IMMEDIATE = 0.1  # 0.3 → 0.1 (3배 속도 향상)
@@ -78,6 +81,20 @@ class VectorConfig:
     MAX_SIMILARITY_THRESHOLD = 1.0
 
 
+class LocalVectorConfig:
+    """Configuration for the offline vector backend (FastEmbed + SQLite)."""
+
+    # Valid VECTOR_BACKEND values; default keeps cloud behavior unchanged.
+    BACKEND_SUPABASE = "supabase"
+    BACKEND_LOCAL = "local"
+
+    # Verified FastEmbed model with Korean coverage (384 dims, ONNX quantized).
+    DEFAULT_EMBEDDING_MODEL = (
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
+    DEFAULT_DB_FILENAME = "local_vectors.db"
+
+
 class UIConfig:
     """Centralized UI configuration for dialog patterns and window titles."""
 
@@ -105,6 +122,20 @@ class UIConfig:
 
     # Payment info button names
     PAYMENT_INFO_BUTTONS = ["결재정보", "Payment Information"]
+
+    # Approval-line (결재선) controls inside the payment-info dialog.
+    # Verified against the live client with win32 print_control_identifiers.
+    PAYMENT_INFO_TITLE = "결재정보"
+    APPROVAL_TAB_TITLE = "결재선"
+    APPROVAL_LIST_NAME = "List1"
+    APPROVER_NAME_COLUMN = "결재자"
+    ADD_APPROVER_BUTTON = "▶ 추가"
+    REMOVE_APPROVER_BUTTON = "◀ 삭제"
+    CONFIRM_BUTTON = "확인"
+    ORGCHART_ROOT_NODE = "한국교원대학교"
+    # Order buttons sit right of the approval list; this slack absorbs
+    # borders/DPI shifts when matching their left edge to the list edge.
+    ORDER_BUTTON_EDGE_TOLERANCE = 8
 
 
 class UnifiedConfig:
@@ -206,6 +237,44 @@ class UnifiedConfig:
                 VectorConfig.DEFAULT_SIMILARITY_THRESHOLD,
             )
             return VectorConfig.DEFAULT_SIMILARITY_THRESHOLD
+
+    def get_vector_backend(self) -> str:
+        """
+        Return the active vector backend ("supabase" or "local").
+
+        Reads from VECTOR_BACKEND environment variable, defaults to supabase
+        so existing deployments keep cloud behavior unchanged.
+        """
+        value = self._env_value("VECTOR_BACKEND")
+        if value is None:
+            return LocalVectorConfig.BACKEND_SUPABASE
+        normalized = value.strip().lower()
+        if normalized not in (
+            LocalVectorConfig.BACKEND_SUPABASE,
+            LocalVectorConfig.BACKEND_LOCAL,
+        ):
+            logger.warning(
+                "Unknown VECTOR_BACKEND (%s), falling back to supabase", value
+            )
+            return LocalVectorConfig.BACKEND_SUPABASE
+        return normalized
+
+    def get_local_embedding_model(self) -> str:
+        """Return the FastEmbed model name for the local backend."""
+        return (
+            self._env_value("LOCAL_EMBEDDING_MODEL")
+            or LocalVectorConfig.DEFAULT_EMBEDDING_MODEL
+        )
+
+    def get_local_vector_db_path(self) -> Path:
+        """Return the SQLite database path for the local backend."""
+        value = self._env_value("LOCAL_VECTOR_DB_PATH")
+        if value:
+            candidate = Path(value)
+            if not candidate.is_absolute():
+                candidate = self.project_root / candidate
+            return candidate
+        return self.data_dir / LocalVectorConfig.DEFAULT_DB_FILENAME
 
     def allow_destructive_operations(self) -> bool:
         """

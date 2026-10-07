@@ -1,7 +1,3 @@
-<!-- Trace:
-  spec_id: SPEC-governance-doc-structure-1
-  task_id: TASK-001
--->
 # Official Collector
 
 Official Collector is a Python 3.12+ RPA system that automates reception and electronic official documents.
@@ -14,11 +10,11 @@ Supabase (pgvector) and OpenAI embeddings power intelligent handler/task-card ma
 - **Data Stores**: Supabase hosts `reception_documents`, `task_cards`, and `document_embeddings`; local caches remain under `./data/` and `.cache/`.
 - **Performance**: `utils/performance_logger.py` instruments OpenAI, Supabase, and RPA hotspots.
 
-## SDD/TDD Documentation Map
-- `.spec/` - functional truth (see `core-automation`, `supabase-migration`, `performance-observability`, `governance-doc-structure`).
-- `.tasks/` - operational truth (`current.yaml`, `backlog.yaml`, `done.yaml`).
-- `.governance/` - memory, coding standards, reusable patterns, and environment facts.
-Follow the loop: read the spec -> add/update tests -> implement -> refactor -> update `.tasks/` -> summarize in `.governance/memory.md`.
+## Work Queue & Knowledge Map
+- `backlog.md` - work queue (pick the top `## Now` item; `tasks.md` exists only during an active sprint).
+- `CHANGELOG.md` - one line per completed item (detail lives in git history).
+- `docs/` - durable knowledge (`runbook.md`, `architecture.md`, `conventions.md`, `workflows.md`).
+Follow the loop: read `docs/` -> pick a `backlog.md` item -> add/update tests -> implement -> refactor -> tick `backlog.md` -> append a `CHANGELOG.md` line.
 
 ## Setup
 
@@ -46,10 +42,10 @@ uv run pylint src/
 ## Data & Debug Utilities
 - Base datasets live in `data/base_data.json`; historical migrations land in `data/backup/`.
 - Use `uv run -m src.debug.debug_manager` for pywinauto window-inspection or dialog monitoring.
-- Supabase migration artifacts are tracked in `.tasks/done.yaml` (`TASK-100`), ensuring historical traceability.
+- Supabase migration history is recorded in `CHANGELOG.md`.
 
 ## Need To Know
-- Always load `.governance/` and `.tasks/current.yaml` before coding; every commit must reference a `spec_id` and a `task_id`.
+- Always load `docs/` and `backlog.md` before coding; every commit must reference the backlog item or sprint title.
 - Interactive prompts during DocumentProcessor fallback must include timeouts to keep RPA flows safe.
 - When ambiguity exists in specs, add a backlog entry instead of guessing.
 - Production safety: set `ENVIRONMENT=production` to block destructive operations; the `--delete` workflow requires explicit opt-in there.

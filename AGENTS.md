@@ -1,6 +1,6 @@
 # Official Collector Agent Rules
 
-Python 3.12+ RPA: pywinauto drives Windows official-document clients; Supabase/pgvector + OpenAI embeddings match handlers and task cards. Entry `src/main.py`. Spec truth `.spec/`; task truth `.tasks/`; durable knowledge `.governance/`.
+Python 3.12+ RPA: pywinauto drives Windows official-document clients; Supabase/pgvector + OpenAI embeddings match handlers and task cards. Entry `src/main.py`. Queue truth `backlog.md`; durable knowledge `docs/` + `CHANGELOG.md` (`tasks.md` exists only during an active sprint).
 
 ## Docs Index (read on demand)
 
@@ -10,6 +10,7 @@ Python 3.12+ RPA: pywinauto drives Windows official-document clients; Supabase/p
 | `docs/architecture.md` | Before adding modules or changing service boundaries |
 | `docs/conventions.md` | Before writing service, RPA, or UI code |
 | `docs/workflows.md` | When starting any spec-to-code cycle |
+| `docs/design/document-stages.md` | Before touching reception vs assigned-to-me vs post-approval routing |
 
 ## Golden Principles
 
@@ -19,7 +20,7 @@ Violations block commits. Each names its check.
 2. **Dependency injection** — `main.py` constructs services and passes them down; a service never instantiates a sibling. Check: `rg "Service\(" src/services/` empty.
 3. **Log with `%s`, never swallow** — logger calls use lazy `%s` args, no f-strings; every `except` logs. Check: `uv run pylint src/` green.
 4. **Explicit RPA waits** — pywinauto goes through named wait helpers, no bare `time.sleep`; CLI fallbacks carry timeouts. Check: `rg "time\.sleep" src/` empty.
-5. **Tests + trace first** — extend pytest tests before changing implementation; every commit references `spec_id` + `task_id`. Check: `pytest tests/unit/ -v` green.
+5. **Tests + trace first** — extend pytest tests before changing implementation; every commit references the `backlog.md` item or sprint title. Check: `pytest tests/unit/ -v` green.
 6. **Fabrication ban:** an unread value is `[unknown — read {source}]`, never guessed. Applies to ports, endpoints, schema fields, thresholds, versions.
 
 ## Delegation
@@ -45,7 +46,7 @@ Boundaries the linter can't express — ✅ do / ⚠️ do carefully / 🚫 neve
 |---|---|
 | ✅ | Construct services in `main.py`; handle errors with `utils/error_handler.py` decorators; wrap I/O with `@log_execution_time` |
 | ⚠️ | `official_service.py` is mid-split (1047 lines); use `iter_all_*` generators for Supabase lists; dead Chroma/Ollama refs — remove on touch, never revive |
-| 🚫 | `shell=True` in subprocess; bare `except`/`pass`; direct commit to `main`; guessing at spec ambiguity — file a `.tasks/backlog.yaml` entry instead |
+| 🚫 | `shell=True` in subprocess; bare `except`/`pass`; direct commit to `main`; guessing at spec ambiguity — file a `backlog.md` entry instead |
 
 ## Language Policy
 
