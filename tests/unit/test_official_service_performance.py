@@ -4,9 +4,49 @@ Focuses on wait time reductions and polling interval improvements.
 """
 
 import time
+import _ctypes
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 from services.official_service import OfficialCollector
+
+
+class TestWaitComErrorResilience:
+    """Polling helpers must survive pywinauto COM errors."""
+
+    def test_wait_for_condition_retries_com_error(self):
+        with patch("services.official_service.WindowManager.connect_to_window"):
+            collector = OfficialCollector()
+
+        calls = []
+
+        def condition():
+            calls.append(1)
+            if len(calls) == 1:
+                raise _ctypes.COMError(-2147220991, "transient", None)
+            return True
+
+        result = collector._wait_for_condition(condition, timeout=2.0, interval=0.05)
+        assert result is True
+        assert len(calls) >= 2
+
+    def test_wait_for_element_retries_com_error(self):
+        with patch("services.official_service.WindowManager.connect_to_window"):
+            collector = OfficialCollector()
+
+        calls = []
+
+        def selector():
+            calls.append(1)
+            if len(calls) == 1:
+                raise _ctypes.COMError(-2147220991, "transient", None)
+            mock_element = Mock()
+            mock_element.exists.return_value = True
+            mock_element.is_enabled.return_value = True
+            return mock_element
+
+        result = collector._wait_for_element(selector, timeout=2.0, interval=0.05)
+        assert result is True
+        assert len(calls) >= 2
 
 
 class TestWaitTimeOptimization:
@@ -117,18 +157,19 @@ class TestMaximumTimeoutOptimization:
 class TestPostActionWaitTimeOptimization:
     """Test suite for post-action wait time reduction (0.3s/0.5s → 0.1s)."""
 
-    @patch("services.official_service.time.sleep")
+    @patch("services.official_service.wait_for_ui_settle")
     @patch("services.official_service.keyboard")
     @patch("services.official_service.mouse")
     @patch("services.official_service.pyperclip")
     def test_task_card_selection_uses_reduced_sleep(
-        self, mock_pyperclip, mock_mouse, mock_keyboard, mock_sleep
+        self, mock_pyperclip, mock_mouse, mock_keyboard, mock_settle
     ):
         """
-        Test that _perform_task_card_selection uses 0.1s sleeps instead of 0.3s.
+        Test that _perform_task_card_selection uses 0.1s settle waits instead of 0.3s.
 
-        This test verifies that the post-keyboard-input sleep times have been
-        reduced from 300ms to 100ms for faster task card selection.
+        This test verifies that the post-keyboard-input pauses have been
+        reduced from 300ms to 100ms for faster task card selection. Pauses go
+        through the named wait_for_ui_settle helper (no bare time.sleep).
         """
         # Given: An OfficialCollector instance (mock the connection)
         with patch("services.official_service.WindowManager.connect_to_window"):
@@ -148,18 +189,20 @@ class TestPostActionWaitTimeOptimization:
             # When: We perform task card selection
             collector._perform_task_card_selection("test_card")
 
-        # Then: time.sleep should be called with 0.1 (not 0.3)
+        # Then: wait_for_ui_settle should be called with 0.1 (not 0.3)
         sleep_calls = [
-            call[0][0] for call in mock_sleep.call_args_list if call[0][0] in [0.1, 0.3]
+            call[0][0]
+            for call in mock_settle.call_args_list
+            if call[0][0] in [0.1, 0.3]
         ]
 
-        # We expect 2 sleep calls in this method (after two ENTER keys)
-        assert len(sleep_calls) == 2, f"Expected 2 sleep calls, got {len(sleep_calls)}"
+        # We expect 2 settle calls in this method (after two ENTER keys)
+        assert len(sleep_calls) == 2, f"Expected 2 settle calls, got {len(sleep_calls)}"
 
         for sleep_time in sleep_calls:
             assert sleep_time == 0.1, (
-                f"Expected 0.1s sleep (optimized), got {sleep_time}s. "
-                "Sleep time should be reduced from 0.3s to 0.1s"
+                f"Expected 0.1s settle (optimized), got {sleep_time}s. "
+                "Settle time should be reduced from 0.3s to 0.1s"
             )
 
 

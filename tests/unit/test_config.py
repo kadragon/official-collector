@@ -274,6 +274,43 @@ class TestConfigurationEdgeCases:
         ), "Configuration list should be immutable or return a copy."
 
 
+class TestSimilarityThresholds:
+    """Tests for per-backend vector similarity thresholds."""
+
+    def setup_method(self) -> None:
+        from config import UnifiedConfig
+
+        self.config_class = UnifiedConfig
+
+    def test_shared_default_is_03(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("VECTOR_SIMILARITY_THRESHOLD", raising=False)
+        config = self.config_class(allow_fallback=True)
+        assert config.get_vector_similarity_threshold() == 0.3
+
+    def test_local_default_is_05(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("LOCAL_VECTOR_SIMILARITY_THRESHOLD", raising=False)
+        config = self.config_class(allow_fallback=True)
+        assert config.get_local_vector_similarity_threshold() == 0.5
+
+    def test_local_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LOCAL_VECTOR_SIMILARITY_THRESHOLD", "0.7")
+        config = self.config_class(allow_fallback=True)
+        assert config.get_local_vector_similarity_threshold() == 0.7
+
+    def test_local_invalid_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LOCAL_VECTOR_SIMILARITY_THRESHOLD", "9.9")
+        config = self.config_class(allow_fallback=True)
+        assert config.get_local_vector_similarity_threshold() == 0.5
+
+    def test_local_falls_back_to_legacy_var(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("LOCAL_VECTOR_SIMILARITY_THRESHOLD", raising=False)
+        monkeypatch.setenv("VECTOR_SIMILARITY_THRESHOLD", "0.35")
+        config = self.config_class(allow_fallback=True)
+        assert config.get_local_vector_similarity_threshold() == 0.35
+
+
 class TestGlobalConfigInstance:
     """Test the global config instance."""
 

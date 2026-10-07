@@ -7,9 +7,10 @@ L2-normalized (LocalEmbeddingService guarantees this); cosine similarity is
 derived from sqlite-vec L2 distance as ``1 - d^2 / 2``.
 """
 
+# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
+
 import json
 import logging
-import os
 import sqlite3
 import struct
 from datetime import datetime, timezone
@@ -136,7 +137,7 @@ class LocalVectorService:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.embedding_service = embedding_service
-        self.similarity_threshold = self.config.get_vector_similarity_threshold()
+        self.similarity_threshold = self.config.get_local_vector_similarity_threshold()
         self._dimension = embedding_service.get_embedding_dimension()
 
         self._conn = sqlite3.connect(str(self.db_path))
@@ -614,7 +615,7 @@ class LocalVectorService:
         """Delete every row (dev/test only; blocked in production)."""
         audit = get_audit_logger()
         start_time = datetime.now()
-        if os.getenv("ENVIRONMENT", "development") == "production":
+        if self.config.get_environment() == "production":
             logger.error("프로덕션 환경에서는 데이터 삭제를 수행할 수 없습니다")
             audit.log_delete(
                 resource=AuditResource.LOCAL_VECTOR,
@@ -637,7 +638,7 @@ class LocalVectorService:
                 status="success",
                 details={
                     "tables": [CARD_TABLE, RECEPTION_TABLE],
-                    "environment": os.getenv("ENVIRONMENT", "development"),
+                    "environment": self.config.get_environment(),
                 },
                 duration_ms=duration_ms,
             )

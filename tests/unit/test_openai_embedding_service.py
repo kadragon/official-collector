@@ -4,7 +4,6 @@ Unit tests for OpenAIEmbeddingService batching behaviour.
 
 import sys
 import types
-import time
 from pathlib import Path
 
 import openai
@@ -17,6 +16,7 @@ from services.openai_embedding_service import (  # pylint: disable=wrong-import-
     EmbeddingRequest,
     OpenAIEmbeddingService,
 )
+import services.openai_embedding_service as embedding_module  # pylint: disable=wrong-import-position
 
 
 class DummyEmbeddings:
@@ -50,7 +50,7 @@ def test_create_embeddings_batch_retries_on_rate_limit(monkeypatch):
     dummy_endpoint = DummyEmbeddings()
     dummy_client = types.SimpleNamespace(embeddings=dummy_endpoint)
     monkeypatch.setattr(openai, "OpenAI", lambda api_key: dummy_client)
-    monkeypatch.setattr(time, "sleep", lambda _: None)
+    monkeypatch.setattr(embedding_module, "wait_for_retry_backoff", lambda _: None)
 
     service = OpenAIEmbeddingService()
     requests = [

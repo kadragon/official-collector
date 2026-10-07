@@ -3,7 +3,8 @@ OpenAI 임베딩 서비스 클래스
 텍스트 임베딩 생성, 배치 처리, 에러 핸들링, 비용 추적 기능 제공
 """
 
-import os
+# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
+
 import logging
 import time
 from typing import List, Dict, Any, Optional, Union
@@ -13,13 +14,14 @@ import json
 
 import openai
 from dotenv import load_dotenv
-from config import OpenAIPricingConfig
+from config import OpenAIPricingConfig, get_config, load_environment_variables
 from utils.performance_logger import log_execution_time
 from utils.config_manager import get_openai_embedding_price
 from utils.audit_logger import get_audit_logger, AuditResource
 from utils.monitoring_hooks import get_monitoring_hooks
 from utils.quota_manager import get_quota_manager
 from utils.embedding_cache import get_embedding_cache
+from utils.wait_helpers import wait_for_retry_backoff
 
 # 환경변수 로드
 load_dotenv()
@@ -70,9 +72,12 @@ class OpenAIEmbeddingService:
 
     def __init__(self, model: str = "text-embedding-3-small", max_retry: int = 3):
         """OpenAI 임베딩 서비스 초기화"""
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        # Refresh from the live environment so construction sees the
+        # current process env (tests set fakes via monkeypatch).
+        load_environment_variables()
+        self.api_key = get_config().openai_api_key
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY 환경변수가 필요합니다")
+            raise ValueError("OpenAI API 키 환경변수가 필요합니다")
 
         openai.api_key = self.api_key
         self.client = openai.OpenAI(api_key=self.api_key)
@@ -200,7 +205,7 @@ class OpenAIEmbeddingService:
                 # Record rate limit event
                 monitoring.record_rate_limit("openai", retry_after=wait_time)
 
-                time.sleep(wait_time)
+                wait_for_retry_backoff(wait_time)
 
             except (openai.APIError, Exception) as e:
                 response_time_ms = (time.time() - start_time) * 1000
@@ -231,7 +236,7 @@ class OpenAIEmbeddingService:
 
                 if attempt == self.max_retry - 1:
                     raise
-                time.sleep(1)
+                wait_for_retry_backoff(1)
 
         return None
 
@@ -302,7 +307,7 @@ class OpenAIEmbeddingService:
                         )
 
                     if batch_num < total_batches:
-                        time.sleep(0.1)
+                        wait_for_retry_backoff(0.1)
 
                     index += len(batch)
                     break
@@ -331,7 +336,7 @@ class OpenAIEmbeddingService:
                         index += len(batch)
                         break
 
-                    time.sleep(wait_time)
+                    wait_for_retry_backoff(wait_time)
 
                 except openai.APIError as error:
                     attempts += 1
@@ -344,7 +349,7 @@ class OpenAIEmbeddingService:
                     )
                     if attempts >= self.max_retry:
                         raise
-                    time.sleep(1)
+                    wait_for_retry_backoff(1)
 
                 except Exception as error:
                     logger.error("Batch %d processing failed: %s", batch_num, error)
