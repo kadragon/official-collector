@@ -20,7 +20,7 @@ class TestWaitTimeOptimization:
         100ms to 50ms for faster UI element detection.
         """
         # Given: An OfficialCollector instance (mock the connection)
-        with patch.object(OfficialCollector, "_connect_to_window"):
+        with patch("services.official_service.WindowManager.connect_to_window"):
             collector = OfficialCollector()
 
         # Given: A condition that becomes True after a short delay
@@ -61,7 +61,7 @@ class TestMaximumTimeoutOptimization:
         is too long for RPA operations where UI elements should appear quickly.
         """
         # Given: An OfficialCollector instance (mock the connection)
-        with patch.object(OfficialCollector, "_connect_to_window"):
+        with patch("services.official_service.WindowManager.connect_to_window"):
             collector = OfficialCollector()
 
         # Given: An element that never appears
@@ -92,7 +92,7 @@ class TestMaximumTimeoutOptimization:
         aren't met to avoid long blocking times.
         """
         # Given: An OfficialCollector instance (mock the connection)
-        with patch.object(OfficialCollector, "_connect_to_window"):
+        with patch("services.official_service.WindowManager.connect_to_window"):
             collector = OfficialCollector()
 
         # Given: A condition that never becomes True
@@ -131,7 +131,7 @@ class TestPostActionWaitTimeOptimization:
         reduced from 300ms to 100ms for faster task card selection.
         """
         # Given: An OfficialCollector instance (mock the connection)
-        with patch.object(OfficialCollector, "_connect_to_window"):
+        with patch("services.official_service.WindowManager.connect_to_window"):
             collector = OfficialCollector()
 
         # Given: Mock window objects
@@ -141,7 +141,9 @@ class TestPostActionWaitTimeOptimization:
 
         # Mock _wait_for_window to return our mocks
         with patch.object(
-            collector, "_wait_for_window", side_effect=[mock_info_window, mock_dialog]
+            collector.window_manager,
+            "wait_for_window",
+            side_effect=[mock_info_window, mock_dialog],
         ):
             # When: We perform task card selection
             collector._perform_task_card_selection("test_card")
