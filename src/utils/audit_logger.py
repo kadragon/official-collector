@@ -6,7 +6,7 @@ Provides structured audit logs for compliance and security monitoring
 import json
 import logging
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 from pathlib import Path
@@ -40,7 +40,7 @@ class AuditResource(Enum):
 class AuditEntry:
     """Structured audit log entry"""
 
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     action: AuditAction = AuditAction.READ
     resource: AuditResource = AuditResource.SUPABASE
     resource_id: Optional[str] = None

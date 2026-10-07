@@ -6,7 +6,7 @@ Supabase 데이터베이스 서비스 클래스
 import os
 import logging
 from typing import Callable, List, Dict, Any, Optional, Tuple, cast, Iterator, NamedTuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -325,7 +325,7 @@ class SupabaseService:
                 "handler": handler,
                 "share_target": share_target,
                 "embedding": embedding,
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             (
@@ -447,7 +447,7 @@ class SupabaseService:
                 "title": title,
                 "task_title": task_title,
                 "embedding": embedding,
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             (
