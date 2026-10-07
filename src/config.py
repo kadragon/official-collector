@@ -1,3 +1,4 @@
+# Trace: backlog.md - Build 접수 approval line from org chart in predetermined order
 """
 Configuration module for the official document automation system.
 """
@@ -43,6 +44,8 @@ class TimeoutConfig:
     APPROVAL_CONFIRMATION_BACKUP = 2.0
     APPROVAL_RESULT = 0.5
     PAYMENT_INFO_WINDOW = 2.0
+    # Per-step bound for org-chart approval-line ops (add/reorder/verify)
+    APPROVAL_LINE_WAIT = 5.0
 
     # Fast dialog search timeouts (성능 최적화)
     FAST_DIALOG_IMMEDIATE = 0.1  # 0.3 → 0.1 (3배 속도 향상)
@@ -119,6 +122,20 @@ class UIConfig:
 
     # Payment info button names
     PAYMENT_INFO_BUTTONS = ["결재정보", "Payment Information"]
+
+    # Approval-line (결재선) controls inside the payment-info dialog.
+    # Verified against the live client with win32 print_control_identifiers.
+    PAYMENT_INFO_TITLE = "결재정보"
+    APPROVAL_TAB_TITLE = "결재선"
+    APPROVAL_LIST_NAME = "List1"
+    APPROVER_NAME_COLUMN = "결재자"
+    ADD_APPROVER_BUTTON = "▶ 추가"
+    REMOVE_APPROVER_BUTTON = "◀ 삭제"
+    CONFIRM_BUTTON = "확인"
+    ORGCHART_ROOT_NODE = "한국교원대학교"
+    # Order buttons sit right of the approval list; this slack absorbs
+    # borders/DPI shifts when matching their left edge to the list edge.
+    ORDER_BUTTON_EDGE_TOLERANCE = 8
 
 
 class UnifiedConfig:
