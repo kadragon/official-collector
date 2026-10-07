@@ -1,17 +1,18 @@
+# Trace: backlog.md - Build 접수 approval line from org chart in predetermined order
 """
 공문 처리기를 제어하는 모듈.
 pywinauto를 활용하여 전자결재 및 접수 창과 상호작용합니다.
 """
 
 import time
-from typing import Optional, Callable, Any
+from typing import List, Optional, Callable, Any
 from enum import Enum
 import pyperclip
 from pywinauto import Application, keyboard, mouse
 from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
 from pywinauto.findwindows import ElementNotFoundError
 
-from config import TimeoutConfig
+from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger, handle_pywinauto_error
 from utils.performance_logger import log_execution_time
 from dialogs.dialog_classifier import DialogClassifier, DialogAction
@@ -21,6 +22,7 @@ from utils.text_utils import remove_numbers_from_title
 from services.window_manager import WindowManager
 from services.button_controller import ButtonController
 from services.dialog_handler import DialogHandler, DocumentFlowState
+from services.approval_line_handler import ApprovalLineHandler, Approver
 
 logger = setup_logger(__name__)
 
@@ -44,6 +46,7 @@ class OfficialCollector:
         # Initialize components that depend on dlg
         self.button_controller = ButtonController(self.dlg)
         self.dialog_handler = DialogHandler(self.dlg, self.dialog_classifier)
+        self.approval_line_handler = ApprovalLineHandler()
 
     def _wait_for_element(
         self,
@@ -167,6 +170,42 @@ class OfficialCollector:
         ) as e:
             logger.error("결재선 설정 중 오류 발생: %s", e)
             raise
+
+    @log_execution_time(logger, "조직도 결재선 지정")
+    def set_approval_line(self, approvers: List[Approver]) -> bool:
+        """Build the approval line from the org chart in a fixed order.
+
+        Unlike approval(), which reuses a preregistered 결재선 combo whose
+        entries vary per document, this resolves each person in the org
+        chart and stages the rows in the given order.
+
+        Args:
+            approvers: Desired members in display order (first = top row).
+
+        Returns:
+            bool: True when the saved order matches, False otherwise.
+        """
+        if not self.dlg:
+            logger.error("대상 창이 연결되어 있지 않습니다.")
+            return False
+        try:
+            if not self.window_manager.ensure_payment_info_window():
+                logger.error("결재정보 창을 열 수 없어 조직도 결재선 지정을 중단합니다.")
+                return False
+            approval_tab = self.dlg[UIConfig.APPROVAL_TAB_TITLE]
+            approval_tab.select()
+            approval_tab.wait("enabled", timeout=TimeoutConfig.WINDOW_READY)
+        except (
+            PyWinAutoTimeoutError, ElementNotFoundError, AttributeError, RuntimeError, OSError
+        ) as e:
+            logger.error("결재선 탭 전환 중 오류 발생: %s", e)
+            return False
+        approval_dialog = self.approval_line_handler.connect_approval_window()
+        if approval_dialog is None:
+            return False
+        return self.approval_line_handler.set_approval_line(
+            approval_dialog, approvers, self._wait_for_condition
+        )
 
     @log_execution_time(logger, "접수 버튼 처리")
     def reception(self, shared: Optional[str] = None) -> None:

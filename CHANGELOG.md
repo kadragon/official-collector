@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [done] Org-chart approval line builder with predetermined order (ApprovalLineHandler + OfficialCollector.set_approval_line) (2026-10-07)
 - [done] Offline vector backend FastEmbed + sqlite-vec behind VECTOR_BACKEND (2026-10-07) → docs/architecture.md
 - [done] Remove dead langchain/chroma/ollama references, regen lockfile (2026-10-07)
 - [done] Stabilize DocumentProcessor UX with bounded retries and dedup (2025-11-13)
