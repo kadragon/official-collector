@@ -66,7 +66,7 @@ def plan_up_moves(current: List[str], target: List[str]) -> List[int]:
     """
     if len(set(target)) != len(target):
         raise ValueError(f"중복된 승인자: {target}")
-    if set(current) != set(target):
+    if sorted(current) != sorted(target):
         missing = [name for name in target if name not in current]
         extra = [name for name in current if name not in target]
         raise ValueError(f"결재선 불일치 (미추가: {missing}, 여분: {extra})")
@@ -92,12 +92,16 @@ class ApprovalLineHandler:
         self.timeout = timeout
 
     @handle_pywinauto_error("결재정보(win32) 연결", logger, default_return=None)
-    def connect_approval_window(self) -> Any:
+    def connect_approval_window(self, process_id: Optional[int] = None) -> Any:
         """Connect to the payment-info dialog through the win32 backend.
 
         The org-chart TreeView/ListView pair is invisible to uia, so a
         separate win32 handle is required even though OfficialCollector
-        drives the main window through uia.
+        drives the main window through uia. Scoping to the known process
+        avoids attaching to a same-titled dialog of another instance.
+
+        Args:
+            process_id: Owning process id, when the caller knows it.
 
         Returns:
             Any: The 결재정보 dialog, or None on failure.
@@ -108,7 +112,10 @@ class ApprovalLineHandler:
         from pywinauto import Application
 
         app = Application(backend="win32")
-        app.connect(title_re=UIConfig.PAYMENT_INFO_TITLE)
+        if process_id is None:
+            app.connect(title_re=UIConfig.PAYMENT_INFO_TITLE)
+        else:
+            app.connect(title_re=UIConfig.PAYMENT_INFO_TITLE, process=process_id)
         dialog = app.window(title=UIConfig.PAYMENT_INFO_TITLE)
         logger.info("결재정보(win32) 연결: %s", dialog.window_text())
         return dialog
@@ -144,19 +151,20 @@ class ApprovalLineHandler:
         """Implement set_approval_line with error handling and timing."""
         if not self._valid_request(approvers):
             return False
-        resolved = self._resolve_components(dialog)
+        resolved = self._wait_for_components(dialog, wait_for_condition)
         if resolved is None:
+            logger.error("결재선 지정 실패: 조직도 트리/목록 미발견")
             return False
         tree, listview = resolved
         target = [approver.name for approver in approvers]
-        if not self._stage_missing(dialog, tree, listview, approvers, wait_for_condition):
+        if not self._sync_members(dialog, tree, listview, approvers, wait_for_condition):
             return False
         try:
             staged = self.reorder(dialog, listview, target, wait_for_condition)
         except ValueError as exc:
             logger.error("결재선 검증 실패: %s", exc)
             return False
-        if not staged or not self._confirm(dialog):
+        if not staged or not self._confirm(dialog, wait_for_condition):
             return False
         logger.info("조직도 결재선 지정 완료: %s", target)
         return True
@@ -171,17 +179,60 @@ class ApprovalLineHandler:
             return False
         return True
 
-    def _resolve_components(self, dialog: Any) -> Optional[Tuple[Any, Any]]:
-        """Return the (org tree, approval list) pair, if both visible."""
-        tree = self._find_visible_tree(dialog)
-        if tree is None:
-            logger.error("결재선 지정 실패: 조직도 트리 미발견")
+    def _wait_for_components(
+        self, dialog: Any, wait_for_condition: Callable[..., bool]
+    ) -> Optional[Tuple[Any, Any]]:
+        """Wait until the org tree and approval list are both visible.
+
+        The tab content draws shortly after the tab switch, so the first
+        lookup may legitimately find nothing.
+        """
+        holder: dict = {}
+
+        def _ready() -> bool:
+            tree = self._find_visible_tree(dialog, quiet=True)
+            listview = self._find_approval_list(dialog, quiet=True)
+            if tree is None or listview is None:
+                return False
+            holder["pair"] = (tree, listview)
+            return True
+
+        if not wait_for_condition(_ready, timeout=self.timeout):
+            # One loud attempt for diagnostics before giving up.
+            self._resolve_components(dialog, quiet=False)
             return None
-        listview = self._find_approval_list(dialog)
+        pair = holder.get("pair")
+        return pair if isinstance(pair, tuple) else None
+
+    def _resolve_components(
+        self, dialog: Any, quiet: bool = False
+    ) -> Optional[Tuple[Any, Any]]:
+        """Return the (org tree, approval list) pair, if both visible."""
+        tree = self._find_visible_tree(dialog, quiet=quiet)
+        if tree is None:
+            if not quiet:
+                logger.error("결재선 지정 실패: 조직도 트리 미발견")
+            return None
+        listview = self._find_approval_list(dialog, quiet=quiet)
         if listview is None:
-            logger.error("결재선 지정 실패: 결재선 목록 미발견")
+            if not quiet:
+                logger.error("결재선 지정 실패: 결재선 목록 미발견")
             return None
         return (tree, listview)
+
+    def _sync_members(
+        self,
+        dialog: Any,
+        tree: Any,
+        listview: Any,
+        approvers: List[Approver],
+        wait_for_condition: Callable[..., bool],
+    ) -> bool:
+        """Remove off-target rows, then add every missing approver."""
+        target = [approver.name for approver in approvers]
+        if not self._remove_extras(dialog, listview, target, wait_for_condition):
+            return False
+        return self._stage_missing(dialog, tree, listview, approvers, wait_for_condition)
 
     def _stage_missing(
         self,
@@ -201,6 +252,14 @@ class ApprovalLineHandler:
             ):
                 return False
         return True
+
+    def _child_texts(self, node: Any) -> List[str]:
+        """Return child node texts; empty on error or while lazy-loading."""
+        try:
+            return [child.text() for child in node.children()]
+        except Exception as exc:
+            logger.debug("하위 노드 조회 실패: %s", exc)
+            return []
 
     def read_approver_names(self, listview: Any) -> List[str]:
         """Return the staged approver names in display order.
@@ -227,28 +286,19 @@ class ApprovalLineHandler:
         Returns:
             bool: True when the row count grew by one.
         """
-        try:
-            department = tree.get_item(
-                [UIConfig.ORGCHART_ROOT_NODE, approver.department]
-            )
-        except Exception as exc:
-            logger.error("부서 노드 미발견: %s (%s)", approver.department, exc)
-            return False
-        try:
-            node_texts = [child.text() for child in department.children()]
-        except Exception as exc:
-            logger.error("부서 하위 목록 조회 실패: %s (%s)", approver.department, exc)
-            return False
-        try:
-            node_text = match_node_text(node_texts, approver.name)
-        except ValueError as exc:
-            logger.error("직원 매칭 실패: %s", exc)
+        node_text = self._resolve_person_node(tree, approver, wait_for_condition)
+        if node_text is None:
             return False
         before = listview.item_count()
         try:
-            tree.get_item(
-                [UIConfig.ORGCHART_ROOT_NODE, approver.department, node_text]
-            ).select()
+            leaf = tree.get_item(
+                [UIConfig.ORGCHART_ROOT_NODE, approver.department, node_text],
+                exact=True,
+            )
+            if leaf.text() != node_text:
+                logger.error("직원 노드 불일치: %s", approver.name)
+                return False
+            leaf.select()
             add_button = dialog.child_window(
                 title=UIConfig.ADD_APPROVER_BUTTON, class_name="Button"
             )
@@ -263,6 +313,35 @@ class ApprovalLineHandler:
             return False
         logger.info("조직도 추가 완료: %s", node_text)
         return True
+
+    def _resolve_person_node(
+        self,
+        tree: Any,
+        approver: Approver,
+        wait_for_condition: Callable[..., bool],
+    ) -> Optional[str]:
+        """Expand the department and resolve the person's node text."""
+        try:
+            department = tree.get_item(
+                [UIConfig.ORGCHART_ROOT_NODE, approver.department], exact=True
+            )
+            if department.text() != approver.department:
+                logger.error("부서 노드 불일치: %s", approver.department)
+                return None
+            department.expand()
+        except Exception as exc:
+            logger.error("부서 노드 미발견: %s (%s)", approver.department, exc)
+            return None
+        if not wait_for_condition(
+            lambda: self._child_texts(department), timeout=self.timeout
+        ):
+            logger.error("부서 하위 목록 미로딩: %s", approver.department)
+            return None
+        try:
+            return match_node_text(self._child_texts(department), approver.name)
+        except ValueError as exc:
+            logger.error("직원 매칭 실패: %s", exc)
+            return None
 
     def reorder(
         self,
@@ -293,7 +372,7 @@ class ApprovalLineHandler:
                 logger.info("결재선 순서 확정: %s", target)
                 return True
             index = plan_up_moves(current, target)[0]
-            listview.select(index)
+            self._select_only(listview, index)
             expected = list(current)
             expected[index - 1], expected[index] = expected[index], expected[index - 1]
             up_button.click_input()
@@ -307,12 +386,64 @@ class ApprovalLineHandler:
         logger.error("순서 정렬 시도 초과: %s", target)
         return False
 
-    def _find_visible_tree(self, dialog: Any) -> Optional[Any]:
+    def _select_only(self, listview: Any, index: int) -> None:
+        """Clear stale selections before selecting one row.
+
+        select() only sets the flag on the new row, so without clearing,
+        earlier rows stay selected and the order button moves the wrong row.
+        """
+        try:
+            for row in range(listview.item_count()):
+                listview.deselect(row)
+        except Exception as exc:
+            logger.debug("선택 해제 실패: %s", exc)
+        listview.select(index)
+
+    def _remove_extras(
+        self,
+        dialog: Any,
+        listview: Any,
+        target: List[str],
+        wait_for_condition: Callable[..., bool],
+    ) -> bool:
+        """Delete staged rows that are not in the target order, bottom-up."""
+        try:
+            remove_button = dialog.child_window(
+                title=UIConfig.REMOVE_APPROVER_BUTTON, class_name="Button"
+            )
+        except Exception as exc:
+            logger.error("삭제 버튼 미발견: %s", exc)
+            return False
+        for _ in range(listview.item_count()):
+            current = self.read_approver_names(listview)
+            extras = [name for name in current if name not in target]
+            if not extras:
+                return True
+            index = max(i for i, name in enumerate(current) if name not in target)
+            before = listview.item_count()
+            self._select_only(listview, index)
+            try:
+                remove_button.click()
+            except Exception as exc:
+                logger.error("여분 행 삭제 실패: %s (%s)", current[index], exc)
+                return False
+            if not wait_for_condition(
+                lambda before=before: listview.item_count() == before - 1,
+                timeout=self.timeout,
+            ):
+                logger.error("여분 행 삭제 미반영: %s", current[index])
+                return False
+            logger.info("여분 행 삭제 완료: %s", current[index])
+        logger.error("여분 행 삭제 시도 초과: %s", target)
+        return False
+
+    def _find_visible_tree(self, dialog: Any, quiet: bool = False) -> Optional[Any]:
         """Return the visible org-chart TreeView, if any."""
         try:
             trees = dialog.descendants(class_name="SysTreeView32")
         except Exception as exc:
-            logger.error("트리 조회 실패: %s", exc)
+            if not quiet:
+                logger.error("트리 조회 실패: %s", exc)
             return None
         for tree in trees:
             try:
@@ -322,12 +453,13 @@ class ApprovalLineHandler:
                 logger.debug("트리 가시성 확인 실패: %s", exc)
         return None
 
-    def _find_approval_list(self, dialog: Any) -> Optional[Any]:
+    def _find_approval_list(self, dialog: Any, quiet: bool = False) -> Optional[Any]:
         """Return the approval ListView (List1), if present."""
         try:
             lists = dialog.descendants(class_name="SysListView32")
         except Exception as exc:
-            logger.error("목록 조회 실패: %s", exc)
+            if not quiet:
+                logger.error("목록 조회 실패: %s", exc)
             return None
         for listview in lists:
             try:
@@ -368,9 +500,12 @@ class ApprovalLineHandler:
             try:
                 if button.window_text() != "" or not button.is_visible():
                     continue
-                top = button.rectangle().top
-                if rect.top <= top <= rect.bottom:
-                    candidates.append(button)
+                bounds = button.rectangle()
+                if not rect.top <= bounds.top <= rect.bottom:
+                    continue
+                if bounds.left < rect.right - UIConfig.ORDER_BUTTON_EDGE_TOLERANCE:
+                    continue
+                candidates.append(button)
             except Exception as exc:
                 logger.debug("순서 버튼 후보 확인 실패: %s", exc)
         candidates.sort(key=lambda button: button.rectangle().top)
@@ -379,8 +514,10 @@ class ApprovalLineHandler:
             return None
         return (candidates[0], candidates[1])
 
-    def _confirm(self, dialog: Any) -> bool:
-        """Click the visible confirm button to save the approval line."""
+    def _confirm(
+        self, dialog: Any, wait_for_condition: Callable[..., bool]
+    ) -> bool:
+        """Click confirm and verify the dialog closes (save applied)."""
         try:
             confirms = [
                 button
@@ -401,5 +538,16 @@ class ApprovalLineHandler:
         except Exception as exc:
             logger.error("확인 버튼 클릭 실패: %s", exc)
             return False
-        logger.info("결재정보 확인 클릭")
+        if not wait_for_condition(lambda: self._dialog_closed(dialog), timeout=self.timeout):
+            logger.error("결재정보 저장 미확인: 창이 닫히지 않음")
+            return False
+        logger.info("결재정보 저장 확인")
         return True
+
+    def _dialog_closed(self, dialog: Any) -> bool:
+        """True when the dialog is gone; lookup errors count as closed."""
+        try:
+            return not dialog.is_visible()
+        except Exception as exc:
+            logger.debug("결재정보 상태 확인 실패 (닫힘으로 간주): %s", exc)
+            return True

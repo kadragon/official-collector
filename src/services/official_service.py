@@ -200,7 +200,8 @@ class OfficialCollector:
         ) as e:
             logger.error("결재선 탭 전환 중 오류 발생: %s", e)
             return False
-        approval_dialog = self.approval_line_handler.connect_approval_window()
+        process_id = getattr(self.app, "process", None)
+        approval_dialog = self.approval_line_handler.connect_approval_window(process_id)
         if approval_dialog is None:
             return False
         return self.approval_line_handler.set_approval_line(

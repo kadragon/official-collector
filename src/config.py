@@ -130,8 +130,12 @@ class UIConfig:
     APPROVAL_LIST_NAME = "List1"
     APPROVER_NAME_COLUMN = "결재자"
     ADD_APPROVER_BUTTON = "▶ 추가"
+    REMOVE_APPROVER_BUTTON = "◀ 삭제"
     CONFIRM_BUTTON = "확인"
     ORGCHART_ROOT_NODE = "한국교원대학교"
+    # Order buttons sit right of the approval list; this slack absorbs
+    # borders/DPI shifts when matching their left edge to the list edge.
+    ORDER_BUTTON_EDGE_TOLERANCE = 8
 
 
 class UnifiedConfig:

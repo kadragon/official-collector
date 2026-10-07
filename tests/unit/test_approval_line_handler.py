@@ -23,6 +23,7 @@ class FakeNode:
         self._text = text
         self._kids = kids or []
         self.selected = False
+        self.expanded = False
 
     def text(self) -> str:
         return self._text
@@ -30,8 +31,15 @@ class FakeNode:
     def select(self) -> None:
         self.selected = True
 
+    def expand(self) -> None:
+        self.expanded = True
+
+    def is_expanded(self) -> bool:
+        return self.expanded
+
     def children(self) -> List["FakeNode"]:
-        return list(self._kids)
+        # Models lazy loading: children appear only after expand().
+        return list(self._kids) if self.expanded else []
 
 
 class FakeTree:
@@ -43,11 +51,12 @@ class FakeTree:
             for dept, names in depts.items()
         ]
         self._root = FakeNode(root_name, kids)
+        self._root.expand()  # top-level departments are always visible
 
     def is_visible(self) -> bool:
         return True
 
-    def get_item(self, path: List[str]) -> FakeNode:
+    def get_item(self, path: List[str], exact: bool = False) -> FakeNode:
         node = self._root
         if path[0] != node.text():
             raise RuntimeError("root mismatch: %s" % path[0])
@@ -66,7 +75,7 @@ class FakeListView:
 
     def __init__(self, rows: List[List[str]]) -> None:
         self.rows = [list(r) for r in rows]
-        self.selected: Optional[int] = None
+        self.selected: set = set()
         self._title = "List1"
 
     def window_text(self) -> str:
@@ -88,20 +97,33 @@ class FakeListView:
         return {"text": self.rows[i][j]}
 
     def select(self, i: int) -> None:
-        self.selected = i
+        self.selected.add(i)
+
+    def deselect(self, i: int) -> None:
+        self.selected.discard(i)
 
     def prepend(self, row: List[str]) -> None:
         self.rows.insert(0, list(row))
 
     def move_up_selected(self) -> None:
-        assert self.selected is not None and self.selected > 0
-        i = self.selected
+        if len(self.selected) != 1:
+            return
+        i = next(iter(self.selected))
+        if i <= 0:
+            return
         self.rows[i - 1], self.rows[i] = self.rows[i], self.rows[i - 1]
-        self.selected = i - 1
+        self.selected = {i - 1}
 
 
 def _rect(top: int, left: int = 1304, right: int = 1328) -> SimpleNamespace:
     return SimpleNamespace(top=top, left=left, right=right, bottom=top + 21)
+
+
+class FuzzyTree(FakeTree):
+    """Resolves any path to a wrong node (models fuzzy mismatch)."""
+
+    def get_item(self, path: List[str], exact: bool = False) -> FakeNode:
+        return FakeNode("교무과")
 
 
 class FakeButton:
@@ -110,9 +132,10 @@ class FakeButton:
         title: str,
         rect_top: int = 0,
         effect: Optional[Callable[[], None]] = None,
+        left: int = 1304,
     ) -> None:
         self._title = title
-        self._rect = _rect(rect_top)
+        self._rect = _rect(rect_top, left=left)
         self._effect = effect
         self.clicks = 0
 
@@ -145,12 +168,29 @@ class FakeDialog:
     def __init__(self, tree: FakeTree, lv: FakeListView) -> None:
         self.tree = tree
         self.lv = lv
+        self.open = True
         self.add_button = FakeButton("▶ 추가", rect_top=416)
+        self.remove_button = FakeButton("◀ 삭제", rect_top=452)
         self.up_button = FakeButton("", rect_top=411)
         self.down_button = FakeButton("", rect_top=441)
+        # Stray untitled button left of the list: must be ignored.
+        self.stray_button = FakeButton("", rect_top=500, left=900)
         self.confirm_button = FakeButton("확인", rect_top=801)
         # wire effects after list exists
         self.up_button._effect = self.lv.move_up_selected
+        self.remove_button._effect = self._remove_selected
+        self.confirm_button._effect = self._close
+
+    def is_visible(self) -> bool:
+        return self.open
+
+    def _close(self) -> None:
+        self.open = False
+
+    def _remove_selected(self) -> None:
+        if len(self.lv.selected) == 1:
+            self.lv.rows.pop(next(iter(self.lv.selected)))
+            self.lv.selected.clear()
 
     def descendants(self, class_name: str = "") -> List[Any]:
         if class_name == "SysTreeView32":
@@ -158,12 +198,21 @@ class FakeDialog:
         if class_name == "SysListView32":
             return [self.lv]
         if class_name == "Button":
-            return [self.add_button, self.up_button, self.down_button, self.confirm_button]
+            return [
+                self.add_button,
+                self.remove_button,
+                self.up_button,
+                self.down_button,
+                self.stray_button,
+                self.confirm_button,
+            ]
         return []
 
     def child_window(self, title: str = "", class_name: str = "") -> FakeButton:
         if title == "▶ 추가":
             return self.add_button
+        if title == "◀ 삭제":
+            return self.remove_button
         raise RuntimeError("unexpected child_window: %s" % title)
 
 
@@ -248,6 +297,12 @@ class TestPlanUpMoves:
         with pytest.raises(ValueError):
             plan_up_moves(["강동욱", "김승현"], ["강동욱", "강동욱"])
 
+    def test_same_set_different_multiset_raises(self) -> None:
+        with pytest.raises(ValueError):
+            plan_up_moves(
+                ["강동욱", "강동욱", "김승현"], ["강동욱", "김승현", "김승현"]
+            )
+
 
 # ---------------------------------------------------------------------- #
 # Handler with fakes
@@ -271,7 +326,7 @@ class TestSetApprovalLine:
 
         orig_get = tree.get_item
 
-        def tracking_get(path: List[str]) -> FakeNode:
+        def tracking_get(path: List[str], exact: bool = False) -> FakeNode:
             node = orig_get(path)
             if len(path) == 3:
                 selected.append(path[2])
@@ -311,4 +366,71 @@ class TestSetApprovalLine:
         handler = ApprovalLineHandler()
         bad = [Approver(department="정보전산원", name="이순신")]
         assert handler.set_approval_line(dlg, bad, immediate_wait) is False
+        assert dlg.confirm_button.clicks == 0
+
+    def test_fuzzy_department_mismatch_fails(self) -> None:
+        lv = FakeListView([row_for("강동욱 정보화지원팀장")])
+        dlg = FakeDialog(FuzzyTree("한국교원대학교", {}), lv)
+        handler = ApprovalLineHandler()
+        bad = [Approver(department="정보전산원", name="김승현")]
+        assert handler.set_approval_line(dlg, bad, immediate_wait) is False
+        assert dlg.confirm_button.clicks == 0
+
+    def test_unclosed_dialog_fails(self) -> None:
+        tree = make_org()
+        lv = FakeListView(
+            [
+                row_for("강동욱 정보화지원팀장"),
+                row_for("김승현 정보전산원장"),
+                row_for("홍성민 정보보안담당관"),
+            ]
+        )
+        dlg = FakeDialog(tree, lv)
+        dlg.confirm_button._effect = None  # dialog stays open: save unconfirmed
+        handler = ApprovalLineHandler()
+        assert handler.set_approval_line(dlg, TARGET, immediate_wait) is False
+
+    def test_extra_rows_removed_before_staging(self) -> None:
+        tree = make_org()
+        lv = FakeListView(
+            [
+                row_for("강동욱 정보화지원팀장"),
+                ["대기발령", "X", "X", "이순신"],
+            ]
+        )
+        dlg = FakeDialog(tree, lv)
+        selected: List[str] = []
+        orig_get = tree.get_item
+
+        def tracking_get(path: List[str], exact: bool = False) -> FakeNode:
+            node = orig_get(path)
+            if len(path) == 3:
+                selected.append(path[2])
+            return node
+
+        tree.get_item = tracking_get  # type: ignore[method-assign]
+        dlg.add_button._effect = lambda: lv.prepend(row_for(selected[-1]))
+
+        handler = ApprovalLineHandler()
+        assert handler.set_approval_line(dlg, TARGET, immediate_wait) is True
+        assert [lv.get_item(i, 3)["text"] for i in range(lv.item_count())] == [
+            "강동욱",
+            "김승현",
+            "홍성민",
+        ]
+        assert dlg.remove_button.clicks == 1
+        assert dlg.confirm_button.clicks == 1
+
+    def test_missing_components_fails(self) -> None:
+        dlg = FakeDialog(make_org(), FakeListView([]))
+        dlg.tree = None  # type: ignore[assignment]
+
+        def no_tree(class_name: str = "") -> List[Any]:
+            if class_name == "SysTreeView32":
+                return []
+            return FakeDialog.descendants(dlg, class_name)
+
+        dlg.descendants = no_tree  # type: ignore[method-assign]
+        handler = ApprovalLineHandler()
+        assert handler.set_approval_line(dlg, TARGET, immediate_wait) is False
         assert dlg.confirm_button.clicks == 0
