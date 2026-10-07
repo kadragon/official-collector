@@ -1,4 +1,4 @@
-# Trace: backlog.md - Build 접수 approval line from org chart in predetermined order
+# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
 """
 Configuration module for the official document automation system.
 """
@@ -87,6 +87,13 @@ class LocalVectorConfig:
     # Valid VECTOR_BACKEND values; default keeps cloud behavior unchanged.
     BACKEND_SUPABASE = "supabase"
     BACKEND_LOCAL = "local"
+
+    # Local-backend prefilter default. Measured 2026-10-07 with the verified
+    # 384-dim MiniLM model on sample Korean titles: near-duplicates ~0.95,
+    # related-but-different docs 0.49-0.64, unrelated pairs 0.21-0.45. The
+    # shared 0.3 default admits unrelated local pairs, so the local backend
+    # defaults to 0.5 (override via LOCAL_VECTOR_SIMILARITY_THRESHOLD).
+    DEFAULT_SIMILARITY_THRESHOLD = 0.5
 
     # Verified FastEmbed model with Korean coverage (384 dims, ONNX quantized).
     DEFAULT_EMBEDDING_MODEL = (
@@ -238,6 +245,61 @@ class UnifiedConfig:
             )
             return VectorConfig.DEFAULT_SIMILARITY_THRESHOLD
 
+    def get_local_vector_similarity_threshold(self) -> float:
+        """
+        Get the prefilter threshold for the local (FastEmbed) backend.
+
+        Reads from LOCAL_VECTOR_SIMILARITY_THRESHOLD, falls back to the
+        legacy VECTOR_SIMILARITY_THRESHOLD when the new variable is unset,
+        then to the local default (0.5, retuned vs the shared 0.3 — see
+        LocalVectorConfig). Out-of-range or unparsable values fall back
+        with a warning.
+
+        Returns:
+            float: Similarity threshold (0.0 to 1.0)
+        """
+        threshold_str = self._env_value("LOCAL_VECTOR_SIMILARITY_THRESHOLD")
+        if threshold_str is None:
+            legacy_str = self._env_value("VECTOR_SIMILARITY_THRESHOLD")
+            if legacy_str is not None:
+                try:
+                    legacy = float(legacy_str)
+                    if (
+                        VectorConfig.MIN_SIMILARITY_THRESHOLD
+                        <= legacy
+                        <= VectorConfig.MAX_SIMILARITY_THRESHOLD
+                    ):
+                        logger.warning(
+                            "LOCAL_VECTOR_SIMILARITY_THRESHOLD unset; using legacy "
+                            "VECTOR_SIMILARITY_THRESHOLD (%s)",
+                            legacy_str,
+                        )
+                        return legacy
+                except ValueError:
+                    pass
+            return LocalVectorConfig.DEFAULT_SIMILARITY_THRESHOLD
+
+        try:
+            threshold = float(threshold_str)
+            if not (
+                VectorConfig.MIN_SIMILARITY_THRESHOLD
+                <= threshold
+                <= VectorConfig.MAX_SIMILARITY_THRESHOLD
+            ):
+                logger.warning(
+                    "로컬 벡터 유사도 임계값 범위 초과 (%s), 기본값 사용 (%.1f)",
+                    threshold,
+                    LocalVectorConfig.DEFAULT_SIMILARITY_THRESHOLD,
+                )
+                return LocalVectorConfig.DEFAULT_SIMILARITY_THRESHOLD
+            return threshold
+        except ValueError:
+            logger.warning(
+                "로컬 벡터 유사도 임계값 설정 오류, 기본값 사용 (%.1f)",
+                LocalVectorConfig.DEFAULT_SIMILARITY_THRESHOLD,
+            )
+            return LocalVectorConfig.DEFAULT_SIMILARITY_THRESHOLD
+
     def get_vector_backend(self) -> str:
         """
         Return the active vector backend ("supabase" or "local").
@@ -299,6 +361,11 @@ class UnifiedConfig:
 
         # Allow in development/test by default
         return True
+
+    def get_environment(self) -> str:
+        """Return the runtime environment name (defaults to development)."""
+        value = self._env_value("ENVIRONMENT")
+        return value if value else "development"
 
     def get_config_summary(self) -> Dict[str, Any]:
         """Return configuration summary (human readable)."""

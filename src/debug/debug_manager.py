@@ -6,6 +6,8 @@ This module consolidates all debugging functionality into a single, unified inte
 that supports both interactive (human) and programmatic (AI) usage modes.
 """
 
+# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
+
 import time
 import logging
 import io
@@ -16,6 +18,7 @@ from typing import Optional, Dict, List, Any, Union
 
 from pywinauto import Application
 from ui.rich_console import RichConsole
+from utils.wait_helpers import wait_for_poll_interval
 
 # Ensure debug log directory exists
 project_root = Path(__file__).parent.parent.parent
@@ -240,7 +243,7 @@ class UnifiedDebugManager:
                 if self.interactive:
                     logger.info("No dialogs found")
 
-            time.sleep(interval)
+            wait_for_poll_interval(interval)
 
         logger.info("Dialog monitoring completed")
         return dialogs_found
@@ -423,7 +426,7 @@ class UnifiedDebugManager:
             except Exception as e:
                 logger.debug("Error searching for circulation dialog: %s", e)
 
-            time.sleep(0.1)
+            wait_for_poll_interval(0.1)
 
         logger.info("No circulation completion dialog found within timeout")
         return None

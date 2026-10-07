@@ -21,6 +21,7 @@ from utils.text_utils import (
     generate_cache_key,
     is_reception_document,
     extract_title_from_approval,
+    classify_stage,
     normalize_text,
     truncate_text,
     extract_keywords,
@@ -263,6 +264,54 @@ class TestExtractTitleFromApproval:
         mixed_text = "결재요청: Korean 한글 English Mixed"
         extracted = extract_title_from_approval(mixed_text)
         assert extracted == "Korean 한글 English Mixed"
+
+
+class TestClassifyStage:
+    """Tests for the 1/2/3 document-stage splitter (docs/design/document-stages.md)."""
+
+    def test_stage1_reception_prefix(self):
+        assert classify_stage("접수: 예산안 검토 요청") == 1
+
+    def test_stage2_receptionist_plus_handler(self):
+        title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
+        assert classify_stage(title, role_markers=["접수", "업무담당자"]) == 2
+
+    def test_stage2_ignores_order(self):
+        title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
+        assert classify_stage(title, role_markers=["업무담당자", "접수"]) == 2
+
+    def test_stage3_explicit_completion_flag(self):
+        title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
+        assert (
+            classify_stage(
+                title, role_markers=["접수", "업무담당자"], approval_complete=True
+            )
+            == 3
+        )
+
+    def test_stage3_completion_marker_set(self):
+        title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
+        assert (
+            classify_stage(
+                title,
+                role_markers=["접수", "업무담당자", "결재완료"],
+                completion_markers=frozenset({"결재완료"}),
+            )
+            == 3
+        )
+
+    def test_unknown_defaults_to_legacy_task_card_path(self):
+        title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
+        assert classify_stage(title) == 3
+
+    def test_reception_prefix_wins_over_markers(self):
+        assert classify_stage("접수: 예산안", role_markers=["결재완료"]) == 1
+
+    def test_stage2_with_superior_returns_3(self):
+        title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
+        assert (
+            classify_stage(title, role_markers=["접수", "결재", "업무담당자"]) == 3
+        )
 
 
 class TestTextUtilsIntegration:

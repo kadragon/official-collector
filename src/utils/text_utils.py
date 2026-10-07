@@ -6,12 +6,14 @@ while keeping the newer helper functions introduced during the Supabase
 migration.
 """
 
+# Trace: Add classify_stage() 1/2/3 splitter (backlog Now)
+
 from __future__ import annotations
 
 import hashlib
 import re
 import uuid
-from typing import Iterable, List
+from typing import FrozenSet, Iterable, List, Optional
 
 # --------------------------------------------------------------------------- #
 # Identifier helpers
@@ -96,6 +98,41 @@ def is_approval_document(title: str) -> bool:
     if not title or not isinstance(title, str):
         return False
     return bool(re.match(r"^\s*승인요청\s*[:\-]", title))
+
+
+def classify_stage(
+    title: str,
+    role_markers: Optional[Iterable[str]] = None,
+    approval_complete: bool = False,
+    completion_markers: FrozenSet[str] = frozenset(),
+) -> int:
+    """Split documents into stage 1 (reception) / 2 (assigned) / 3 (post-approval).
+
+    Implements the discriminator in ``docs/design/document-stages.md``. Stage 1
+    is a title prefix match (``접수``). Stages 2 and 3 share the ``전자결재:``
+    prefix, so they split on approval-line signals: stage 2 is the verified
+    live signature of a ``접수`` row plus a ``업무담당자`` (handler) row with
+    no completion marker; stage 3 is an explicit ``approval_complete`` flag or
+    a role marker inside ``completion_markers``.
+
+    The exact stage-3 ``결재방법`` marker strings are still TBD (captured via
+    the Next-group stage-3 live dump), so ``completion_markers`` defaults to
+    empty and only the explicit flag triggers stage 3 today. Unknown
+    electronic-approval documents default to 3 to preserve the legacy
+    task-card path until the RPA readers land.
+    """
+    if is_reception_document(title):
+        return 1
+    if approval_complete:
+        return 3
+    markers = list(role_markers) if role_markers else []
+    if completion_markers and any(marker in completion_markers for marker in markers):
+        return 3
+    if "접수" in markers and "업무담당자" in markers:
+        if any(marker not in ("접수", "업무담당자") for marker in markers):
+            return 3
+        return 2
+    return 3
 
 
 # --------------------------------------------------------------------------- #
