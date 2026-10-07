@@ -10,6 +10,7 @@ Python 3.12+ RPA: pywinauto drives Windows official-document clients; Supabase/p
 | `docs/architecture.md` | Before adding modules or changing service boundaries |
 | `docs/conventions.md` | Before writing service, RPA, or UI code |
 | `docs/workflows.md` | When starting any spec-to-code cycle |
+| `docs/design/document-stages.md` | Before touching reception vs assigned-to-me vs post-approval routing |
 
 ## Golden Principles
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- [analysis] Document 3-stage routing (reception / assigned-to-me / post-approval) + backlog items for classify_stage() split (2026-10-07) → docs/design/document-stages.md
+- [done] Verify stage-2 live signals: List1 [직위, 직급, 결재방법, 결재자] rows 접수+업무담당자, 과제카드ComboBox empty in 결재정보 (2026-10-07) → docs/design/document-stages.md
+
 - [done] Org-chart approval line builder with predetermined order (ApprovalLineHandler + OfficialCollector.set_approval_line) (2026-10-07)
 - [done] Offline vector backend FastEmbed + sqlite-vec behind VECTOR_BACKEND (2026-10-07) → docs/architecture.md
 - [done] Remove dead langchain/chroma/ollama references, regen lockfile (2026-10-07)
