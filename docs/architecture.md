@@ -37,7 +37,7 @@ src/
 Dependency flows downward: `main.py` → `services/` → `utils/` + `config.py`. Upper layers import lower ones, never the reverse.
 
 - `main.py` is the only place that constructs services and injects them downward.
-- A service never instantiates a sibling service (known violation being repaired: `SupabaseService` creating its own embedding service — see `.tasks/backlog.yaml` TASK-013 lineage).
+- A service never instantiates a sibling service.
 - `supabase_service.py` is the only module that imports the Supabase client; embedding calls go through `OpenAIEmbeddingService`.
 - `official_service.py` is mid-split into `window_manager` / `dialog_handler` / `button_controller` — put new RPA logic in the split modules, not the monolith.
 - `data/base_data.json` seeds lists; runtime caches live in `data/backup/` and `.cache/`.
@@ -45,6 +45,13 @@ Dependency flows downward: `main.py` → `services/` → `utils/` + `config.py`.
 ## Data Access
 
 All persistence goes through `SupabaseService`: tables `reception_documents`, `task_cards`, `document_embeddings`. Similarity search runs in SQL (CTE dedup); service-side dedup is fallback only. Batch RPA mutations accumulate in memory and flush once via `flush_pending_updates()`. Large reads stream through `iter_all_cards()` / `iter_all_receptions()` (batch 500) — never load full tables into memory.
+
+## Local Backend Gotchas
+
+- Local model is pinned to `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, L2-normalized) — `multilingual-e5-small` is not shipped; verify before switching names.
+- `sqlite-vec` KNN distance is L2 by default; cosine comes from `1-d^2/2` on normalized vectors.
+- The local DB file is dimension-pinned: opening a DB built with another dimension fails fast with a reindex hint — Supabase 1536-dim vectors do not transfer, reindex required.
+- Bandit `-ll` flags f-string SQL (B608): hoist SQL into module-level templates, keep values as bound params.
 
 ## Key Abstractions
 
