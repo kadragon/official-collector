@@ -196,3 +196,47 @@ def test_upsert_card_embedding_uses_single_upsert(supabase_service):
     assert not table.select_called
     assert not table.update_called
     assert not table.insert_called
+
+
+def test_recommend_reception_transport_error_returns_empty(supabase_service):
+    """httpx transport failures must log and return [], not propagate."""
+    import httpx
+    from unittest.mock import Mock
+
+    failing_rpc = Mock()
+    failing_rpc.execute.side_effect = httpx.ConnectError("down")
+    supabase_service.client.rpc = Mock(return_value=failing_rpc)
+
+    assert supabase_service.recommend_reception("예산안", count=3) == []
+
+
+def test_recommend_reception_embedding_openai_error_returns_empty(
+    supabase_service, monkeypatch
+):
+    """openai embedding failures must log and return [], not propagate."""
+    import httpx
+    import openai
+
+    class FailingEmbeddingService:
+        def create_embedding(self, text, identifier):
+            raise openai.APIConnectionError(
+                message="down",
+                request=httpx.Request("POST", "https://api.openai.com/v1/embeddings"),
+            )
+
+    monkeypatch.setattr(
+        supabase_service, "embedding_service", FailingEmbeddingService()
+    )
+    assert supabase_service.recommend_reception("예산안", count=3) == []
+
+
+def test_recommend_cards_transport_error_returns_empty(supabase_service):
+    """httpx transport failures in card search must log and return []."""
+    import httpx
+    from unittest.mock import Mock
+
+    failing_rpc = Mock()
+    failing_rpc.execute.side_effect = httpx.ConnectError("down")
+    supabase_service.client.rpc = Mock(return_value=failing_rpc)
+
+    assert supabase_service.recommend_cards("예산안", count=3) == []

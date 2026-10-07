@@ -108,7 +108,7 @@ reindex from source documents; keep one embedding model per DB.
 | `ENVIRONMENT` | no | `production` blocks destructive ops |
 | `ALLOW_DESTRUCTIVE_OPERATIONS` | no | `true` re-enables deletes in production |
 | `VECTOR_SIMILARITY_THRESHOLD` | no | Supabase backend prefilter, default `0.3`, range `0.0–1.0` |
-| `LOCAL_VECTOR_SIMILARITY_THRESHOLD` | no | Local backend prefilter, default `0.5`, range `0.0–1.0` |
+| `LOCAL_VECTOR_SIMILARITY_THRESHOLD` | no | Local backend prefilter, default `0.5`, range `0.0–1.0` (falls back to legacy `VECTOR_SIMILARITY_THRESHOLD` when unset) |
 | `OPENAI_DAILY_BUDGET_USD` / `OPENAI_MONTHLY_BUDGET_USD` | no | Defaults `10.0` / `300.0` |
 | `QUOTA_AUTO_STOP` | no | `true` blocks all API calls once exceeded |
 | `LOG_LEVEL` / `DEBUG_MODE` / `LOG_RETENTION_DAYS` | no | Logging tuning |

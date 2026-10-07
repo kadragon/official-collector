@@ -250,7 +250,8 @@ class UnifiedConfig:
         Get the prefilter threshold for the local (FastEmbed) backend.
 
         Reads from LOCAL_VECTOR_SIMILARITY_THRESHOLD, falls back to the
-        local default (0.5, retuned vs the shared 0.3 — see
+        legacy VECTOR_SIMILARITY_THRESHOLD when the new variable is unset,
+        then to the local default (0.5, retuned vs the shared 0.3 — see
         LocalVectorConfig). Out-of-range or unparsable values fall back
         with a warning.
 
@@ -259,6 +260,23 @@ class UnifiedConfig:
         """
         threshold_str = self._env_value("LOCAL_VECTOR_SIMILARITY_THRESHOLD")
         if threshold_str is None:
+            legacy_str = self._env_value("VECTOR_SIMILARITY_THRESHOLD")
+            if legacy_str is not None:
+                try:
+                    legacy = float(legacy_str)
+                    if (
+                        VectorConfig.MIN_SIMILARITY_THRESHOLD
+                        <= legacy
+                        <= VectorConfig.MAX_SIMILARITY_THRESHOLD
+                    ):
+                        logger.warning(
+                            "LOCAL_VECTOR_SIMILARITY_THRESHOLD unset; using legacy "
+                            "VECTOR_SIMILARITY_THRESHOLD (%s)",
+                            legacy_str,
+                        )
+                        return legacy
+                except ValueError:
+                    pass
             return LocalVectorConfig.DEFAULT_SIMILARITY_THRESHOLD
 
         try:

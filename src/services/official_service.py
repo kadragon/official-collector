@@ -7,10 +7,11 @@ pywinauto를 활용하여 전자결재 및 접수 창과 상호작용합니다.
 import time
 from typing import List, Optional, Callable, Any
 from enum import Enum
+import _ctypes
 import pyperclip
 from pywinauto import Application, keyboard, mouse
 from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
-from pywinauto.findwindows import ElementNotFoundError
+from pywinauto.findwindows import ElementAmbiguousError, ElementNotFoundError
 
 from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger, handle_pywinauto_error
@@ -72,9 +73,14 @@ class OfficialCollector:
                 element = element_selector()
                 if element.exists() and element.is_enabled():
                     return True
-            except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+            except (
+                ElementNotFoundError,
+                ElementAmbiguousError,
+                AttributeError,
+                RuntimeError,
+            ) as e:
                 logger.debug("요소 대기 중 오류 (계속 시도): %s", e)
-            except (OSError, ValueError) as e:
+            except (OSError, _ctypes.COMError, ValueError) as e:
                 logger.warning("요소 대기 중 예상치 못한 오류: %s", e)
             wait_for_poll_interval(interval)
         return False
@@ -101,11 +107,16 @@ class OfficialCollector:
             try:
                 if condition():
                     return True
-            except (ElementNotFoundError, AttributeError, RuntimeError) as e:
+            except (
+                ElementNotFoundError,
+                ElementAmbiguousError,
+                AttributeError,
+                RuntimeError,
+            ) as e:
                 logger.debug("조건 확인 중 오류 (계속 시도): %s", e)
-            except OSError as e:
+            except (OSError, _ctypes.COMError) as e:
                 # COM 오류 (-2147220991, '이벤트에서 가입자를 불러낼 수 없습니다') 처리
-                if e.args[0] == -2147220991:
+                if e.args and e.args[0] == -2147220991:
                     logger.debug("COM 이벤트 오류 (계속 시도): %s", e)
                     wait_for_ui_settle(TimeoutConfig.SHORT_DELAY)  # 약간의 추가 대기
                 else:

@@ -129,6 +129,8 @@ def classify_stage(
     if completion_markers and any(marker in completion_markers for marker in markers):
         return 3
     if "접수" in markers and "업무담당자" in markers:
+        if any(marker not in ("접수", "업무담당자") for marker in markers):
+            return 3
         return 2
     return 3
 

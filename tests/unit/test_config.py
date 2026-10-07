@@ -302,6 +302,14 @@ class TestSimilarityThresholds:
         config = self.config_class(allow_fallback=True)
         assert config.get_local_vector_similarity_threshold() == 0.5
 
+    def test_local_falls_back_to_legacy_var(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("LOCAL_VECTOR_SIMILARITY_THRESHOLD", raising=False)
+        monkeypatch.setenv("VECTOR_SIMILARITY_THRESHOLD", "0.35")
+        config = self.config_class(allow_fallback=True)
+        assert config.get_local_vector_similarity_threshold() == 0.35
+
 
 class TestGlobalConfigInstance:
     """Test the global config instance."""

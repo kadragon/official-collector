@@ -307,6 +307,12 @@ class TestClassifyStage:
     def test_reception_prefix_wins_over_markers(self):
         assert classify_stage("접수: 예산안", role_markers=["결재완료"]) == 1
 
+    def test_stage2_with_superior_returns_3(self):
+        title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
+        assert (
+            classify_stage(title, role_markers=["접수", "결재", "업무담당자"]) == 3
+        )
+
 
 class TestTextUtilsIntegration:
     """Integration tests for text_utils functions working together."""

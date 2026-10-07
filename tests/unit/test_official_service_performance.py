@@ -4,9 +4,49 @@ Focuses on wait time reductions and polling interval improvements.
 """
 
 import time
+import _ctypes
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 from services.official_service import OfficialCollector
+
+
+class TestWaitComErrorResilience:
+    """Polling helpers must survive pywinauto COM errors."""
+
+    def test_wait_for_condition_retries_com_error(self):
+        with patch("services.official_service.WindowManager.connect_to_window"):
+            collector = OfficialCollector()
+
+        calls = []
+
+        def condition():
+            calls.append(1)
+            if len(calls) == 1:
+                raise _ctypes.COMError(-2147220991, "transient", None)
+            return True
+
+        result = collector._wait_for_condition(condition, timeout=2.0, interval=0.05)
+        assert result is True
+        assert len(calls) >= 2
+
+    def test_wait_for_element_retries_com_error(self):
+        with patch("services.official_service.WindowManager.connect_to_window"):
+            collector = OfficialCollector()
+
+        calls = []
+
+        def selector():
+            calls.append(1)
+            if len(calls) == 1:
+                raise _ctypes.COMError(-2147220991, "transient", None)
+            mock_element = Mock()
+            mock_element.exists.return_value = True
+            mock_element.is_enabled.return_value = True
+            return mock_element
+
+        result = collector._wait_for_element(selector, timeout=2.0, interval=0.05)
+        assert result is True
+        assert len(calls) >= 2
 
 
 class TestWaitTimeOptimization:

@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from postgrest.exceptions import APIError
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import httpx
+import openai
 from config import get_config, load_environment_variables
 from .openai_embedding_service import OpenAIEmbeddingService
 from utils.performance_logger import log_execution_time, timer
@@ -159,7 +161,12 @@ class SupabaseService:
 
                 return self._process_reception_results(result.data)
 
-            except (ConnectionError, TimeoutError, RuntimeError) as e:
+            except (
+                ConnectionError,
+                TimeoutError,
+                RuntimeError,
+                httpx.HTTPError,
+            ) as e:
                 logger.error("벡터 검색 실패 (전송 오류): %s", e)
                 return []
             except APIError as e:
@@ -169,7 +176,14 @@ class SupabaseService:
                 logger.error("벡터 검색 실패 (응답 처리): %s", e)
                 return []
 
-        except (ConnectionError, TimeoutError, RuntimeError, ValueError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            RuntimeError,
+            ValueError,
+            httpx.HTTPError,
+            openai.OpenAIError,
+        ) as e:
             logger.error("접수 문서 추천 실패: %s", e)
             return []
 
@@ -269,7 +283,12 @@ class SupabaseService:
                 )
                 return recommendations
 
-            except (ConnectionError, TimeoutError, RuntimeError) as e:
+            except (
+                ConnectionError,
+                TimeoutError,
+                RuntimeError,
+                httpx.HTTPError,
+            ) as e:
                 logger.error("벡터 검색 실패 (전송 오류): %s", e)
                 return []
             except APIError as e:
@@ -279,7 +298,14 @@ class SupabaseService:
                 logger.error("벡터 검색 실패 (응답 처리): %s", e)
                 return []
 
-        except (ConnectionError, TimeoutError, RuntimeError, ValueError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            RuntimeError,
+            ValueError,
+            httpx.HTTPError,
+            openai.OpenAIError,
+        ) as e:
             logger.error("업무카드 추천 실패: %s", e)
             return []
 
