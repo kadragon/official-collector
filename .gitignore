@@ -178,8 +178,4 @@ cython_debug/
 !.claude/settings.json
 plan.md
 
-# chroma
-.chroma_db/
-.chroma_db_test/
-
 /logs/*
