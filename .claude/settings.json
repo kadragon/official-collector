@@ -1,0 +1,1 @@
+{"permissions": {"deny": ["Bash(rm -rf*)", "Bash(git push --force*)", "Read(./.env)", "Read(./secrets/**)"]}, "sandbox": {"enabled": true}}
