@@ -1,6 +1,6 @@
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
-# Trace: backlog.md - Approval decision memory / Submitted approval consent
+# Trace: backlog.md - Approval decision memory / Stored reception handler resolution
 
 import itertools
 import sys
@@ -66,7 +66,7 @@ class Main:
 
         self.collector = OfficialCollector()
         self.task_card_handler = TaskCardHandler()
-        self.reception_department = config.my_department
+        self.reception_department = ""
 
         # 서비스 생성 (의존성 주입 패턴, VECTOR_BACKEND에 따라 백엔드 선택)
         # supabase_service에는 SupabaseService 또는 LocalVectorService가 담긴다
@@ -220,7 +220,8 @@ class Main:
     )
     def _handle_reception_document(self, title: str) -> bool:
         """Apply the chosen handler and retain memory only after reception succeeds."""
-        self.reception_department = config.my_department
+        # Stored names resolve organization-wide; only manual picks constrain department.
+        self.reception_department = ""
         print_document_info(title, "접수 문서")
         approval, shared = self.document_processor.process_reception_document(title)
         if not approval:

@@ -2,6 +2,13 @@
 
 ## Next
 
+### Stored reception handler resolution — fix/stored-reception-handler-department
+
+- [x] Resolve exact and recommended stored handlers independently of the configured fallback department; constrain only manual org-chart selections.
+- Regression: configured IT fallback rejects a stored HR handler before the fix; manual HR selection must not constrain the next stored handler.
+- Verification: five regressions fail before the fix; all 382 unit tests pass after it. Main pylint adds no diagnostics; Bandit finds no issues. Live GUI verification not run.
+- Existing gate debt: main-only mypy reports the two deletion-list argument errors already recorded above; unchanged by this fix.
+
 ### Commit accumulated approval workflow — fix/unknown-document-stage
 
 - [x] Verify accumulated approval decision memory, handler/reviewer/final dispatch, console input and client-dialog changes before commit.

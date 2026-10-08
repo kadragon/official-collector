@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [fix] Resolve stored reception handlers across departments; constrain manual org-chart picks only and reset per document (2026-10-08)
+
 - [feat] Final-handler consent, DB card suggestions and client unit-card capture; verify information save/final approval before learning (2026-10-08)
 
 - [fix] Use exact control selectors for review-path buttons and approval tab; avoid toolbar combo expansion during best-match lookup (2026-10-08)

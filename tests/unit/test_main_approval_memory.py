@@ -1,4 +1,4 @@
-# Trace: backlog.md - Approval decision memory / Assigned reuse / Reception fallback
+# Trace: backlog.md - Approval decision memory / Stored reception handler resolution
 """Composition and stage dispatch tests without external services or GUI actions."""
 
 from unittest.mock import Mock
@@ -266,7 +266,8 @@ def test_review_run_processes_two_documents_with_separate_consent(monkeypatch):
     summary.assert_called_once_with(2, 2)
 
 
-def test_reception_resets_previous_department_before_exact_reuse():
+def test_reception_resets_previous_department_before_exact_reuse(monkeypatch):
+    monkeypatch.setattr(main.config, "_my_department", "IT")
     app = main.Main.__new__(main.Main)
     app.collector = Mock()
     app.document_processor = Mock()
@@ -274,11 +275,80 @@ def test_reception_resets_previous_department_before_exact_reuse():
     app.document_processor.process_reception_document.return_value = ("Kim", "공람없음")
     app.collector.apply_approval_names.return_value = True
     assert app._handle_reception_document("접수: budget")
-    app.collector.apply_approval_names.assert_called_once_with(
-        ["Kim"], main.config.my_department
-    )
+    app.collector.apply_approval_names.assert_called_once_with(["Kim"], "")
     app.collector.add_share.assert_not_called()
     app.collector.reception.assert_called_once_with("공람없음")
+
+
+@pytest.mark.parametrize("mapping", ["exact", "automatic", "confirmed"])
+def test_stored_reception_handler_outside_fallback_department(monkeypatch, mapping):
+    from services import document_processor
+
+    monkeypatch.setattr(main.config, "_my_department", "IT")
+    monkeypatch.setattr(
+        document_processor,
+        "choose_timed_option",
+        lambda title, options, **_: options[0],
+    )
+    store = Mock()
+    store.retrieve_reception_by_title.return_value = (
+        ("Kim", "공람없음") if mapping == "exact" else (None, None)
+    )
+    store.embedding_service.create_embedding.return_value.embedding = [0.1]
+    store.recommend_reception_with_embedding.return_value = [
+        {
+            "approval": "Kim",
+            "share": "공람없음",
+            "similarity": 0.99 if mapping == "automatic" else 0.5,
+        }
+    ]
+    app = main.Main.__new__(main.Main)
+    app.collector = Mock()
+    app.collector.apply_approval_names.side_effect = (
+        lambda names, department: names == ["Kim"] and department in ("", "HR")
+    )
+    app.document_processor = main.DocumentProcessor(
+        store,
+        [],
+        ["공람없음"],
+        [],
+        reception_member_provider=app._get_reception_members,
+    )
+    assert app._handle_reception_document("접수: budget")
+    app.collector.apply_approval_names.assert_called_once_with(["Kim"], "")
+    app.collector.get_reception_members.assert_not_called()
+    app.collector.reception.assert_called_once_with("공람없음")
+
+
+def test_manual_reception_department_does_not_constrain_next_stored_handler(
+    monkeypatch,
+):
+    from services import document_processor
+
+    monkeypatch.setattr(main.config, "_my_department", "IT")
+    choices = iter(["Kim Manager", "공람없음"])
+    monkeypatch.setattr(
+        document_processor, "choose_timed_option", lambda *args, **_: next(choices)
+    )
+    store = Mock()
+    store.retrieve_reception_by_title.side_effect = [(None, None), ("Lee", "공람없음")]
+    store.embedding_service.create_embedding.return_value = None
+    app = main.Main.__new__(main.Main)
+    app.collector = Mock()
+    app.collector.get_reception_members.return_value = ("HR", ["Kim Manager"])
+    app.collector.apply_approval_names.return_value = True
+    app.document_processor = main.DocumentProcessor(
+        store,
+        [],
+        ["공람없음"],
+        [],
+        reception_member_provider=app._get_reception_members,
+    )
+    assert app._handle_reception_document("접수: manual")
+    app.collector.get_reception_members.assert_called_once_with("IT")
+    app.collector.apply_approval_names.assert_called_with(["Kim"], "HR")
+    assert app._handle_reception_document("접수: stored")
+    app.collector.apply_approval_names.assert_called_with(["Lee"], "")
 
 
 def test_reception_rpa_failure_discards_learning():
