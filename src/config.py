@@ -32,6 +32,8 @@ class TimeoutConfig:
     # Window waiting timeouts (in seconds)
     WINDOW_WAIT = 3.0
     WINDOW_READY = 2.0
+    # Bound asynchronous loading after accepting a next-document prompt.
+    NEXT_DOCUMENT_WAIT = 10.0
 
     # Condition waiting timeouts (in seconds)
     CONDITION_WAIT = 3.0
@@ -42,10 +44,16 @@ class TimeoutConfig:
     CIRCULATION_COMPLETION = 8.0
     APPROVAL_CONFIRMATION = 1.0
     APPROVAL_CONFIRMATION_BACKUP = 2.0
+    # Reviewed submissions may expose a confirmation or jump to their result.
+    REVIEW_CONFIRMATION_WAIT = 10.0
+    REVIEW_RESULT_WAIT = 10.0
     APPROVAL_RESULT = 0.5
     PAYMENT_INFO_WINDOW = 2.0
     # Per-step bound for org-chart approval-line ops (add/reorder/verify)
     APPROVAL_LINE_WAIT = 5.0
+    # Operator decisions expire within one minute (approved 2026-10-07).
+    MANUAL_APPROVAL_LINE_WAIT = 60.0
+    USER_SELECTION_WAIT = 60.0
 
     # Fast dialog search timeouts (성능 최적화)
     FAST_DIALOG_IMMEDIATE = 0.1  # 0.3 → 0.1 (3배 속도 향상)
@@ -75,6 +83,7 @@ class VectorConfig:
     # Default similarity threshold for recommendation filtering (0.0 to 1.0)
     # Lower values = more strict matching, higher values = more lenient matching
     DEFAULT_SIMILARITY_THRESHOLD = 0.3
+    AUTO_SELECTION_SIMILARITY_THRESHOLD = 0.85
 
     # Similarity threshold bounds for validation
     MIN_SIMILARITY_THRESHOLD = 0.0
@@ -109,6 +118,7 @@ class UIConfig:
     DIALOG_BUTTON_PATTERNS = {
         "confirm": [
             ("예(&Y)", "Button"),
+            ("예(Y)", "Button"),
             ("예", "Button"),
             ("확인", "Button"),
             ("OK", "Button"),
@@ -136,9 +146,15 @@ class UIConfig:
     APPROVAL_TAB_TITLE = "결재선"
     APPROVAL_LIST_NAME = "List1"
     APPROVER_NAME_COLUMN = "결재자"
+    APPROVER_ROLE_COLUMN = "결재방법"
     ADD_APPROVER_BUTTON = "▶ 추가"
     REMOVE_APPROVER_BUTTON = "◀ 삭제"
     CONFIRM_BUTTON = "확인"
+    APPROVAL_LINE_SAVED_MESSAGE = "결재선 변경을 완료했습니다."
+    TASK_CARD_SELECT_ID = 6451
+    TASK_CARD_FIELD_ID = 1994
+    TASK_CARD_DIALOG_TITLE = "과제카드 선택"
+    DOCUMENT_INFO_TAB_TITLE = "문서정보"
     ORGCHART_ROOT_NODE = "한국교원대학교"
     # Order buttons sit right of the approval list; this slack absorbs
     # borders/DPI shifts when matching their left edge to the list edge.
@@ -354,9 +370,7 @@ class UnifiedConfig:
             allow_flag = self._env_value("ALLOW_DESTRUCTIVE_OPERATIONS")
             is_allowed = allow_flag is not None and allow_flag.lower() == "true"
             if not is_allowed:
-                logger.debug(
-                    "Destructive operations blocked in production environment"
-                )
+                logger.debug("Destructive operations blocked in production environment")
             return is_allowed
 
         # Allow in development/test by default
@@ -434,7 +448,7 @@ class UnifiedConfig:
     # ------------------------------------------------------------------ #
 
     def _load_base_data(self) -> None:
-        data: Dict[str, List[str]] = {}
+        data: Dict[str, Any] = {}
 
         if self.base_data_path.exists():
             try:
@@ -455,6 +469,14 @@ class UnifiedConfig:
         )
         self._task_card_list = self._load_list(
             data.get("task_card_list"), self.data_dir / "card_list.txt"
+        )
+        department = data.get("my_department", "")
+        self._my_department = self._env_value("MY_DEPARTMENT") or (
+            department.strip() if isinstance(department, str) else ""
+        )
+        identity = data.get("my_name", "")
+        self._my_name = self._env_value("MY_NAME") or (
+            identity.strip() if isinstance(identity, str) else ""
         )
 
         logger.info(
@@ -523,6 +545,16 @@ class UnifiedConfig:
     # ------------------------------------------------------------------ #
     # Public properties (immutable - return copies)
     # ------------------------------------------------------------------ #
+
+    @property
+    def my_department(self) -> str:
+        """Configured org-chart department; empty requests a manual pick."""
+        return self._my_department
+
+    @property
+    def my_name(self) -> str:
+        """Operator's exact approval-row name; empty requests runtime input."""
+        return self._my_name
 
     @property
     def reception_list(self) -> List[str]:

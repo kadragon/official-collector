@@ -69,6 +69,7 @@ module = [
     "pywinauto.*",
     "win32gui",
     "win32con",
+    "win32console",
     "pyperclip",
     "sqlite_vec",
 ]

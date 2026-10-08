@@ -208,10 +208,9 @@ class DialogHandler:
                 try:
                     static_controls = confirm_window.children(control_type="Text")
                     for control in static_controls:
-                        if control.exists():
-                            control_text = control.window_text()
-                            if control_text and control_text not in all_text:
-                                all_text += " " + control_text
+                        control_text = control.window_text()
+                        if control_text and control_text not in all_text:
+                            all_text += " " + control_text
                 except (ElementNotFoundError, AttributeError, RuntimeError) as e:
                     logger.debug("Static 컨트롤에서 텍스트 수집 실패: %s", e)
                 except Exception as e:
@@ -222,10 +221,9 @@ class DialogHandler:
                 try:
                     edit_controls = confirm_window.children(control_type="Edit")
                     for control in edit_controls:
-                        if control.exists():
-                            control_text = control.window_text()
-                            if control_text and control_text not in all_text:
-                                all_text += " " + control_text
+                        control_text = control.window_text()
+                        if control_text and control_text not in all_text:
+                            all_text += " " + control_text
                 except (ElementNotFoundError, AttributeError, RuntimeError) as e:
                     logger.debug("Edit 컨트롤에서 텍스트 수집 실패: %s", e)
                 except Exception as e:
@@ -528,6 +526,50 @@ class DialogHandler:
                     handle_confirm_callback()
             else:
                 logger.info("결재 진행 확인 대화상자가 나타나지 않음")
+
+    def confirm_reviewed_approval(self, wait_for_condition: Callable) -> bool:
+        """Confirm a known approval prompt, or accept an already-visible result."""
+        dialog = self.dlg.child_window(title="확인", control_type="Window")
+        observed_text = ""
+        prompt_kind = ""
+
+        def ready() -> bool:
+            nonlocal observed_text, prompt_kind
+            if not dialog.exists():
+                return False
+            observed_text = self.get_confirm_dialog_text()
+            action = self.dialog_classifier.classify_dialog_action(observed_text)
+            if (
+                action == DialogAction.APPROVE
+                and "결재를 진행하시겠습니까" in observed_text
+            ):
+                prompt_kind = "approval"
+            elif (
+                action == DialogAction.CONTINUE
+                and "다음 문서를 처리하겠습니까" in observed_text
+            ) or (action == DialogAction.EXIT and "종료하시겠습니까" in observed_text):
+                prompt_kind = "result"
+            else:
+                prompt_kind = ""
+            return bool(prompt_kind)
+
+        if not wait_for_condition(
+            ready,
+            timeout=TimeoutConfig.REVIEW_CONFIRMATION_WAIT,
+        ):
+            logger.warning(
+                "Reviewed approval confirmation unavailable or unexpected: observed=%r",
+                observed_text,
+            )
+            return False
+        if prompt_kind == "result":
+            logger.info(
+                "Reviewed approval already has a result prompt: %s", observed_text
+            )
+            return True
+        dialog.child_window(title="확인", class_name="Button").click()
+        logger.info("Reviewed approval confirmation clicked: %s", observed_text)
+        return True
 
     @log_execution_time(logger)
     def handle_approval_result(self, click_confirm_callback: Callable) -> None:

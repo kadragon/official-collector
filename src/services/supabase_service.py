@@ -3,10 +3,20 @@ Supabase 데이터베이스 서비스 클래스
 벡터 유사도 검색, CRUD 연산, 배치 업데이트 기능 제공
 """
 
-# Trace: Narrow remaining broad excepts in polling helpers (backlog Now)
+# Trace: backlog.md - Approval decision memory / Approval store
 
 import logging
-from typing import Callable, List, Dict, Any, Optional, Tuple, cast, Iterator, NamedTuple
+from typing import (
+    Callable,
+    List,
+    Dict,
+    Any,
+    Optional,
+    Tuple,
+    cast,
+    Iterator,
+    NamedTuple,
+)
 from datetime import datetime, timezone
 
 from postgrest.exceptions import APIError
@@ -40,9 +50,36 @@ class ReceptionRow(NamedTuple):
     created_at: str
 
 
-
 class SupabaseService:
     """Supabase 데이터베이스 서비스"""
+
+    def retrieve_approval_line_by_title(self, title: str) -> Optional[List[str]]:
+        """Legacy no-op: approval lines belong to the local store."""
+        logger.info("Local approval store required for title: %s", title)
+        return None
+
+    def recommend_approval_lines_with_embedding(
+        self, query_embedding: List[float], count: int = 3
+    ) -> List[Dict[str, Any]]:
+        """Legacy no-op; never query a nonexistent Supabase table."""
+        logger.info(
+            "Local approval store required for recommendations (%s dims, %s candidates)",
+            len(query_embedding),
+            count,
+        )
+        return []
+
+    def upsert_approval_line_embedding(
+        self, title: str, approvers: List[str], embedding: Optional[List[float]] = None
+    ) -> bool:
+        """Legacy no-op; callers must inject a local approval store."""
+        logger.info(
+            "Local approval store required to save %s (%s names, embedding=%s)",
+            title,
+            len(approvers),
+            embedding is not None,
+        )
+        return False
 
     def __init__(self, embedding_service: OpenAIEmbeddingService) -> None:
         """Supabase 클라이언트 초기화
@@ -309,7 +346,9 @@ class SupabaseService:
             logger.error("업무카드 추천 실패: %s", e)
             return []
 
-    @handle_supabase_error("업무카드 추천 (임베딩 재사용)", logger, default_factory=list)
+    @handle_supabase_error(
+        "업무카드 추천 (임베딩 재사용)", logger, default_factory=list
+    )
     def recommend_cards_with_embedding(
         self, query_embedding: List[float], count: int = 5
     ) -> List[Dict[str, Any]]:
@@ -570,15 +609,10 @@ class SupabaseService:
     def get_document_count(self, table_type: str = "task_card") -> int:
         """문서 개수 조회"""
         table_name = (
-            "task_card_mappings"
-            if table_type == "task_card"
-            else "reception_mappings"
+            "task_card_mappings" if table_type == "task_card" else "reception_mappings"
         )
         result = (
-            self.client.table(table_name)
-            .select("*", count="exact")
-            .limit(0)
-            .execute()
+            self.client.table(table_name).select("*", count="exact").limit(0).execute()
         )
         return result.count if result.count is not None else 0
 
@@ -657,9 +691,7 @@ class SupabaseService:
 
     # 삭제 인터페이스용 메서드들
     @handle_supabase_error("업무카드 목록 조회", logger, default_factory=list)
-    def list_all_cards(
-        self, limit: int = 1000, offset: int = 0
-    ) -> List[CardRow]:
+    def list_all_cards(self, limit: int = 1000, offset: int = 0) -> List[CardRow]:
         """모든 업무카드 매핑 목록 조회 (title, task_title, created_at)"""
         result = (
             self.client.table("task_card_mappings")
@@ -686,7 +718,9 @@ class SupabaseService:
             .execute()
         )
         return [
-            ReceptionRow(item["title"], item["handler"], item["share_target"], item["created_at"])
+            ReceptionRow(
+                item["title"], item["handler"], item["share_target"], item["created_at"]
+            )
             for item in result.data
         ]
 
@@ -706,9 +740,7 @@ class SupabaseService:
             if len(batch) < batch_size:
                 break
 
-    def iter_all_cards(
-        self, batch_size: int = 500
-    ) -> Iterator[CardRow]:
+    def iter_all_cards(self, batch_size: int = 500) -> Iterator[CardRow]:
         """모든 업무카드를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터.
 
         batch_size=500은 Supabase 응답 한도(1000행) 대비 안전 마진.
@@ -730,9 +762,7 @@ class SupabaseService:
 
         yield from self._iter_table(_fetch, batch_size)
 
-    def iter_all_receptions(
-        self, batch_size: int = 500
-    ) -> Iterator[ReceptionRow]:
+    def iter_all_receptions(self, batch_size: int = 500) -> Iterator[ReceptionRow]:
         """모든 접수 문서를 batch_size 단위로 페이지네이션하며 순회하는 제너레이터.
 
         batch_size=500은 Supabase 응답 한도(1000행) 대비 안전 마진.
@@ -748,7 +778,12 @@ class SupabaseService:
                 .execute()
             )
             return [
-                ReceptionRow(item["title"], item["handler"], item["share_target"], item["created_at"])
+                ReceptionRow(
+                    item["title"],
+                    item["handler"],
+                    item["share_target"],
+                    item["created_at"],
+                )
                 for item in result.data
             ]
 

@@ -48,6 +48,10 @@ All persistence goes through `SupabaseService`: tables `reception_documents`, `t
 
 ## Local Backend Gotchas
 
+- `LocalVectorService` also owns `approval_lines` and `vec_approval_lines`. Names are ordered JSON; mapping/vector upserts commit atomically. Exact lookup, KNN deduplication, streaming and title deletion are available.
+- Supabase approval-line methods are legacy no-ops. `main.py` injects a separate local model/store in Supabase mode; local mode reuses its existing store. Approval embeddings always come from the local model.
+- Assigned approval-line decisions use injected RPA callbacks; learning follows successful application or manual confirmation. `utils/timed_input.py` polls console keys with a deadline, without background stdin threads.
+
 - Local model is pinned to `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, L2-normalized) — `multilingual-e5-small` is not shipped; verify before switching names.
 - `sqlite-vec` KNN distance is L2 by default; cosine comes from `1-d^2/2` on normalized vectors.
 - The local DB file is dimension-pinned: opening a DB built with another dimension fails fast with a reindex hint — Supabase 1536-dim vectors do not transfer, reindex required.

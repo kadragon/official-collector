@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- [feat] Final-handler consent, DB card suggestions and client unit-card capture; verify information save/final approval before learning (2026-10-08)
+
+- [fix] Use exact control selectors for review-path buttons and approval tab; avoid toolbar combo expansion during best-match lookup (2026-10-08)
+
+- [fix] Submitted drafts with own review/approval role require consent; acknowledge line-save completion on retained window handles (2026-10-08)
+
+- [fix] Stop unverified document stages before task-card/completion processing; a superior row alone does not prove completion (2026-10-08)
+
+- [fix] Focus the owning console via win32console before timed input; retain title fallback and warn on activation failure (2026-10-08)
+- [fix] Review confirmation: accept an already-visible next-document result; inspect body text and log failed observations (2026-10-07)
+- [fix] Wait for next-document loading after Yes before capturing review title; retain changed-document consent guard (2026-10-07)
+- [fix] Follow-up confirmation: read UIA child text without exists(); recognize screenshot's next-document prompt and Yes caption (2026-10-07)
+- [fix] Review approval: confirm known prompt, verify transition and continue per-document review; native line input for Korean operator names (2026-10-07)
+- [feat] Other-handler documents require review consent before approval-button click; bypass task cards and approval-line changes (2026-10-07)
+- [fix] Approval dialog: verify closure on the original HWND wrapper instead of resolving the closed window by title (2026-10-07)
+- [fix] Approval role probe: use bounded WM_CLOSE instead of Escape; retain abort when dialog stays visible (2026-10-07)
+- [done] Approval decision memory: wire local reuse in both backends, org-chart reception fallback, 60s capture and failure-safe learning (2026-10-07)
+
+- [done] Approval decision memory foundations: ordered local store, atomic vector updates, KNN reuse, org-chart readers and homonym rejection (2026-10-07)
+
 - [done] Now sprint: stage splitter, polling-except narrowing, env centralization, wait helpers, local threshold 0.5 (2026-10-07) → docs/runbook.md
 - [analysis] Document 3-stage routing (reception / assigned-to-me / post-approval) + backlog items for classify_stage() split (2026-10-07) → docs/design/document-stages.md
 - [done] Verify stage-2 live signals: List1 [직위, 직급, 결재방법, 결재자] rows 접수+업무담당자, 과제카드ComboBox empty in 결재정보 (2026-10-07) → docs/design/document-stages.md

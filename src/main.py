@@ -1,25 +1,27 @@
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
-# Trace: Add classify_stage() 1/2/3 splitter (backlog Now)
+# Trace: backlog.md - Approval decision memory / Submitted approval consent
 
 import itertools
 import sys
-from typing import List, Union
+from typing import List, Union, Optional, cast
 from rich import traceback
 
 # Enable rich tracebacks globally for better error display
 traceback.install(show_locals=True, width=120, theme="monokai")
 
-from config import config
+from config import config, TimeoutConfig
 from services.official_service import OfficialCollector, DocumentFlowState
 from services.supabase_service import SupabaseService
 from services.openai_embedding_service import OpenAIEmbeddingService
 from services.local_embedding_service import LocalEmbeddingService
 from services.local_vector_service import LocalVectorService
 from services.document_processor import DocumentProcessor
+from services.task_card_handler import TaskCardHandler
 from utils.text_utils import classify_stage, extract_title_from_approval
 from utils.wait_helpers import wait_for_document_turnaround
-from utils.error_handler import setup_logger
+from utils.timed_input import choose_timed_option, get_timed_text_input
+from utils.error_handler import setup_logger, handle_pywinauto_error
 from utils.audit_logger import init_audit_logger
 from utils.monitoring_hooks import init_monitoring_hooks
 from utils.quota_manager import init_quota_manager
@@ -63,15 +65,22 @@ class Main:
         self.share_name_list: List[str] = config.share_list
 
         self.collector = OfficialCollector()
+        self.task_card_handler = TaskCardHandler()
+        self.reception_department = config.my_department
 
         # 서비스 생성 (의존성 주입 패턴, VECTOR_BACKEND에 따라 백엔드 선택)
         # supabase_service에는 SupabaseService 또는 LocalVectorService가 담긴다
         if config.get_vector_backend() == "local":
+            approval_store: LocalVectorService = LocalVectorService(
+                LocalEmbeddingService()
+            )
             supabase_service: Union[SupabaseService, LocalVectorService] = (
-                LocalVectorService(LocalEmbeddingService())
+                approval_store
             )
         else:
             supabase_service = SupabaseService(OpenAIEmbeddingService())
+            # Keep approval vectors in the local model's space, never cloud dimensions.
+            approval_store = LocalVectorService(LocalEmbeddingService())
 
         # 통합된 문서 처리기
         self.document_processor = DocumentProcessor(
@@ -79,6 +88,8 @@ class Main:
             approval_name_list=self.approval_name_list,
             share_name_list=self.share_name_list,
             predefined_card_list=config.card_list,
+            approval_store=approval_store,
+            reception_member_provider=self._get_reception_members,
         )
 
     def run(self) -> None:
@@ -153,36 +164,36 @@ class Main:
             title = self.collector.get_official_title()
             processed_count += 1
 
-            # Stage splitter (docs/design/document-stages.md). Title-only for
-            # now; role_markers/approval_complete plug in once the Next-group
-            # RPA readers land the exact control names.
-            stage = classify_stage(title)
+            stage = self._classify_document(title)
+            if stage is None:
+                print_warning("문서 단계를 읽지 못해 처리를 중단합니다")
+                self._flush_all_pending_updates()
+                break
 
             if stage == 1:
-                print_document_info(title, "접수 문서")
-
-                approval, shared = self.document_processor.process_reception_document(
-                    title
-                )
-
-                if approval:
-                    self.collector.approval(approval)
-                    if shared is not None and shared != "공람없음":
-                        self.collector.add_share(str(shared))
-
-                    print_success(f"접수 처리 완료: {approval} / {shared}")
-                    logger.info(
-                        "접수 처리 완료: %s -> %s / %s", title, approval, shared
-                    )
-                    self.collector.reception(shared)
+                if self._handle_reception_document(title):
                     success_count += 1
-
-                    # 문서 처리 완료 후 잠시 대기하고 화면 정리
-                    print_info("문서 처리가 완료되었습니다. 다음 문서를 준비합니다...")
                     wait_for_document_turnaround()
                     clear_screen()
+                else:
+                    print_warning("접수 없이 문서 처리를 마칩니다")
+                    self._flush_all_pending_updates()
+                    break
             elif stage == 2:
-                self._handle_assigned_document(title)
+                if self._handle_assigned_document(title):
+                    success_count += 1
+                # Stage-3 completion markers remain unverified. Do not reclassify
+                # the same document after merely adding a superior's row.
+                self._flush_all_pending_updates()
+                break
+            elif stage == 4:
+                if self._handle_review_document(title):
+                    success_count += 1
+                    wait_for_document_turnaround()
+                    clear_screen()
+                else:
+                    self._flush_all_pending_updates()
+                    break
             else:
                 # 전자결재 문서 처리
                 processed_title = extract_title_from_approval(title)
@@ -194,7 +205,9 @@ class Main:
                     success_count += 1
                     print_info("문서 분류가 완료되었습니다. 다음 문서를 준비합니다...")
                 else:
-                    print_info("문서 분류를 건너뛰었습니다. 다음 문서를 준비합니다...")
+                    print_warning("완결을 확인하지 못해 처리를 중단합니다")
+                    self._flush_all_pending_updates()
+                    break
 
                 # 문서 처리 완료 후 잠시 대기하고 화면 정리
                 wait_for_document_turnaround()
@@ -202,24 +215,136 @@ class Main:
 
         print_final_result(success_count, processed_count)
 
-    def _handle_assigned_document(self, title: str) -> None:
-        """Skip task-card selection for stage-2 assigned documents.
+    @handle_pywinauto_error(
+        "Reception document application", logger, default_return=False
+    )
+    def _handle_reception_document(self, title: str) -> bool:
+        """Apply the chosen handler and retain memory only after reception succeeds."""
+        self.reception_department = config.my_department
+        print_document_info(title, "접수 문서")
+        approval, shared = self.document_processor.process_reception_document(title)
+        if not approval:
+            return False
+        completed = False
+        try:
+            if not self.collector.apply_approval_names(
+                [approval], self.reception_department
+            ):
+                logger.warning("Reception approval-line application failed: %s", title)
+                return False
+            if shared is not None and shared != "공람없음":
+                self.collector.add_share(str(shared))
+            self.collector.reception(shared)
+            completed = True
+            print_success(f"접수 처리 완료: {approval} / {shared}")
+            logger.info("Reception completed: %s -> %s / %s", title, approval, shared)
+            return True
+        finally:
+            if not completed:
+                self.document_processor.discard_reception_update(title)
 
-        Superior insertion via set_approval_line needs the Review Backlog P1
-        department source, so stage-2 documents are skipped loudly instead of
-        entering the stage-3 task-card path.
-        """
-        print_document_info(title, "배정 문서 (결재선 추가 대기)")
-        logger.info(
-            "Stage-2 assigned document detected, task-card selection skipped: %s",
-            title,
+    def _classify_document(self, title: str) -> Optional[int]:
+        """Check handler identity before routing any electronic document to task cards."""
+        if classify_stage(title) == 1:
+            return 1
+        members = self.collector.read_approval_role_members()
+        if members is None:
+            logger.warning("Document stage probe failed: %s", title)
+            return None
+        identity = getattr(self, "operator_name", "") or config.my_name
+        if not identity:
+            activate_cmd_window()
+            identity = get_timed_text_input(
+                "본인 이름 입력 (결재선에 표시된 이름, 빈 입력: 중단)",
+                timeout=TimeoutConfig.USER_SELECTION_WAIT,
+            )
+        if not identity or not identity.strip():
+            logger.warning("Operator identity unavailable; document processing stopped")
+            return None
+        self.operator_name = identity.strip()
+        drafters = [name for role, name in members if role == "기안"]
+        if drafters:
+            own_roles = [role for role, name in members if name == self.operator_name]
+            if (
+                len(drafters) != 1
+                or not drafters[0]
+                or own_roles not in (["검토"], ["결재"])
+            ):
+                logger.warning(
+                    "Submitted document reviewer unavailable or ambiguous: %s", title
+                )
+                return None
+            self.review_handler_name = drafters[0]
+            self.review_role_label = "기안자"
+            return 4
+        handlers = [name for role, name in members if role == "업무담당자"]
+        if len(handlers) != 1 or not handlers[0]:
+            logger.warning("Document handler unavailable or ambiguous: %s", title)
+            return None
+        if handlers[0] != self.operator_name:
+            self.review_handler_name = handlers[0]
+            self.review_role_label = "업무담당자"
+            return 4
+        roles = [role for role, _ in members]
+        if (
+            "업무관리자" in roles
+            and "접수" in roles
+            and all(role in ("접수", "업무담당자", "업무관리자") for role in roles)
+        ):
+            answer = choose_timed_option(
+                "상위 결재 완료 여부 확인",
+                ["결재 대기 또는 불명확: 중단", "결재 완료 후 최종 업무처리"],
+            )
+            return 3 if answer == "결재 완료 후 최종 업무처리" else None
+        return classify_stage(title, role_markers=[role for role, _ in members])
+
+    def _handle_review_document(self, title: str) -> bool:
+        """Require an explicit review decision; never classify or change this line."""
+        print_document_info(extract_title_from_approval(title), "검토 후 결재")
+        print_info(
+            f"{getattr(self, 'review_role_label', '업무담당자')}: {self.review_handler_name}. "
+            "문서를 검토한 후 결재하시겠습니까?"
         )
-        print_warning(
-            "배정 문서는 상위 결재권자 지정이 필요합니다 "
-            "(Review P1 대기 중) — 과제카드 선택을 건너뜁니다"
+        answer = choose_timed_option("검토 후 결재", ["건너뛰기", "검토 완료, 결재"])
+        if answer != "검토 완료, 결재":
+            print_info("결재 없이 처리를 마칩니다")
+            return False
+        current_title = self.collector.get_official_title()
+        if current_title != title:
+            logger.warning(
+                "Reviewed document changed before approval button click: expected=%s, current=%s",
+                title,
+                current_title,
+            )
+            print_warning("문서가 바뀌어 결재하지 않습니다")
+            return False
+        completed = self.collector.approve_reviewed_document(title)
+        if completed:
+            print_success("검토한 문서 결재 처리 완료. 다음 문서를 준비합니다")
+        else:
+            print_warning("결재 완료를 확인하지 못해 처리를 중단합니다")
+        return bool(completed)
+
+    def _get_reception_members(self) -> List[str]:
+        """Provide org-chart members and retain the selected department for application."""
+        department, members = self.collector.get_reception_members(config.my_department)
+        self.reception_department = department
+        return cast(List[str], members)
+
+    def _handle_assigned_document(self, title: str) -> bool:
+        """Reuse or capture a line for stage 2, leaving document approval to the operator."""
+        processed_title = extract_title_from_approval(title)
+        print_document_info(processed_title, "배정 문서")
+        result = self.document_processor.process_assigned_document(
+            processed_title,
+            self.collector.apply_approval_names,
+            self.collector.capture_approval_line,
         )
-        wait_for_document_turnaround()
-        clear_screen()
+        if result:
+            print_success("결재선 지정 완료. 문서 결재는 화면에서 진행하세요")
+        else:
+            print_warning("결재선 지정 없이 배정 문서 처리를 마칩니다")
+        return bool(result)
 
     def _flush_all_pending_updates(self) -> None:
         """대기 중인 모든 업데이트를 Supabase에 일괄 업로드"""
@@ -249,9 +374,13 @@ class Main:
             bool: 처리 성공 여부
         """
         try:
+            original_title = self.collector.get_official_title()
             # 문서카드 매칭 (3단계 프로세스)
             card_name = self.document_processor.process_task_card_matching(
-                processed_title
+                processed_title,
+                manual_selection=lambda suggestion: self.task_card_handler.capture(
+                    self.collector, suggestion
+                ),
             )
             logger.info(
                 "과제 카드 매칭 결과: %s", card_name if card_name else "매칭 실패"
@@ -262,12 +391,15 @@ class Main:
 
                 # 결재 프로세스 실행 (5단계)
                 try:
-                    self.collector.document_sort(card_name)
+                    if not self.collector.approve_reviewed_document(original_title):
+                        self.document_processor.discard_card_update(processed_title)
+                        return False
                     print_success(f"문서 분류 완료: {card_name}")
                     logger.info("문서 분류 완료: %s -> %s", processed_title, card_name)
                     return True
 
                 except Exception as e:
+                    self.document_processor.discard_card_update(processed_title)
                     logger.error("문서 분류 실행 중 오류 발생: %s", e)
                     print_warning(f"문서 분류 실행 중 오류 발생: {e}")
                     return False
@@ -279,6 +411,7 @@ class Main:
                 return False
 
         except Exception as e:
+            self.document_processor.discard_card_update(processed_title)
             logger.error("전자결재 문서 처리 중 예상치 못한 오류: %s", e)
             print_warning(f"전자결재 문서 처리 중 오류 발생: {e}")
             return False
