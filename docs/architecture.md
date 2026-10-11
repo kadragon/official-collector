@@ -26,6 +26,7 @@ src/
     local_embedding_service.py  # FastEmbed offline embeddings, same response shape
     official_service.py   # pywinauto flows (1047 lines, mid-split — see below)
     window_manager.py / dialog_handler.py / button_controller.py  # RPA splits
+    confirm_dialog_reader.py  # confirmation-window discovery and text extraction
   ui/                     # Rich console wrapper + console interface
   dialogs/                # prompt/selection dialogs (timeouts required)
   utils/                  # error_handler (decorators), performance_logger, audit, quota, monitoring
@@ -40,6 +41,7 @@ Dependency flows downward: `main.py` → `services/` → `utils/` + `config.py`.
 - A service never instantiates a sibling service.
 - `supabase_service.py` is the only module that imports the Supabase client; embedding calls go through `OpenAIEmbeddingService`.
 - `official_service.py` is mid-split into `window_manager` / `dialog_handler` / `button_controller` — put new RPA logic in the split modules, not the monolith.
+- `DialogHandler` inherits confirmation-window discovery and text extraction from `ConfirmDialogReader`; it retains reception/approval orchestration, classification and its existing constructor and public methods. Readers do not classify or click dialogs.
 - `data/base_data.json` seeds lists; runtime caches live in `data/backup/` and `.cache/`.
 
 ## Data Access
