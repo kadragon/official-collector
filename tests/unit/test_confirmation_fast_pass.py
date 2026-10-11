@@ -11,6 +11,7 @@ from dialogs.dialog_classifier import DialogClassifier
 from services.dialog_handler import DialogHandler
 from pywinauto.findwindows import ElementAmbiguousError
 from pywinauto.findbestmatch import MatchError
+from pywinauto.uia_defines import NoPatternInterfaceError
 
 
 def make_handler(body, caption="확인"):
@@ -19,11 +20,16 @@ def make_handler(body, caption="확인"):
     dialog.window_text.return_value = caption
     controls = [Mock(window_text=Mock(return_value=text)) for text in body]
     dialog.children.return_value = controls
+    for control in controls:
+        control.element_info.control_type = "Text"
+        control.element_info.class_name = "Static"
     button = dialog.child_window.return_value
+    button.element_info.control_type = "Button"
+    button.element_info.class_name = "Button"
     button.is_visible.return_value = True
     button.is_enabled.return_value = True
     dialog.descendants.side_effect = lambda **criteria: (
-        [button] if criteria.get("control_type") == "Button" else []
+        [button] if criteria.get("control_type") == "Button" else controls + [button]
     )
     dlg = Mock()
     dlg.child_window.return_value = dialog
@@ -36,12 +42,11 @@ def make_handler(body, caption="확인"):
     ["문서를 접수하시겠습니까?", "공람지정을 완료하였습니다.", "종료하시겠습니까?"],
 )
 def test_quick_reader_skips_confirmation_caption_and_reads_body_once(body):
-    handler, dialog, controls = make_handler(["확인", body, "unread"])
+    handler, dialog, controls = make_handler(["확인", body])
     assert handler.get_quick_dialog_text(dialog) == body
     controls[0].window_text.assert_called_once_with()
     controls[1].window_text.assert_called_once_with()
-    controls[2].window_text.assert_not_called()
-    dialog.children.assert_called_once_with(control_type="Text")
+    assert dialog.descendants.call_args_list.count(call()) == 1
     dialog.texts.assert_not_called()
 
 
@@ -50,8 +55,9 @@ def test_quick_reader_does_not_drop_later_body_or_read_stale_wrappers_twice():
         ["확인", " ", "OK", "다음 문서를 처리하겠습니까?"]
     )
     controls[2].window_text.side_effect = RuntimeError("stale child")
-    assert handler.get_quick_dialog_text(dialog) == "다음 문서를 처리하겠습니까?"
-    assert all(control.window_text.call_count == 1 for control in controls)
+    assert handler.get_quick_dialog_text(dialog) == ""
+    assert controls[2].window_text.call_count == 1
+    controls[3].window_text.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -77,7 +83,10 @@ def test_reception_messages_use_body_fast_pass_and_retained_dialog(
     assert getattr(handler, method)(wait) is True
     handler.dlg.child_window.assert_not_called()
     controls[0].window_text.assert_called_once_with()
-    dialog.descendants.assert_called_once_with(title="확인", control_type="Button")
+    assert dialog.descendants.call_args_list == [
+        call(),
+        call(title="확인", control_type="Button"),
+    ]
     dialog.child_window.return_value.click.assert_called_once_with()
     assert wait.call_args.kwargs["timeout"] == timeout
 
@@ -124,17 +133,21 @@ def test_confirmation_clicks_original_wrapper_instead_of_replaced_title_spec():
     handler.dlg.child_window.assert_not_called()
 
 
-def test_confirmation_can_read_exact_nested_static_when_quick_body_is_empty():
+def test_confirmation_reads_nested_static_in_complete_body_pass():
     handler, dialog, _ = make_handler([])
     nested = Mock(window_text=Mock(return_value="문서를 접수하시겠습니까?"))
+    nested.element_info.control_type = "Pane"
+    nested.element_info.class_name = "Static"
     button = dialog.child_window.return_value
-    dialog.descendants.side_effect = [[nested], [button]]
+    dialog.descendants.side_effect = lambda **criteria: (
+        [button] if criteria else [nested, button]
+    )
     assert (
         handler.handle_reception_confirmation(lambda predicate, **kwargs: predicate())
         is True
     )
     assert dialog.descendants.call_args_list == [
-        call(title="문서를 접수하시겠습니까?", class_name="Static"),
+        call(),
         call(title="확인", control_type="Button"),
     ]
     button.click.assert_called_once_with()
@@ -177,7 +190,7 @@ def test_reception_result_reuses_fast_reader_and_leaves_prompt_for_load_guard(bo
     wait = lambda predicate, **kwargs: predicate()
     assert handler.handle_reception_result(wait) is True
     controls[0].window_text.assert_called_once_with()
-    dialog.children.assert_called_once_with(control_type="Text")
+    assert dialog.descendants.call_args_list.count(call()) == 1
     dialog.texts.assert_not_called()
     dialog.child_window.assert_not_called()
 
@@ -189,14 +202,13 @@ def test_reception_result_reuses_fast_reader_and_leaves_prompt_for_load_guard(bo
 def test_reception_result_reads_past_completion_body_to_separate_flow_question(
     prefix, result
 ):
-    handler, dialog, controls = make_handler([prefix, result, "unread"])
+    handler, dialog, controls = make_handler([prefix, result])
     assert (
         handler.handle_reception_result(lambda predicate, **kwargs: predicate()) is True
     )
     controls[0].window_text.assert_called_once_with()
     controls[1].window_text.assert_called_once_with()
-    controls[2].window_text.assert_not_called()
-    dialog.children.assert_called_once_with(control_type="Text")
+    assert dialog.descendants.call_args_list.count(call()) == 1
     dialog.texts.assert_not_called()
     dialog.child_window.assert_not_called()
 
@@ -215,8 +227,83 @@ def test_reception_result_reads_past_completion_body_to_separate_flow_question(
 def test_approval_result_matches_body_without_clicking_unknowns(body, clicks):
     handler, dialog, controls = make_handler([body])
     click = Mock()
-    handler.handle_approval_result(click)
+    assert handler.handle_approval_result(click) is bool(clicks)
     assert click.call_count == clicks
     if clicks:
         click.assert_called_once_with(dialog)
     controls[0].window_text.assert_called_once_with()
+
+
+@pytest.mark.parametrize("warning_first", [True, False])
+@pytest.mark.parametrize(
+    "method,question",
+    [
+        ("handle_reception_confirmation", "문서를 접수하시겠습니까?"),
+        ("handle_circulation_completion", "공람지정을 완료하였습니다."),
+    ],
+)
+def test_known_question_with_unknown_sibling_never_confirms(
+    method, question, warning_first
+):
+    body = (
+        ["알 수 없는 경고", question]
+        if warning_first
+        else [question, "알 수 없는 경고"]
+    )
+    handler, dialog, _ = make_handler(body)
+    assert getattr(handler, method)(lambda predicate, **kwargs: predicate()) is False
+    dialog.child_window.return_value.click.assert_not_called()
+
+
+@pytest.mark.parametrize("cancel_first", [True, False])
+def test_approval_result_with_cancel_sibling_never_confirms(cancel_first):
+    body = ["취소 결재를 진행하시겠습니까?", "다음 문서를 처리하겠습니까?"]
+    if not cancel_first:
+        body.reverse()
+    handler, _, _ = make_handler(body)
+    click = Mock()
+    assert handler.handle_approval_result(click) is False
+    click.assert_not_called()
+
+
+def test_reception_result_reads_retained_wrapper_without_lazy_title_lookup():
+    handler, _, _ = make_handler(["종료하시겠습니까?"])
+    handler.dlg.child_window.return_value = Mock()
+    assert (
+        handler.handle_reception_result(lambda predicate, **kwargs: predicate()) is True
+    )
+    handler.dlg.child_window.assert_not_called()
+
+
+def test_quick_reader_value_error_does_not_escape():
+    handler, dialog, _ = make_handler([])
+    dialog.window_text.side_effect = ValueError("NULL COM pointer access")
+    assert handler.get_quick_dialog_text(dialog) == ""
+
+
+@pytest.mark.parametrize("error_type", [ValueError, NoPatternInterfaceError])
+def test_confirmation_click_failure_returns_false(error_type):
+    handler, dialog, _ = make_handler(["문서를 접수하시겠습니까?"])
+    dialog.child_window.return_value.click.side_effect = error_type("stale pattern")
+    assert (
+        handler.handle_reception_confirmation(lambda predicate, **kwargs: predicate())
+        is False
+    )
+
+
+def test_approval_result_reports_failed_confirm_callback():
+    handler, _, _ = make_handler(["종료하시겠습니까?"])
+    assert handler.handle_approval_result(Mock(return_value=False)) is False
+
+
+def test_quick_reader_includes_edit_body_sibling_in_guard():
+    handler, dialog, controls = make_handler(
+        ["문서를 접수하시겠습니까?", "알 수 없는 경고"]
+    )
+    controls[1].element_info.control_type = "Edit"
+    controls[1].element_info.class_name = "Edit"
+    assert (
+        handler.handle_reception_confirmation(lambda predicate, **kwargs: predicate())
+        is False
+    )
+    dialog.child_window.return_value.click.assert_not_called()

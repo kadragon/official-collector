@@ -66,7 +66,7 @@ class Main:
 
         self.task_card_handler = TaskCardHandler()
         self.collector = OfficialCollector(
-            task_card_capture=self.task_card_handler.capture
+            task_card_capture=self.task_card_handler.capture_requested
         )
         self.reception_department = ""
 

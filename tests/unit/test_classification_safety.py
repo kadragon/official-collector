@@ -64,6 +64,9 @@ def test_reception_without_success_evidence_discards_learning(waits):
 @pytest.mark.parametrize("action", [DialogAction.UNKNOWN, DialogAction.APPROVE])
 def test_unknown_reception_result_is_never_confirmed(action):
     handler = DialogHandler(Mock(), Mock())
+    handler.dlg.wrapper_object.return_value.descendants.return_value = [
+        handler.dlg.child_window.return_value
+    ]
     handler.get_quick_dialog_text = Mock(return_value="unverified")
     handler.dialog_classifier.classify_dialog_action.return_value = action
     assert (
@@ -168,6 +171,9 @@ def test_reception_waits_past_previous_dialog_for_verified_result(previous):
     from dialogs.dialog_classifier import DialogClassifier
 
     handler = DialogHandler(Mock(), DialogClassifier())
+    handler.dlg.wrapper_object.return_value.descendants.return_value = [
+        handler.dlg.child_window.return_value
+    ]
     handler.dlg.child_window.return_value.exists.return_value = True
     handler.get_quick_dialog_text = Mock(
         side_effect=[previous, "다음 문서를 처리하겠습니까?"]
@@ -189,17 +195,25 @@ def test_reception_result_uses_detailed_text_when_body_is_unreadable():
     from dialogs.dialog_classifier import DialogClassifier
 
     handler = DialogHandler(Mock(), DialogClassifier())
+    handler.dlg.wrapper_object.return_value.descendants.return_value = [
+        handler.dlg.child_window.return_value
+    ]
     handler.dlg.child_window.return_value.exists.return_value = True
     handler.get_quick_dialog_text = Mock(return_value="확인")
     handler.get_detailed_dialog_text = Mock(return_value="종료하시겠습니까?")
     assert handler.handle_reception_result(lambda predicate, **kwargs: predicate())
-    handler.get_detailed_dialog_text.assert_called_once_with()
+    handler.get_detailed_dialog_text.assert_called_once_with(
+        handler.dlg.child_window.return_value
+    )
 
 
 def test_reception_circulation_completion_is_not_a_final_result():
     from dialogs.dialog_classifier import DialogClassifier
 
     handler = DialogHandler(Mock(), DialogClassifier())
+    handler.dlg.wrapper_object.return_value.descendants.return_value = [
+        handler.dlg.child_window.return_value
+    ]
     handler.dlg.child_window.return_value.exists.return_value = True
     handler.get_quick_dialog_text = Mock(return_value="공람지정을 완료하였습니다.")
     assert not handler.handle_reception_result(lambda predicate, **kwargs: predicate())

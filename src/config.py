@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+from itertools import product
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -150,19 +151,24 @@ class UIConfig:
     ADD_APPROVER_BUTTON = "▶ 추가"
     REMOVE_APPROVER_BUTTON = "◀ 삭제"
     CONFIRM_BUTTON = "확인"
-    # Verified confirmation bodies; quick reads stop as soon as one is found.
-    CONFIRM_BODY_PATTERNS = (
-        "문서를 접수하시겠습니까",
-        "공람지정을 완료하였습니다.",
-        "취소 결재",
-        "결재를 진행하시겠습니까",
-        "다음 문서를 처리하겠습니까",
-        "종료하시겠습니까",
-        "결재문서가 완료되었습니다",
+    RECEPTION_CONFIRM_MESSAGE = "문서를 접수하시겠습니까?"
+    CIRCULATION_COMPLETION_MESSAGE = "공람지정을 완료하였습니다."
+    DOCUMENT_FLOW_QUESTIONS = (
+        "다음 문서를 처리하겠습니까?",
+        "종료하시겠습니까?",
     )
-    RECEPTION_RESULT_PATTERNS = (
-        "다음 문서를 처리하겠습니까",
-        "종료하시겠습니까",
+    # Known body clauses from existing readers and the verified next-document prompt.
+    DOCUMENT_COMPLETION_MESSAGES = (
+        "결재문서가 완료되었습니다.",
+        "결재문서를 처리하였습니다.",
+        CIRCULATION_COMPLETION_MESSAGE,
+    )
+    RECEPTION_RESULT_MESSAGES = DOCUMENT_FLOW_QUESTIONS + tuple(
+        " ".join(parts)
+        for parts in product(DOCUMENT_COMPLETION_MESSAGES, DOCUMENT_FLOW_QUESTIONS)
+    )
+    APPROVAL_RESULT_MESSAGES = RECEPTION_RESULT_MESSAGES + (
+        "결재문서가 완료되었습니다.",
     )
     APPROVAL_LINE_SAVED_MESSAGE = "결재선 변경을 완료했습니다."
     TASK_CARD_SELECT_ID = 6451

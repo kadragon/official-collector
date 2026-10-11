@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from pywinauto import Desktop
 from pywinauto.findwindows import ElementNotFoundError, ElementAmbiguousError
+from pywinauto.uia_defines import NoPatternInterfaceError
 
 from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger
@@ -137,36 +138,21 @@ class ConfirmDialogReader:
             logger.warning("대화상자 내용 분석 실패: %s", e)
             return ""
 
-    def get_quick_dialog_text(
-        self,
-        confirm_dialog: Any,
-        patterns: tuple[str, ...] = UIConfig.CONFIRM_BODY_PATTERNS,
-    ) -> str:
-        """Read a body once, skipping the caption and stopping on known messages."""
+    def get_quick_dialog_text(self, confirm_dialog: Any) -> str:
+        """Read all body fields once; a known clause must not hide a warning."""
         try:
-            text = str(confirm_dialog.window_text() or "").strip()
-            if text and text != UIConfig.CONFIRM_BUTTON:
-                return text
-            parts = []
-            # UIA child wrappers have no exists(); read each directly.
-            for control in confirm_dialog.children(control_type="Text"):
-                try:
-                    body = str(control.window_text() or "").strip()
-                except (
-                    ElementNotFoundError,
-                    ElementAmbiguousError,
-                    AttributeError,
-                    RuntimeError,
-                    OSError,
-                    _ctypes.COMError,
-                    IndexError,
-                ) as error:
-                    logger.debug("Confirmation child read failed: %s", error)
+            caption = str(confirm_dialog.window_text() or "").strip()
+            parts = [caption] if caption and caption != UIConfig.CONFIRM_BUTTON else []
+            for control in confirm_dialog.descendants():
+                info = control.element_info
+                if (
+                    info.control_type not in ("Text", "Edit")
+                    and info.class_name != "Static"
+                ):
                     continue
-                if body and body != UIConfig.CONFIRM_BUTTON and body not in parts:
+                body = str(control.window_text() or "").strip()
+                if body and body != UIConfig.CONFIRM_BUTTON:
                     parts.append(body)
-                    if any(pattern in body for pattern in patterns):
-                        return body
             return " ".join(parts)
         except (
             ElementNotFoundError,
@@ -176,8 +162,14 @@ class ConfirmDialogReader:
             OSError,
             _ctypes.COMError,
             IndexError,
+            ValueError,
+            NoPatternInterfaceError,
         ) as error:
-            logger.debug("Quick confirmation body read failed: %s", error)
+            logger.debug(
+                "Complete confirmation body read failed (target title=%r): %s",
+                UIConfig.CONFIRM_BUTTON,
+                error,
+            )
             return ""
 
     def get_confirm_dialog_text(self) -> str:
@@ -224,13 +216,16 @@ class ConfirmDialogReader:
             logger.debug("확인 대화상자 텍스트 가져오기 실패: %s", e)
             return ""
 
-    def get_detailed_dialog_text(self) -> str:
+    def get_detailed_dialog_text(self, confirm_window: Any = None) -> str:
         """
         확인 대화상자의 상세 텍스트를 다양한 방법으로 수집합니다.
 
         Returns:
             str: 대화상자의 상세 텍스트 내용
         """
+        if confirm_window is not None:
+            # Retry the complete read on the same wrapper, never a title lookup.
+            return self.get_quick_dialog_text(confirm_window)
         try:
             confirm_window = self.dlg.child_window(title="확인", control_type="Window")
             if not confirm_window.exists():

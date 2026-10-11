@@ -1,4 +1,4 @@
-# Trace: backlog.md - Final handler task-card completion
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 """Final task-card learning follows verified client selection and completion."""
 
 from unittest.mock import Mock
@@ -145,3 +145,35 @@ def test_client_capture_reads_field_and_verifies_save(
     result = TaskCardHandler().capture(collector, "Suggested")
     assert result == (field if not chooser_open and field and saved else None)
     assert confirm.click.call_count == (1 if not chooser_open and field else 0)
+
+
+@pytest.mark.parametrize(
+    "chosen,expected", [("Requested", "Requested"), ("Other", None)]
+)
+def test_requested_card_mismatch_is_rejected_before_document_info_save(
+    monkeypatch, chosen, expected
+):
+    collector = Mock()
+    collector.app.process = 123
+    collector.dlg.window_text.return_value = "전자결재: final"
+    collector._wait_for_condition.return_value = True
+    chooser = Mock()
+    chooser.exists.side_effect = [False, False]
+    combo = Mock(window_text=Mock(return_value=chosen))
+    confirm = Mock()
+    info = Mock()
+    info.child_window.side_effect = lambda **kw: {
+        UIConfig.TASK_CARD_FIELD_ID: combo,
+        UIConfig.TASK_CARD_SELECT_ID: Mock(),
+        1: confirm,
+    }[kw["control_id"]]
+    desktop = Mock()
+    desktop.window.side_effect = [chooser, info]
+    monkeypatch.setattr(
+        "services.task_card_handler.Desktop", Mock(return_value=desktop)
+    )
+    monkeypatch.setattr(
+        "services.task_card_handler.get_timed_input", lambda *args, **kwargs: ""
+    )
+    assert TaskCardHandler().capture_requested(collector, "Requested") == expected
+    assert confirm.click.call_count == (1 if expected else 0)
