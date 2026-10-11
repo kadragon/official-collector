@@ -18,6 +18,50 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from tests.fixtures.test_configs import TestConfigurations
 
 
+def test_manual_approval_wait_is_bounded_by_one_minute():
+    from config import TimeoutConfig
+
+    assert 0 < TimeoutConfig.MANUAL_APPROVAL_LINE_WAIT <= 60
+
+
+@pytest.mark.parametrize(
+    "env,base,expected", [(" IT ", "HR", "IT"), (None, " HR ", "HR"), (None, None, "")]
+)
+def test_department_config_precedence(monkeypatch, env, base, expected):
+    from config import UnifiedConfig
+
+    if env is None:
+        monkeypatch.delenv("MY_DEPARTMENT", raising=False)
+    else:
+        monkeypatch.setenv("MY_DEPARTMENT", env)
+    data = {"my_department": base}
+    with (
+        patch("builtins.open", mock_open(read_data=json.dumps(data))),
+        patch("pathlib.Path.exists", return_value=True),
+    ):
+        settings = UnifiedConfig(allow_fallback=True)
+    assert settings.my_department == expected
+
+
+@pytest.mark.parametrize(
+    "env,base,expected",
+    [(" Me ", "Other", "Me"), (None, " Me ", "Me"), (None, None, "")],
+)
+def test_operator_name_config_precedence(monkeypatch, env, base, expected):
+    from config import UnifiedConfig
+
+    if env is None:
+        monkeypatch.delenv("MY_NAME", raising=False)
+    else:
+        monkeypatch.setenv("MY_NAME", env)
+    with (
+        patch("builtins.open", mock_open(read_data=json.dumps({"my_name": base}))),
+        patch("pathlib.Path.exists", return_value=True),
+    ):
+        settings = UnifiedConfig(allow_fallback=True)
+    assert settings.my_name == expected
+
+
 class TestUnifiedConfig:
     """Test the UnifiedConfig class."""
 

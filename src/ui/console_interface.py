@@ -1,3 +1,4 @@
+# Trace: backlog.md - Console focus before operator input
 """
 Unified Console Interface
 
@@ -9,8 +10,7 @@ import logging
 import unicodedata
 from enum import Enum, auto
 from typing import List, Tuple, Optional
-import win32gui
-import win32con
+import win32console
 from rich.panel import Panel
 from utils.error_handler import setup_logger
 from ui.rich_console import RichConsole
@@ -295,30 +295,35 @@ def confirm_choice(message: str, default_yes: bool = True) -> bool:
 
 
 def activate_cmd_window() -> None:
-    """CMD 창을 활성화합니다 (사용자 상호작용 전)."""
+    """Focus the owning console before operator input; retain the title fallback."""
     try:
         from pywinauto import Application
 
-        # 방법 1: 창 제목으로 찾기 (bat 파일에서 title 설정한 경우)
+        # Prefer our console, not another process with the same window title.
+        console_hwnd = win32console.GetConsoleWindow()
+        if console_hwnd:
+            try:
+                app = Application().connect(handle=console_hwnd)
+                app.window(handle=console_hwnd).set_focus()
+                _logger().debug("Focused console HWND %s", console_hwnd)
+                return
+            except Exception as exc:
+                _logger().debug(
+                    "Failed to focus console HWND %s: %s", console_hwnd, exc
+                )
+
+        # A terminal host may expose only the configured window title.
         try:
             app = Application().connect(title="DocumentAutoClassifier")
             window = app.window(title="DocumentAutoClassifier")
             window.set_focus()
-            _logger().debug("창 제목으로 CMD 창 포커스 활성화 성공")
-            return
+            _logger().debug("Focused DocumentAutoClassifier window")
         except Exception as exc:
-            _logger().debug("Failed to focus DocumentAutoClassifier window: %s", exc)
-
-        # 방법 2: 현재 콘솔 창 핸들 사용 (기존 방법)
-        console_hwnd = win32gui.GetConsoleWindow()
-        if console_hwnd:
-            win32gui.ShowWindow(console_hwnd, win32con.SW_RESTORE)
-            win32gui.SetForegroundWindow(console_hwnd)
-            _logger().debug("핸들로 CMD 창 포커스 활성화 성공")
-        else:
-            _logger().debug("콘솔 창 핸들을 찾을 수 없습니다")
+            _logger().warning(
+                "Console activation failed before operator input: %s", exc
+            )
     except Exception as e:
-        _logger().debug(f"CMD 창 활성화 중 오류: {e}")
+        _logger().warning("Console activation unavailable before operator input: %s", e)
 
 
 # ============================================================================

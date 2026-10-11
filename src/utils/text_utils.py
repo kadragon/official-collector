@@ -6,7 +6,7 @@ while keeping the newer helper functions introduced during the Supabase
 migration.
 """
 
-# Trace: Add classify_stage() 1/2/3 splitter (backlog Now)
+# Trace: backlog.md - Unknown document stage must stop before completion
 
 from __future__ import annotations
 
@@ -105,7 +105,7 @@ def classify_stage(
     role_markers: Optional[Iterable[str]] = None,
     approval_complete: bool = False,
     completion_markers: FrozenSet[str] = frozenset(),
-) -> int:
+) -> Optional[int]:
     """Split documents into stage 1 (reception) / 2 (assigned) / 3 (post-approval).
 
     Implements the discriminator in ``docs/design/document-stages.md``. Stage 1
@@ -118,8 +118,8 @@ def classify_stage(
     The exact stage-3 ``결재방법`` marker strings are still TBD (captured via
     the Next-group stage-3 live dump), so ``completion_markers`` defaults to
     empty and only the explicit flag triggers stage 3 today. Unknown
-    electronic-approval documents default to 3 to preserve the legacy
-    task-card path until the RPA readers land.
+    electronic-approval documents return None and stop processing. A superior
+    row alone does not establish that approval has completed.
     """
     if is_reception_document(title):
         return 1
@@ -130,9 +130,9 @@ def classify_stage(
         return 3
     if "접수" in markers and "업무담당자" in markers:
         if any(marker not in ("접수", "업무담당자") for marker in markers):
-            return 3
+            return None
         return 2
-    return 3
+    return None
 
 
 # --------------------------------------------------------------------------- #

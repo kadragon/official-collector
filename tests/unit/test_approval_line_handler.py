@@ -13,6 +13,105 @@ from services.approval_line_handler import (
 )
 
 
+@pytest.fixture(autouse=True)
+def saved_result_boundary(monkeypatch):
+    """Org-chart tests isolate the result-window I/O covered by runtime tests."""
+    monkeypatch.setattr(
+        ApprovalLineHandler, "_acknowledge_save_result", lambda *args: True
+    )
+
+
+def test_department_listing_loads_lazy_members():
+    handler = ApprovalLineHandler()
+    tree = FakeTree("한국교원대학교", {"IT": ["Kim Manager", "Lee Staff"]})
+    dialog = FakeDialog(tree, FakeListView([]))
+    assert handler.list_departments(dialog, immediate_wait) == ["IT"]
+    assert handler.list_department_members(
+        dialog, "IT", lambda condition, **_: bool(condition())
+    ) == ["Kim Manager", "Lee Staff"]
+
+
+def test_missing_department_fails_without_guessing():
+    handler = ApprovalLineHandler()
+    dialog = FakeDialog(FakeTree("한국교원대학교", {}), FakeListView([]))
+    assert (
+        handler.list_department_members(
+            dialog, "missing", lambda condition, **_: bool(condition())
+        )
+        == []
+    )
+
+
+def test_resolve_line_refuses_cross_department_homonyms():
+    handler = ApprovalLineHandler()
+    tree = FakeTree("한국교원대학교", {"IT": ["Kim Manager"], "HR": ["Kim Staff"]})
+    dialog = FakeDialog(tree, FakeListView([]))
+    assert (
+        handler.resolve_approvers(
+            dialog, ["Kim"], lambda condition, **_: bool(condition())
+        )
+        is None
+    )
+
+
+def test_resolve_line_keeps_order_and_departments():
+    handler = ApprovalLineHandler()
+    tree = FakeTree("한국교원대학교", {"IT": ["Kim Manager"], "HR": ["Lee Staff"]})
+    dialog = FakeDialog(tree, FakeListView([]))
+    assert handler.resolve_approvers(
+        dialog, ["Lee", "Kim"], lambda condition, **_: bool(condition())
+    ) == [Approver("HR", "Lee"), Approver("IT", "Kim")]
+
+
+def test_resolve_line_refuses_incomplete_org_reads():
+    handler = ApprovalLineHandler()
+    tree = FakeTree("한국교원대학교", {"IT": ["Kim Manager"], "HR": []})
+    dialog = FakeDialog(tree, FakeListView([]))
+    assert handler.resolve_approvers(dialog, ["Kim"], immediate_wait) is None
+
+
+def test_department_listing_respects_loading_timeout():
+    handler = ApprovalLineHandler()
+    dialog = FakeDialog(FakeTree("한국교원대학교", {}), FakeListView([]))
+    assert handler.list_departments(dialog, immediate_wait) == []
+
+
+def test_role_reader_uses_header_instead_of_column_position():
+    handler = ApprovalLineHandler()
+    dialog = FakeDialog(
+        FakeTree("한국교원대학교", {}),
+        FakeListView([["", "", "접수", "Kim"], ["", "", "업무담당자", "Lee"]]),
+    )
+    assert handler.read_role_markers(dialog) == ["접수", "업무담당자"]
+    assert handler.read_dialog_names(dialog) == ["Kim", "Lee"]
+
+
+def test_role_reader_refuses_missing_header():
+    handler = ApprovalLineHandler()
+    view = FakeListView([["", "", "접수", "Kim"]])
+    view.HEADERS = ["직위", "직급", "unknown", "결재자"]
+    dialog = FakeDialog(FakeTree("한국교원대학교", {}), view)
+    assert handler.read_role_markers(dialog) is None
+
+
+def test_role_members_pair_each_role_with_its_name():
+    handler = ApprovalLineHandler()
+    dialog = FakeDialog(
+        FakeTree("한국교원대학교", {}),
+        FakeListView([["", "", "업무담당자", "Lee"], ["", "", "결재", "Kim"]]),
+    )
+    assert handler.read_role_members(dialog) == [("업무담당자", "Lee"), ("결재", "Kim")]
+
+
+def test_dialog_visibility_error_does_not_prove_saved_closure():
+    handler = ApprovalLineHandler()
+
+    def unavailable():
+        raise RuntimeError("dialog status unavailable")
+
+    assert handler._dialog_closed(SimpleNamespace(is_visible=unavailable)) is False
+
+
 # ---------------------------------------------------------------------- #
 # Fakes (mimic the pywinauto wrapper surface used by the handler)
 # ---------------------------------------------------------------------- #
@@ -184,6 +283,12 @@ class FakeDialog:
     def is_visible(self) -> bool:
         return self.open
 
+    def wrapper_object(self):
+        return self
+
+    def process_id(self):
+        return 123
+
     def _close(self) -> None:
         self.open = False
 
@@ -216,7 +321,9 @@ class FakeDialog:
         raise RuntimeError("unexpected child_window: %s" % title)
 
 
-def immediate_wait(condition: Callable[[], bool], timeout: Any = None, interval: Any = None) -> bool:
+def immediate_wait(
+    condition: Callable[[], bool], timeout: Any = None, interval: Any = None
+) -> bool:
     return bool(condition())
 
 
@@ -283,7 +390,9 @@ class TestPlanUpMoves:
         ) == [2, 1, 2]
 
     def test_single_move(self) -> None:
-        assert plan_up_moves(["홍성민", "강동욱", "김승현"], ["강동욱", "홍성민", "김승현"]) == [1]
+        assert plan_up_moves(
+            ["홍성민", "강동욱", "김승현"], ["강동욱", "홍성민", "김승현"]
+        ) == [1]
 
     def test_missing_target_raises(self) -> None:
         with pytest.raises(ValueError):

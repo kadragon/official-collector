@@ -66,6 +66,30 @@ No deploy pipeline — runs as a local Windows workstation process. Production c
 
 ## Common Failures
 
+### Approval decision memory
+
+- Own-handler documents with receptionist and manager rows request `상위 결재 완료 여부 확인`; select final processing only after superior approval actually completed. DB card recommendations are shown, then the client unit-card chooser opens. Choose/confirm there, leave document-info Confirm untouched and enter Enter in the console within 60 seconds. The collector reads the actual card, saves document info and verifies final approval before retaining its DB update. Live end-to-end verification pending.
+
+- Toolbar combo boxes opening in sequence during review can come from pywinauto best-match indexing (`dlg["name"]`): its text collection expands unnamed UIA combos. Review-path payment-info/approval buttons and approval tab now use exact title/control-type selectors. Live behavior verification pending.
+
+- Submitted drafts with a `기안` row and the configured operator as `검토` or `결재` use the existing explicit review-consent path; they do not require an `업무담당자` row. Missing or ambiguous own roles stop.
+- Manual line save is complete only after acknowledging the exact `결재선 변경을 완료했습니다.` result and verifying result/editor closure. The original editor wrapper is retained before saving; post-close title lookup cannot invalidate a successful save. Live result-click verification pending.
+
+- The first post-click observation may already be the completion/next-document prompt. Review confirmation reads its body: a known approval question is confirmed, while a known next/exit result proceeds without another approval click. Confirmation/result waits are bounded to 10 seconds; failures log the observed body. Unknown/cancel-approval messages remain blocked.
+- A verified next-document prompt is confirmed before a bounded 10-second load wait: prompt gone, nonempty raw title changed, main window enabled. Only then is the next title captured for review. Unchanged title or incomplete loading stops; identical-title queue entries need a verified document identifier before support can be added. Review-time title-change checks remain active.
+- If a post-submit confirmation remains open with `결재문서를 처리하였습니다. 다음 문서를 처리하겠습니까?`, this is the next-document prompt (user screenshot verified). Its body is read from UIA child wrappers without calling nonexistent `exists()`; the existing continuation loop confirms it. `예(Y)` is included alongside `예(&Y)` in button fallback patterns. Live verification pending.
+- Electronic documents compare the `업무담당자` row's name with `MY_NAME` (fallback: `base_data.json.my_name`, then a 60-second input prompt). Use the exact name shown in the approval line. Missing/ambiguous handler or unavailable identity stops the run.
+- Different handler: review the document, then select `검토 완료, 결재`. The collector clicks approval, confirms only the known approval prompt, and requires a result/next-document transition before counting success. Next/exit dialogs use the existing loop; each next review document requires fresh consent. Skip, timeout, unexpected prompt or unverified transition stops the run. This branch never selects task cards or changes the approval line. Live verification pending.
+- Operator-name input uses a composed console line instead of raw key reads. A child reader inherits console stdin; its 60-second timeout kills/waits for the reader. Blank Enter cancels. Numeric menus keep raw bounded input; set `MY_NAME` to avoid repeated name entry.
+- Assigned-line memory with no saved candidates opens manual registration directly; no empty numbered-list menu.
+- `Approval role probe could not close its dialog` means closure was not verified. Cancellation uses bounded win32 `WM_CLOSE` instead of Escape; live verification remains pending.
+- Closure verification retains the original HWND wrapper. Re-resolving a `WindowSpecification` by title after closure can fail even when the original dialog closed; live verification remains pending.
+- Reception uses `MY_DEPARTMENT` (or `base_data.json.my_department`) for the org-chart fallback. Empty requests a department pick. Menus show full member-node text; ambiguous names are refused.
+- Assigned documents reuse local approval lines in both vector backends. Below 0.85 similarity, a timed selection asks for confirmation or manual configuration.
+- For manual configuration, build the line in the open client dialog, leave its Confirm button untouched, then return to the console and press Enter within 60 seconds. The collector reads and confirms the line. Escape, timeout, console failure or unverified save returns without learning it.
+- After configuring an assigned document's line, the run ends. Submit the document in the client. Completion markers for stage 3 still need a live dump.
+- Live verification is pending: check reception department/member reads, ordered application and manual capture/save/cancel against a disposable client document before production use.
+
 ### Supabase connection failures
 **Symptom:** "Connection refused" / timeout errors, consecutive-failure alerts.
 **Cause:** Bad credentials, RLS policy block, or project downtime.
@@ -106,6 +130,7 @@ reindex from source documents; keep one embedding model per DB.
 | `OPENAI_API_KEY` | yes | OpenAI embeddings key |
 | `SUPABASE_URL` / `SUPABASE_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | yes | Supabase access |
 | `ENVIRONMENT` | no | `production` blocks destructive ops |
+| `MY_NAME` | no | Exact operator name for handler routing; fallback to base data, then timed runtime input |
 | `ALLOW_DESTRUCTIVE_OPERATIONS` | no | `true` re-enables deletes in production |
 | `VECTOR_SIMILARITY_THRESHOLD` | no | Supabase backend prefilter, default `0.3`, range `0.0–1.0` |
 | `LOCAL_VECTOR_SIMILARITY_THRESHOLD` | no | Local backend prefilter, default `0.5`, range `0.0–1.0` (falls back to legacy `VECTOR_SIMILARITY_THRESHOLD` when unset) |

@@ -266,6 +266,7 @@ class TestExtractTitleFromApproval:
         assert extracted == "Korean 한글 English Mixed"
 
 
+# Trace: backlog.md - Unknown document stage must stop before completion
 class TestClassifyStage:
     """Tests for the 1/2/3 document-stage splitter (docs/design/document-stages.md)."""
 
@@ -300,17 +301,17 @@ class TestClassifyStage:
             == 3
         )
 
-    def test_unknown_defaults_to_legacy_task_card_path(self):
+    def test_unknown_stage_stops_without_completion_evidence(self):
         title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
-        assert classify_stage(title) == 3
+        assert classify_stage(title) is None
 
     def test_reception_prefix_wins_over_markers(self):
         assert classify_stage("접수: 예산안", role_markers=["결재완료"]) == 1
 
-    def test_stage2_with_superior_returns_3(self):
+    def test_superior_row_does_not_prove_completion(self):
         title = "전자결재: [ 보안등급 : 99 ] [ 붙임 : 2 ] 공모제 실시 안내"
         assert (
-            classify_stage(title, role_markers=["접수", "결재", "업무담당자"]) == 3
+            classify_stage(title, role_markers=["접수", "결재", "업무담당자"]) is None
         )
 
 

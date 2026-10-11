@@ -1,4 +1,4 @@
-# Trace: backlog.md - Build 접수 approval line from org chart in predetermined order
+# Trace: backlog.md - Approval decision memory / Reception fallback / Assigned reuse
 """
 Approval-line builder driven by the org chart.
 
@@ -17,6 +17,11 @@ visible only through the win32 backend (uia shows just the tab shell).
 
 from dataclasses import dataclass
 from typing import Any, Callable, List, Optional, Tuple
+
+try:
+    from pywinauto import Desktop
+except ImportError:  # Non-Windows import/test collection; RPA calls fail closed.
+    Desktop = None
 
 from config import TimeoutConfig, UIConfig
 from utils.error_handler import handle_pywinauto_error, setup_logger
@@ -157,7 +162,9 @@ class ApprovalLineHandler:
             return False
         tree, listview = resolved
         target = [approver.name for approver in approvers]
-        if not self._sync_members(dialog, tree, listview, approvers, wait_for_condition):
+        if not self._sync_members(
+            dialog, tree, listview, approvers, wait_for_condition
+        ):
             return False
         try:
             staged = self.reorder(dialog, listview, target, wait_for_condition)
@@ -232,7 +239,9 @@ class ApprovalLineHandler:
         target = [approver.name for approver in approvers]
         if not self._remove_extras(dialog, listview, target, wait_for_condition):
             return False
-        return self._stage_missing(dialog, tree, listview, approvers, wait_for_condition)
+        return self._stage_missing(
+            dialog, tree, listview, approvers, wait_for_condition
+        )
 
     def _stage_missing(
         self,
@@ -269,9 +278,118 @@ class ApprovalLineHandler:
         """
         column = self._name_column_index(listview)
         return [
-            listview.get_item(i, column)["text"]
-            for i in range(listview.item_count())
+            listview.get_item(i, column)["text"] for i in range(listview.item_count())
         ]
+
+    @handle_pywinauto_error("Approval names capture", logger, default_return=None)
+    def read_dialog_names(self, dialog: Any) -> Optional[List[str]]:
+        """Read ordered names from the verified List1 control."""
+        listview = self._find_approval_list(dialog)
+        return self.read_approver_names(listview) if listview is not None else None
+
+    @handle_pywinauto_error("Approval roles probe", logger, default_return=None)
+    def read_role_markers(self, dialog: Any) -> Optional[List[str]]:
+        """Read the verified role column; do not infer completion-marker strings."""
+        listview = self._find_approval_list(dialog)
+        if listview is None:
+            return None
+        for column in range(listview.column_count()):
+            if listview.get_column(column)["text"] == UIConfig.APPROVER_ROLE_COLUMN:
+                return [
+                    listview.get_item(row, column)["text"]
+                    for row in range(listview.item_count())
+                ]
+        logger.warning("Approval role column unavailable")
+        return None
+
+    def confirm_dialog(
+        self, dialog: Any, wait_for_condition: Callable[..., bool]
+    ) -> bool:
+        """Save a manually built line using the existing verified confirmation path."""
+        return self._confirm(dialog, wait_for_condition)
+
+    @handle_pywinauto_error("Approval role/member probe", logger, default_return=None)
+    def read_role_members(self, dialog: Any) -> Optional[List[Tuple[str, str]]]:
+        """Pair verified role/name headers from each row in the same ListView."""
+        listview = self._find_approval_list(dialog)
+        if listview is None:
+            return None
+        name_column = self._name_column_index(listview)
+        for column in range(listview.column_count()):
+            if listview.get_column(column)["text"] == UIConfig.APPROVER_ROLE_COLUMN:
+                return [
+                    (
+                        listview.get_item(row, column)["text"].strip(),
+                        listview.get_item(row, name_column)["text"].strip(),
+                    )
+                    for row in range(listview.item_count())
+                ]
+        logger.warning("Approval role column unavailable")
+        return None
+
+    @log_execution_time(logger)
+    @handle_pywinauto_error("Org-chart departments", logger, default_return=[])
+    def list_departments(
+        self, dialog: Any, wait_for_condition: Callable[..., bool]
+    ) -> List[str]:
+        """List exact department nodes under the verified organization root."""
+        tree = self._find_visible_tree(dialog)
+        if tree is None:
+            return []
+        root = tree.get_item([UIConfig.ORGCHART_ROOT_NODE], exact=True)
+        root.expand()
+        if not wait_for_condition(
+            lambda: self._child_texts(root), timeout=self.timeout
+        ):
+            logger.warning("Org-chart departments unavailable")
+            return []
+        return self._child_texts(root)
+
+    @log_execution_time(logger)
+    @handle_pywinauto_error("Org-chart members", logger, default_return=[])
+    def list_department_members(
+        self, dialog: Any, department: str, wait_for_condition: Callable[..., bool]
+    ) -> List[str]:
+        """Expand a department and wait for its lazy-loaded member nodes."""
+        tree = self._find_visible_tree(dialog)
+        if tree is None or not department:
+            return []
+        node = tree.get_item([UIConfig.ORGCHART_ROOT_NODE, department], exact=True)
+        if node.text() != department:
+            logger.error("Org-chart department mismatch: %s", department)
+            return []
+        node.expand()
+        if not wait_for_condition(
+            lambda: self._child_texts(node), timeout=self.timeout
+        ):
+            logger.warning("Org-chart members unavailable: %s", department)
+            return []
+        return self._child_texts(node)
+
+    @log_execution_time(logger)
+    def resolve_approvers(
+        self, dialog: Any, names: List[str], wait_for_condition: Callable[..., bool]
+    ) -> Optional[List[Approver]]:
+        """Resolve stored names to unique departments; refuse homonyms."""
+        if not names or len(set(names)) != len(names):
+            logger.warning("Approval line has empty or duplicate names: %s", names)
+            return None
+        matches: dict[str, List[Approver]] = {name: [] for name in names}
+        for department in self.list_departments(dialog, wait_for_condition):
+            members = self.list_department_members(
+                dialog, department, wait_for_condition
+            )
+            if not members:
+                logger.warning("Approval line resolution incomplete: %s", department)
+                return None
+            for text in members:
+                tokens = text.split()
+                if tokens and tokens[0] in matches:
+                    matches[tokens[0]].append(Approver(department, tokens[0]))
+        if any(len(candidates) != 1 for candidates in matches.values()):
+            logger.warning("Approval line cannot resolve names uniquely: %s", names)
+            return None
+        return [matches[name][0] for name in names]
 
     def add_approver(
         self,
@@ -514,11 +632,11 @@ class ApprovalLineHandler:
             return None
         return (candidates[0], candidates[1])
 
-    def _confirm(
-        self, dialog: Any, wait_for_condition: Callable[..., bool]
-    ) -> bool:
-        """Click confirm and verify the dialog closes (save applied)."""
+    def _confirm(self, dialog: Any, wait_for_condition: Callable[..., bool]) -> bool:
+        """Save, acknowledge the exact completion result, then verify closure."""
         try:
+            window = dialog.wrapper_object()
+            process_id = window.process_id()
             confirms = [
                 button
                 for button in dialog.descendants(class_name="Button")
@@ -538,16 +656,66 @@ class ApprovalLineHandler:
         except Exception as exc:
             logger.error("확인 버튼 클릭 실패: %s", exc)
             return False
-        if not wait_for_condition(lambda: self._dialog_closed(dialog), timeout=self.timeout):
-            logger.error("결재정보 저장 미확인: 창이 닫히지 않음")
+        if not self._acknowledge_save_result(process_id, wait_for_condition):
+            logger.error("Approval-line save result unavailable or unacknowledged")
+            return False
+        if not wait_for_condition(
+            lambda: self._dialog_closed(window), timeout=self.timeout
+        ):
+            logger.error("Approval-line editor closure unverified")
             return False
         logger.info("결재정보 저장 확인")
         return True
 
+    def _acknowledge_save_result(
+        self, process_id: int, wait_for_condition: Callable[..., bool]
+    ) -> bool:
+        """Consume only the process-scoped, verified line-change completion body."""
+        if Desktop is None:
+            logger.warning("Approval-line result observation unavailable off Windows")
+            return False
+        matches: List[Any] = []
+
+        def observe_result() -> bool:
+            matches.clear()
+            for result in Desktop(backend="win32").windows(process=process_id):
+                if not result.is_visible():
+                    continue
+                bodies = [
+                    c.window_text().strip()
+                    for c in result.descendants(class_name="Static")
+                ]
+                if UIConfig.APPROVAL_LINE_SAVED_MESSAGE in bodies:
+                    matches.append(result)
+            return len(matches) == 1
+
+        try:
+            if not wait_for_condition(observe_result, timeout=self.timeout):
+                return False
+            result = matches[0]
+            buttons = [
+                b
+                for b in result.descendants(class_name="Button")
+                if b.window_text() == UIConfig.CONFIRM_BUTTON
+                and b.is_visible()
+                and b.is_enabled()
+            ]
+            if len(buttons) != 1:
+                return False
+            buttons[0].click()
+            return bool(
+                wait_for_condition(
+                    lambda: self._dialog_closed(result), timeout=self.timeout
+                )
+            )
+        except (OSError, RuntimeError, AttributeError) as error:
+            logger.warning("Approval-line result observation failed: %s", error)
+            return False
+
     def _dialog_closed(self, dialog: Any) -> bool:
-        """True when the dialog is gone; lookup errors count as closed."""
+        """True only when closure is observed; lookup errors do not prove a save."""
         try:
             return not dialog.is_visible()
         except Exception as exc:
-            logger.debug("결재정보 상태 확인 실패 (닫힘으로 간주): %s", exc)
-            return True
+            logger.debug("Approval dialog closure unverified: %s", exc)
+            return False

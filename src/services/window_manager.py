@@ -3,6 +3,7 @@ Window connection and management module for official document automation.
 Handles window detection, connection, and state management.
 """
 
+# Trace: backlog.md - Avoid toolbar combo expansion during approval lookup
 import time
 from typing import Any
 import win32gui
@@ -146,7 +147,9 @@ class WindowManager:
             payment_info_buttons = UIConfig.PAYMENT_INFO_BUTTONS
             for button_name in payment_info_buttons:
                 try:
-                    button = self.dlg[button_name]
+                    button = self.dlg.child_window(
+                        title=button_name, control_type="Button"
+                    )
                     if button.exists() and button.is_enabled():
                         logger.info("'%s' 버튼 클릭하여 결재정보 창 열기", button_name)
                         button.click()

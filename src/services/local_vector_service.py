@@ -7,7 +7,7 @@ L2-normalized (LocalEmbeddingService guarantees this); cosine similarity is
 derived from sqlite-vec L2 distance as ``1 - d^2 / 2``.
 """
 
-# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
+# Trace: backlog.md - Approval decision memory / Approval store
 
 import json
 import logging
@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 RECEPTION_TABLE = "reception_mappings"
 CARD_TABLE = "task_card_mappings"
+APPROVAL_TABLE = "approval_lines"
+APPROVAL_VEC_TABLE = "vec_approval_lines"
 RECEPTION_VEC_TABLE = "vec_receptions"
 CARD_VEC_TABLE = "vec_cards"
 META_TABLE = "vector_meta"
@@ -103,6 +105,26 @@ _SQL_UPSERT_CARD = """INSERT INTO {t}
       embedding=excluded.embedding,
       updated_at=excluded.updated_at"""
 _SQL_VEC_INSERT = "INSERT INTO {t}(rowid, embedding) VALUES (?, ?)"
+_SQL_APPROVAL_DDL = """CREATE TABLE IF NOT EXISTS approval_lines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT UNIQUE NOT NULL,
+    approvers TEXT NOT NULL,
+    embedding BLOB,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)"""
+_SQL_APPROVAL_GET = "SELECT approvers FROM approval_lines WHERE title = ?"
+_SQL_APPROVAL_LIST = (
+    "SELECT title, approvers, created_at FROM approval_lines "
+    "ORDER BY id LIMIT ? OFFSET ?"
+)
+_SQL_APPROVAL_CANDIDATES = (
+    "SELECT id, title, approvers FROM approval_lines WHERE id IN ({ids})"
+)
+_SQL_APPROVAL_UPSERT = """INSERT INTO approval_lines
+    (title, approvers, embedding, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(title) DO UPDATE SET approvers=excluded.approvers,
+    embedding=excluded.embedding, updated_at=excluded.updated_at"""
 
 
 def _clamp(value: float, low: float = -1.0, high: float = 1.0) -> float:
@@ -144,8 +166,16 @@ class LocalVectorService:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.enable_load_extension(True)
         self._conn.load_extension(sqlite_vec.loadable_path())
-        self._init_schema()
-        self._check_dimension()
+        try:
+            self._conn.execute(_SQL_META_DDL)
+            self._check_dimension()
+            self._init_schema()
+        except (sqlite3.Error, ValueError):
+            logger.exception(
+                "Local vector schema initialization failed: %s", self.db_path
+            )
+            self._conn.close()
+            raise
 
         logger.info("Local 벡터 DB 초기화 완료: %s", self.db_path)
 
@@ -157,6 +187,10 @@ class LocalVectorService:
         """Create base tables, vec0 index tables and the meta table."""
         self._conn.execute(_SQL_RECEPTION_DDL.format(t=RECEPTION_TABLE))
         self._conn.execute(_SQL_CARD_DDL.format(t=CARD_TABLE))
+        self._conn.execute(_SQL_APPROVAL_DDL)
+        self._conn.execute(
+            _SQL_VEC_DDL.format(t=APPROVAL_VEC_TABLE, dim=self._dimension)
+        )
         self._conn.execute(
             _SQL_VEC_DDL.format(t=RECEPTION_VEC_TABLE, dim=self._dimension)
         )
@@ -181,6 +215,109 @@ class LocalVectorService:
     def close(self) -> None:
         """Close the database connection."""
         self._conn.close()
+
+    @log_execution_time(logger)
+    @handle_supabase_error("Approval line lookup", logger, default_return=None)
+    def retrieve_approval_line_by_title(self, title: str) -> Optional[List[str]]:
+        """Read ordered names by exact title, without embedding calls."""
+        row = self._conn.execute(_SQL_APPROVAL_GET, (title,)).fetchone()
+        return cast(List[str], json.loads(row[0])) if row else None
+
+    @log_execution_time(logger)
+    @handle_supabase_error("Approval line recommendation", logger, default_factory=list)
+    def recommend_approval_lines_with_embedding(
+        self, query_embedding: List[float], count: int = 3
+    ) -> List[Dict[str, Any]]:
+        """Rank ordered lines, deduplicating identical sequences."""
+        if count <= 0:
+            return []
+        hits = dict(self._knn(APPROVAL_VEC_TABLE, query_embedding, count))
+        if not hits:
+            return []
+        statement = _SQL_APPROVAL_CANDIDATES.format(ids=",".join("?" for _ in hits))
+        rows = self._conn.execute(statement, list(hits)).fetchall()
+        best: Dict[Tuple[str, ...], Dict[str, Any]] = {}
+        for row_id, title, encoded in rows:
+            names = json.loads(encoded)
+            similarity = hits[row_id]
+            key = tuple(names)
+            if similarity < self.similarity_threshold:
+                continue
+            if key not in best or similarity > best[key]["similarity"]:
+                best[key] = {
+                    "title": title,
+                    "approvers": names,
+                    "similarity": similarity,
+                }
+        return sorted(best.values(), key=lambda item: item["similarity"], reverse=True)
+
+    @log_execution_time(logger)
+    def upsert_approval_line_embedding(
+        self, title: str, approvers: List[str], embedding: Optional[List[float]] = None
+    ) -> bool:
+        """Persist names and vector atomically; reject incomplete lines."""
+        if (
+            not title.strip()
+            or not approvers
+            or any(not name.strip() for name in approvers)
+        ):
+            logger.warning("Approval line rejected: empty title or approver")
+            return False
+        try:
+            vector, _ = self._resolve_embedding(title, "approval_line", embedding)
+            if vector is None:
+                logger.warning("Approval line embedding unavailable: %s", title)
+                return False
+            now = datetime.now(timezone.utc).isoformat()
+            with self._conn:
+                self._conn.execute(
+                    _SQL_APPROVAL_UPSERT,
+                    (
+                        title,
+                        json.dumps(approvers, ensure_ascii=False),
+                        self._to_blob(vector),
+                        now,
+                        now,
+                    ),
+                )
+                row_id = self._row_id_by_title(APPROVAL_TABLE, title)
+                self._replace_vector(APPROVAL_VEC_TABLE, row_id, vector)
+            logger.info("Approval line saved: %s -> %s", title, approvers)
+            return True
+        except (sqlite3.Error, ValueError, TypeError) as error:
+            logger.error("Approval line save failed: %s (%s)", title, error)
+            return False
+
+    @handle_supabase_error("Approval line exists", logger, default_return=False)
+    def approval_line_exists(self, title: str) -> bool:
+        """Check exact title existence."""
+        statement = _SQL_EXISTS_BY_TITLE.format(t=APPROVAL_TABLE)
+        return self._conn.execute(statement, (title,)).fetchone() is not None
+
+    @handle_supabase_error("Approval line delete", logger, default_return=False)
+    def delete_approval_line_by_title(self, title: str) -> bool:
+        """Delete mapping and index together."""
+        with self._conn:
+            return self._delete_by_title(APPROVAL_TABLE, APPROVAL_VEC_TABLE, title)
+
+    @log_execution_time(logger)
+    def list_all_approval_lines(
+        self, limit: int = 1000, offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Read a page of approval mappings in insertion order."""
+        rows = self._conn.execute(_SQL_APPROVAL_LIST, (limit, offset)).fetchall()
+        return [
+            {"title": title, "approvers": json.loads(names), "created_at": created}
+            for title, names, created in rows
+        ]
+
+    def iter_all_approval_lines(
+        self, batch_size: int = 500
+    ) -> Iterator[Dict[str, Any]]:
+        """Stream mappings; reject invalid sizes to prevent endless pagination."""
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        yield from self._iter_table(self.list_all_approval_lines, batch_size)
 
     # ------------------------------------------------------------------ #
     # Helpers
@@ -593,7 +730,10 @@ class LocalVectorService:
     @handle_supabase_error("문서 개수 조회", logger, default_return=0)
     def get_document_count(self, table_type: str = "task_card") -> int:
         """Return the row count for a mapping table."""
-        table_name = CARD_TABLE if table_type == "task_card" else RECEPTION_TABLE
+        table_name = {
+            "task_card": CARD_TABLE,
+            "approval_line": APPROVAL_TABLE,
+        }.get(table_type, RECEPTION_TABLE)
         statement = _SQL_COUNT.format(t=table_name)
         row = self._conn.execute(statement).fetchone()
         return int(row[0]) if row else 0
@@ -606,7 +746,7 @@ class LocalVectorService:
             return {
                 "connected": True,
                 "db_path": str(self.db_path),
-                "tables": [CARD_TABLE, RECEPTION_TABLE],
+                "tables": [CARD_TABLE, RECEPTION_TABLE, APPROVAL_TABLE],
             }
         except Exception as error:  # pylint: disable=broad-except
             return {"connected": False, "error": str(error)}
@@ -627,8 +767,10 @@ class LocalVectorService:
         try:
             self._conn.execute(_SQL_DELETE_ALL.format(t=RECEPTION_VEC_TABLE))
             self._conn.execute(_SQL_DELETE_ALL.format(t=CARD_VEC_TABLE))
+            self._conn.execute(_SQL_DELETE_ALL.format(t=APPROVAL_VEC_TABLE))
             self._conn.execute(_SQL_DELETE_ALL.format(t=RECEPTION_TABLE))
             self._conn.execute(_SQL_DELETE_ALL.format(t=CARD_TABLE))
+            self._conn.execute(_SQL_DELETE_ALL.format(t=APPROVAL_TABLE))
             self._conn.commit()
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             logger.warning("모든 데이터 삭제 완료")
@@ -637,7 +779,7 @@ class LocalVectorService:
                 resource_id="all_data",
                 status="success",
                 details={
-                    "tables": [CARD_TABLE, RECEPTION_TABLE],
+                    "tables": [CARD_TABLE, RECEPTION_TABLE, APPROVAL_TABLE],
                     "environment": self.config.get_environment(),
                 },
                 duration_ms=duration_ms,

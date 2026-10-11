@@ -3,7 +3,7 @@ Button controller module for official document automation.
 Handles all button click operations with unified logic.
 """
 
-# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
+# Trace: backlog.md - Avoid toolbar combo expansion during approval lookup
 
 from typing import Any
 from pywinauto import keyboard
@@ -202,7 +202,7 @@ class ButtonController:
             Exception: 결재 버튼을 찾을 수 없는 경우
         """
         try:
-            button = self.dlg["결재"]
+            button = self.dlg.child_window(title="결재", control_type="Button")
             if button.exists() and button.is_enabled():
                 logger.info("결재 버튼 클릭")
                 button.click()
