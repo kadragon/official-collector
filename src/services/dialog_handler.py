@@ -3,7 +3,7 @@ Dialog handler module for official document automation.
 Coordinates reception, approval, and flow state using confirmation-window readers.
 """
 
-# Trace: Split remaining oversized RPA modules on next touch
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 
 from typing import Any, Callable
 from pywinauto.findwindows import ElementNotFoundError
@@ -106,80 +106,52 @@ class DialogHandler(ConfirmDialogReader):
             logger.warning("예상치 못한 오류: %s", e)
             return DocumentFlowState.EXIT
 
+    def _confirm_known_reception_body(
+        self, expected: str, timeout: float, wait_for_condition: Callable
+    ) -> bool:
+        """Observe once per poll and click only the retained matching dialog."""
+        dialog = self.dlg.child_window(title="확인", control_type="Window")
+        observed_text = ""
+
+        def ready() -> bool:
+            nonlocal observed_text
+            if not dialog.exists():
+                return False
+            observed_text = self.get_quick_dialog_text(dialog)
+            return expected in observed_text
+
+        if not wait_for_condition(
+            ready, timeout=timeout, interval=TimeoutConfig.CONDITION_WAIT_INTERVAL
+        ):
+            logger.warning(
+                "Reception confirmation unverified: observed=%r", observed_text
+            )
+            return False
+        dialog.child_window(title="확인", class_name="Button").click()
+        logger.info("Reception confirmation clicked: %s", observed_text)
+        return True
+
     @log_execution_time(logger)
     def handle_reception_confirmation(
         self, wait_for_condition_callback: Callable
     ) -> bool:
-        """
-        '문서를 접수하시겠습니까?' 확인 대화상자를 처리합니다.
-
-        Args:
-            wait_for_condition_callback: 조건 대기 콜백 함수
-        """
-        # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
-        reception_dialog_appeared = wait_for_condition_callback(
-            lambda: (
-                self.dlg.child_window(title="확인", control_type="Window") is not None
-                and self.dlg.child_window(title="확인", control_type="Window").exists()
-                and self.dlg.child_window(
-                    title="문서를 접수하시겠습니까?", class_name="Static"
-                )
-                is not None
-                and self.dlg.child_window(
-                    title="문서를 접수하시겠습니까?", class_name="Static"
-                ).exists()
-            ),
-            timeout=TimeoutConfig.RECEPTION_CONFIRMATION,
-            interval=TimeoutConfig.CONDITION_WAIT_INTERVAL,
+        """Confirm only the known reception question, using the body fast pass."""
+        return self._confirm_known_reception_body(
+            "문서를 접수하시겠습니까?",
+            TimeoutConfig.RECEPTION_CONFIRMATION,
+            wait_for_condition_callback,
         )
-
-        if reception_dialog_appeared:
-            logger.info("접수 확인 대화상자 감지 - 확인 버튼 클릭")
-            # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
-            confirm_dialog = self.dlg.child_window(title="확인", control_type="Window")
-            confirm_button = confirm_dialog.child_window(
-                title="확인", class_name="Button"
-            )
-            confirm_button.click()
-            logger.debug("접수 확인 완료")
-            return True
-        logger.warning("접수 확인 대화상자가 나타나지 않음")
-        return False
 
     @log_execution_time(logger)
     def handle_circulation_completion(
         self, wait_for_condition_callback: Callable
     ) -> bool:
-        """
-        '공람지정을 완료하였습니다.' 확인 대화상자를 처리합니다.
-
-        Args:
-            wait_for_condition_callback: 조건 대기 콜백 함수
-        """
-        # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
-        circulation_dialog_appeared = wait_for_condition_callback(
-            lambda: (
-                self.dlg.child_window(title="확인", control_type="Window").exists()
-                and self.dlg.child_window(
-                    title="공람지정을 완료하였습니다.", class_name="Static"
-                ).exists()
-            ),
-            timeout=TimeoutConfig.CIRCULATION_COMPLETION,
-            interval=TimeoutConfig.CONDITION_WAIT_INTERVAL,
+        """Acknowledge only the known circulation completion body."""
+        return self._confirm_known_reception_body(
+            "공람지정을 완료하였습니다.",
+            TimeoutConfig.CIRCULATION_COMPLETION,
+            wait_for_condition_callback,
         )
-
-        if circulation_dialog_appeared:
-            logger.info("공람지정 완료 대화상자 감지 - 확인 버튼 클릭")
-            # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
-            confirm_dialog = self.dlg.child_window(title="확인", control_type="Window")
-            confirm_button = confirm_dialog.child_window(
-                title="확인", class_name="Button"
-            )
-            confirm_button.click()
-            logger.debug("공람지정 완료 확인 완료")
-            return True
-        logger.debug("공람지정 완료 대화상자가 나타나지 않음")
-        return False
 
     @log_execution_time(logger)
     def handle_reception_result(self, wait_for_condition_callback: Callable) -> bool:
@@ -189,13 +161,14 @@ class DialogHandler(ConfirmDialogReader):
         Args:
             wait_for_condition_callback: 조건 대기 콜백 함수
         """
+        dialog = self.dlg.child_window(title="확인", control_type="Window")
         observed_text = ""
 
         def result_ready() -> bool:
             nonlocal observed_text
-            if not self.dlg.child_window(title="확인", control_type="Window").exists():
+            if not dialog.exists():
                 return False
-            observed_text = self.get_confirm_dialog_text()
+            observed_text = self.get_quick_dialog_text(dialog)
             if not observed_text.strip() or observed_text.strip() == "확인":
                 observed_text = self.get_detailed_dialog_text()
             return (
@@ -353,6 +326,4 @@ class DialogHandler(ConfirmDialogReader):
             logger.info("종료 확인 대화상자 감지 - 프로세스 종료")
             click_confirm_callback(confirm_dialog)
         else:
-            # 복잡한 분석 대신 기본 처리
-            logger.info("기본 확인 처리")
-            click_confirm_callback(confirm_dialog)
+            logger.warning("Approval result body unverified: %r", dialog_text)

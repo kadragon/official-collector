@@ -1,4 +1,4 @@
-# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 """
 Configuration module for the official document automation system.
 """
@@ -150,6 +150,16 @@ class UIConfig:
     ADD_APPROVER_BUTTON = "▶ 추가"
     REMOVE_APPROVER_BUTTON = "◀ 삭제"
     CONFIRM_BUTTON = "확인"
+    # Verified confirmation bodies; quick reads stop as soon as one is found.
+    CONFIRM_BODY_PATTERNS = (
+        "문서를 접수하시겠습니까",
+        "공람지정을 완료하였습니다.",
+        "취소 결재",
+        "결재를 진행하시겠습니까",
+        "다음 문서를 처리하겠습니까",
+        "종료하시겠습니까",
+        "결재문서가 완료되었습니다",
+    )
     APPROVAL_LINE_SAVED_MESSAGE = "결재선 변경을 완료했습니다."
     TASK_CARD_SELECT_ID = 6451
     TASK_CARD_FIELD_ID = 1994

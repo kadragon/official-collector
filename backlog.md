@@ -57,14 +57,14 @@
 - Prompt-state verification: 346 unit tests pass; pylint exits 0; three touched config/dialog/official modules pass mypy; Bandit reports no issues; Black and diff checks pass. Live prompt sequence verification pending.
 - [x] Next-document load boundary: after a verified continuation prompt, wait for its disappearance plus a nonempty changed raw window title and an enabled main window before reading the next document. Preserve changed-document review guard; unchanged/partial loads stop within 10 seconds.
 - Load-boundary verification: 343 unit tests pass; pylint exits 0; config/official-service mypy passes; Bandit reports no issues; Black and diff checks pass. Actual client load verification pending.
-- [ ] Capture a live document identifier for consecutive documents with identical raw window titles; the load boundary currently stops safely rather than guessing identity.
+- [ ] Capture a live document identifier for consecutive documents with identical raw window titles; the load boundary currently stops safely rather than guessing identity. *(deferred: requires live client observations)*
 - [x] Follow-up dialog read: UIA child wrappers have no exists(); read their text directly. Screenshot confirms `결재문서를 처리하였습니다. 다음 문서를 처리하겠습니까?` and `예(Y)`; explicit Yes click fallback added. Reproducing tests cover the reader-to-review transition and button lookup.
 - Follow-up verification: 335 unit tests pass; pylint exits 0; config/dialog-handler mypy passes; Bandit reports no issues; Black and diff checks pass. Live click verification remains pending.
 - [x] Review continuation: confirm only the known approval prompt after consent, require a result/next-document signal before success, continue with separate consent per document; native composed-name input with a bounded child reader.
 - Review-continuation verification: 333 unit tests pass; pylint exits 0; four touched modules pass mypy; Bandit reports no medium/high issues; Black and diff checks pass. Actual IME and client-dialog verification pending.
 - [x] Handler review gate: pair role/name cells, resolve operator identity, bypass classification for other handlers, click approval only on explicit consent; skip/timeout/title change stop. Empty-memory registration verified.
 - Handler-review verification: 323 unit tests pass; pylint exits 0, Bandit reports no issues, Black and diff checks pass. Mypy reports 50 diagnostics in existing Supabase/deletion paths; live verification pending.
-- [ ] Live verification of handler review gate: exact operator identity, composed name input, other-handler prompt, skip/consent, known approval confirmation and per-document continuation.
+- [ ] Live verification of handler review gate: exact operator identity, composed name input, other-handler prompt, skip/consent, known approval confirmation and per-document continuation. *(deferred: requires disposable live documents and operator consent)*
 - [x] Approval probe close regression: replace ignored Escape with bounded win32 WM_CLOSE; regression tests cover ignored Escape and refused closure. Live verification pending.
 - [x] Approval probe closure verification: retain the original HWND wrapper before closing; regression test reproduces post-close WindowSpecification lookup failure. Live verification pending.
 - [x] Approval store: ordered JSON, local KNN reuse, transactional upsert, pagination, Supabase legacy no-ops
@@ -72,17 +72,15 @@
 - [x] Assigned reuse: local store in both backends, confirmed recommendations, manual dialog capture, verified application
 - [x] Foundation verification: 262 unit tests pass; pylint exits 0 (9.69/10), touched local modules pass mypy, Bandit `--ini` reports no issues, Black and diff checks pass. Live-client verification not run.
 - [x] Runtime unit verification: 301 tests pass; pylint exits 0 (9.70/10), six touched service/config/input modules pass mypy, Bandit `--ini` reports no issues, Black passes on all 15 touched Python files.
-- [ ] Live-client verification: department/member reads, ordered line application, capture/save/cancel and 60-second timeout; see docs/runbook.md
+- [ ] Live-client verification: department/member reads, ordered line application, capture/save/cancel and 60-second timeout; see docs/runbook.md *(deferred: requires disposable live documents)*
 - [x] Resolve manual approval-line capture timeout: 60 seconds maximum, approved 2026-10-07; cancel without learning on timeout
 - Verified foundations: department/member readers expand lazy org nodes; stored-name resolution preserves order and rejects homonyms or incomplete reads. Raw verified role-column probing now routes the known stage-2 signature; after configuring its line, the run ends for operator submission.
 - Existing gate debt: whole-project mypy has 50 diagnostics after Black formatting, identical to a same-format HEAD snapshot (41 before formatting; line splits repeat indexing diagnostics). No new type errors; Supabase JSON response types and deletion-list invariance remain.
 - Existing gate debt: runbook/pre-commit use `--configfile .bandit`, but `.bandit` is INI; `bandit -r -ll --ini .bandit src/` passes.
 
-- [ ] Capture a stage-3 live dump (결재방법 completion-marker strings) when a post-approval document is open — finalizes the 2/3 split rule
-- [ ] Add RPA readers for per-row approval state + 문서정보 task-card field (after live dump lands the exact control names)
-- [ ] PoC win32-hybrid RPA backend for confirm dialogs (baseline ⏱️ logs first, then win32/BM_CLICK on 확인창 only, keep UIA for TreeView/List1)
-- [ ] Speed up task-card selection: replace coords mouse.click + fixed sleeps in `_perform_task_card_selection` with control click / keyboard accelerators
-- [ ] Unify confirm-dialog text reads to single quick pass (`get_quick_dialog_text` + early pattern match, extend `handle_approval_result` fast-path to reception flow)
+- [ ] Capture a stage-3 live dump (결재방법 completion-marker strings) when a post-approval document is open — finalizes the 2/3 split rule *(deferred: requires a live post-approval document)*
+- [ ] Add RPA readers for per-row approval state + 문서정보 task-card field (after live dump lands the exact control names) *(blocked by: live stage-3 completion-marker dump)*
+- [ ] PoC win32-hybrid RPA backend for confirm dialogs (baseline ⏱️ logs first, then win32/BM_CLICK on 확인창 only, keep UIA for TreeView/List1) *(deferred: requires live confirmation-dialog baseline logs)*
 
 ## Someday
 

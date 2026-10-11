@@ -1,4 +1,4 @@
-# Trace: backlog.md - Classification safety and learning retries
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 """Regressions for document identity, reception evidence and failed learning."""
 
 from unittest.mock import MagicMock, Mock
@@ -64,7 +64,7 @@ def test_reception_without_success_evidence_discards_learning(waits):
 @pytest.mark.parametrize("action", [DialogAction.UNKNOWN, DialogAction.APPROVE])
 def test_unknown_reception_result_is_never_confirmed(action):
     handler = DialogHandler(Mock(), Mock())
-    handler.get_confirm_dialog_text = Mock(return_value="unverified")
+    handler.get_quick_dialog_text = Mock(return_value="unverified")
     handler.dialog_classifier.classify_dialog_action.return_value = action
     assert (
         handler.handle_reception_result(lambda predicate, **kwargs: predicate())
@@ -78,12 +78,15 @@ def test_reception_success_leaves_known_prompt_for_main_loop(action):
     collector = OfficialCollector.__new__(OfficialCollector)
     collector.dlg = MagicMock()
     collector.dialog_handler = DialogHandler(collector.dlg, Mock())
-    collector.dialog_handler.get_confirm_dialog_text = Mock(
-        return_value=(
-            "다음 문서를 처리하겠습니까?"
-            if action == DialogAction.CONTINUE
-            else "종료하시겠습니까?"
-        )
+    collector.dialog_handler.get_quick_dialog_text = Mock(
+        side_effect=[
+            "문서를 접수하시겠습니까?",
+            (
+                "다음 문서를 처리하겠습니까?"
+                if action == DialogAction.CONTINUE
+                else "종료하시겠습니까?"
+            ),
+        ]
     )
     collector.dialog_handler.dialog_classifier.classify_dialog_action.return_value = (
         action
@@ -163,7 +166,7 @@ def test_reception_waits_past_previous_dialog_for_verified_result(previous):
 
     handler = DialogHandler(Mock(), DialogClassifier())
     handler.dlg.child_window.return_value.exists.return_value = True
-    handler.get_confirm_dialog_text = Mock(
+    handler.get_quick_dialog_text = Mock(
         side_effect=[previous, "다음 문서를 처리하겠습니까?"]
     )
     polls = []
@@ -184,7 +187,7 @@ def test_reception_result_uses_detailed_text_when_body_is_unreadable():
 
     handler = DialogHandler(Mock(), DialogClassifier())
     handler.dlg.child_window.return_value.exists.return_value = True
-    handler.get_confirm_dialog_text = Mock(return_value="확인")
+    handler.get_quick_dialog_text = Mock(return_value="확인")
     handler.get_detailed_dialog_text = Mock(return_value="종료하시겠습니까?")
     assert handler.handle_reception_result(lambda predicate, **kwargs: predicate())
     handler.get_detailed_dialog_text.assert_called_once_with()
@@ -195,5 +198,5 @@ def test_reception_circulation_completion_is_not_a_final_result():
 
     handler = DialogHandler(Mock(), DialogClassifier())
     handler.dlg.child_window.return_value.exists.return_value = True
-    handler.get_confirm_dialog_text = Mock(return_value="공람지정을 완료하였습니다.")
+    handler.get_quick_dialog_text = Mock(return_value="공람지정을 완료하였습니다.")
     assert not handler.handle_reception_result(lambda predicate, **kwargs: predicate())

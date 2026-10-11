@@ -1,4 +1,4 @@
-# Trace: backlog.md - Classification safety and learning retries
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 """
 공문 처리기를 제어하는 모듈.
 pywinauto를 활용하여 전자결재 및 접수 창과 상호작용합니다.
@@ -9,7 +9,7 @@ from typing import List, Optional, Callable, Any, cast, Tuple
 from enum import Enum
 import _ctypes
 import pyperclip
-from pywinauto import Application, keyboard, mouse
+from pywinauto import Application, keyboard
 from pywinauto.timings import TimeoutError as PyWinAutoTimeoutError
 from pywinauto.findwindows import ElementAmbiguousError, ElementNotFoundError
 
@@ -36,12 +36,18 @@ class OfficialCollector:
     전자결재 및 공문 처리를 위한 클래스.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        task_card_capture: Optional[
+            Callable[[Any, Optional[str]], Optional[str]]
+        ] = None,
+    ) -> None:
         """
         OfficialCollector 인스턴스를 초기화하고, 지정된 창에 연결을 시도합니다.
         """
         self.app: Any = Application(backend="uia")
         self.dialog_classifier = DialogClassifier()
+        self.task_card_capture = task_card_capture
 
         # Initialize WindowManager and connect to window
         self.window_manager = WindowManager(self.app)
@@ -506,76 +512,34 @@ class OfficialCollector:
         return ""
 
     def document_sort(self, document_group_name: str) -> None:
-        """
-        전자결재 문서 분류 과정을 실행합니다.
-
-        1) 결재정보 다이얼로그가 있는지 확인한다. 없다면 결재정보 버튼을 클릭해서, 다이얼로그를 띄운다.
-        2) 문서카드 선택 프로세스를 진행한다.
-        3) 결재 버튼을 클릭한다.
-        4) 확인 다이얼로그에 텍스트 '결재를 진행하시겠습니까?' 가 뜨면 확인 버튼을 클릭한다.
-        5) 4단계에서 확인 버튼 클릭 후
-           5-1) '종료하시겠습니까?' 메시지가 포함된 확인 다이얼로그가 확인되면 확인 버튼을 누르고 분류 종료
-           5-2) '문서를 처리하겠습니까?' 메시지가 포함된 확인 다이얼로그가 확인되면 확인 버튼을 누르고 새로 로드된 문서 처리
-
-        Args:
-            document_group_name (str): 선택할 문서 그룹 이름.
-        """
+        """Reuse verified capture and guarded approval for the legacy entry point."""
         if not self.dlg:
-            logger.error("대상 창이 연결되어 있지 않습니다.")
+            logger.error("Target document window is not connected")
             return
-        try:
-            # 1) 결재정보 다이얼로그 확인 및 열기
-            if not self.window_manager.ensure_payment_info_window():
-                logger.error("결재정보 창을 열 수 없어 문서 분류를 중단합니다.")
-                return
-            # 2) 문서카드 선택 프로세스 진행
-            self._perform_task_card_selection(document_group_name)
-            # 3) 결재 버튼 클릭
-            self.button_controller.click_approval_button()
-            # 4) '결재를 진행하시겠습니까?' 확인 대화상자 처리
-            self.dialog_handler.handle_approval_confirmation(
-                self._wait_for_condition, self.button_controller.click_confirm_button
-            )
-            # 5) 최종 결과 처리 (완료 또는 다음 문서)
-            self.dialog_handler.handle_approval_result(
-                lambda dialog: self.button_controller.click_dialog_button_unified(
-                    "confirm", dialog
-                )
-            )
-            logger.info("문서 분류 처리 완료")
-        except (
-            PyWinAutoTimeoutError,
-            ElementNotFoundError,
-            AttributeError,
-            RuntimeError,
-            OSError,
-        ) as e:
-            logger.error("문서 분류 중 오류 발생: %s", e)
-            raise
+        original_title = self.get_official_title()
+        if not original_title:
+            logger.warning("Task-card document identity is unavailable")
+            return
+        if not self._perform_task_card_selection(document_group_name):
+            return
+        if self.get_official_title() != original_title:
+            logger.warning("Task-card document changed during selection")
+            return
+        if not self.approve_reviewed_document(original_title):
+            logger.warning("Task-card document approval is unverified")
 
     @log_execution_time(logger)
-    def _perform_task_card_selection(self, document_group_name: str) -> None:
-        """문서카드 선택 프로세스를 수행합니다."""
-        info_window = self.window_manager.wait_for_window("결재정보")
-        info_window.set_focus()
-        keyboard.send_keys("{TAB 3}")
-        keyboard.send_keys("{SPACE}")
-        # '과제카드 선택' 다이얼로그가 나타날 때까지 대기
-        dialog = self.window_manager.wait_for_window("과제카드 선택")
-        dialog_rect = dialog.rectangle()
-        mouse.click(coords=(dialog_rect.right - 20, dialog_rect.top + 50))
-        keyboard.send_keys("{TAB 2}")
-        pyperclip.copy(document_group_name)
-        keyboard.send_keys("^v")
-        keyboard.send_keys("{ENTER}")
-        wait_for_ui_settle(TimeoutConfig.SHORT_DELAY)
-        keyboard.send_keys("{TAB}")
-        keyboard.send_keys("{SPACE}")
-        keyboard.send_keys("{TAB 3}")
-        keyboard.send_keys("{ENTER}")
-        wait_for_ui_settle(TimeoutConfig.SHORT_DELAY)
-        keyboard.send_keys("{ENTER}")
-        logger.info("문서카드 선택 완료: %s", document_group_name)
+    def _perform_task_card_selection(self, document_group_name: str) -> bool:
+        """Use the injected client capture; no coordinate clicks or fixed waits."""
+        if self.task_card_capture is None:
+            logger.warning("Verified task-card capture is not configured")
+            return False
+        selected = self.task_card_capture(self, document_group_name)
+        if not selected or not selected.strip():
+            logger.warning("Task-card selection cancelled or unverified")
+            return False
+        logger.info("Verified task-card selection: %s", selected)
+        return True
 
     def check_document_flow_state(self) -> str:
         """

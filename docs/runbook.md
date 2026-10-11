@@ -68,6 +68,9 @@ No deploy pipeline — runs as a local Windows workstation process. Production c
 
 ### Approval decision memory
 
+- The legacy `document_sort()` entry point now uses the injected `TaskCardHandler.capture()` path: verified selector control, bounded operator selection, actual field readback and save verification. Missing/cancelled capture or a changed raw title stops before approval. Coordinate clicks and fixed selection sleeps are removed; live speed measurements remain pending.
+- Reception confirmation, circulation acknowledgment and reception results share the quick confirmation-body reader with approval results. It skips the generic `확인` caption, scans UIA Text children once and stops on a known message. Reception results retain detailed fallback only when the body is unreadable; unknown approval-result bodies remain untouched.
+
 - Own-handler documents with receptionist and manager rows request `상위 결재 완료 여부 확인`; select final processing only after superior approval actually completed. DB card recommendations are shown, then the client unit-card chooser opens. Choose/confirm there, leave document-info Confirm untouched and enter Enter in the console within 60 seconds. The collector reads the actual card, saves document info and verifies final approval before retaining its DB update. Live end-to-end verification pending.
 
 - Toolbar combo boxes opening in sequence during review can come from pywinauto best-match indexing (`dlg["name"]`): its text collection expands unnamed UIA combos. Review-path payment-info/approval buttons and approval tab now use exact title/control-type selectors. Live behavior verification pending.

@@ -1,16 +1,17 @@
 """Confirmation-window discovery and text extraction, independent of workflows."""
 
-# Trace: Split remaining oversized RPA modules on next touch
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 
 import io
 import sys
 import time
+import _ctypes
 from typing import Any, Callable
 
 from pywinauto import Desktop
 from pywinauto.findwindows import ElementNotFoundError
 
-from config import TimeoutConfig
+from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger
 from utils.wait_helpers import wait_for_poll_interval
 
@@ -137,38 +138,40 @@ class ConfirmDialogReader:
             return ""
 
     def get_quick_dialog_text(self, confirm_dialog: Any) -> str:
-        """
-        대화상자 텍스트를 빠르게 가져오는 최적화된 함수.
-
-        Args:
-            confirm_dialog: 대화상자 객체
-
-        Returns:
-            str: 대화상자 텍스트
-        """
+        """Read a body once, skipping the caption and stopping on known messages."""
         try:
-            # 가장 빠른 방법: window_text() 직접 사용
-            text = confirm_dialog.window_text()
-            if text and text.strip():
-                return str(text.strip())
-
-            # 백업: Static 컨트롤에서 빠르게 텍스트 수집
-            try:
-                static_controls = confirm_dialog.children(class_name="Static")
-                for control in static_controls[:3]:  # 최대 3개만 확인
-                    try:
-                        control_text = control.window_text().strip()
-                        if control_text and len(control_text) > 5:  # 의미있는 텍스트만
-                            return str(control_text)
-                    except Exception as exc:
-                        logger.debug("Static control quick text read failed: %s", exc)
-                        continue
-            except Exception as exc:
-                logger.debug("Static control enumeration failed: %s", exc)
-
-            return ""
-        except Exception as e:
-            logger.debug("빠른 텍스트 가져오기 실패: %s", e)
+            text = str(confirm_dialog.window_text() or "").strip()
+            if text and text != UIConfig.CONFIRM_BUTTON:
+                return text
+            parts = []
+            # UIA child wrappers have no exists(); read each directly.
+            for control in confirm_dialog.children(control_type="Text"):
+                try:
+                    body = str(control.window_text() or "").strip()
+                except (
+                    ElementNotFoundError,
+                    AttributeError,
+                    RuntimeError,
+                    OSError,
+                    _ctypes.COMError,
+                ) as error:
+                    logger.debug("Confirmation child read failed: %s", error)
+                    continue
+                if body and body != UIConfig.CONFIRM_BUTTON and body not in parts:
+                    parts.append(body)
+                    if any(
+                        pattern in body for pattern in UIConfig.CONFIRM_BODY_PATTERNS
+                    ):
+                        return body
+            return " ".join(parts)
+        except (
+            ElementNotFoundError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            _ctypes.COMError,
+        ) as error:
+            logger.debug("Quick confirmation body read failed: %s", error)
             return ""
 
     def get_confirm_dialog_text(self) -> str:

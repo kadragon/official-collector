@@ -1,4 +1,4 @@
-# Trace: Split remaining oversized RPA modules on next touch
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 """Characterize dialog readers at the existing public handler boundary."""
 
 from unittest.mock import Mock
@@ -83,13 +83,13 @@ def test_quick_text_preserves_caption_first_short_circuit():
     window.children.assert_not_called()
 
 
-def test_quick_text_reads_only_first_three_static_controls_when_caption_empty():
+def test_quick_text_stops_on_known_body_when_caption_empty():
     handler, window = make_handler()
     window.window_text.return_value = ""
     controls = [Mock(window_text=Mock(return_value="tiny")) for _ in range(4)]
-    controls[2].window_text.return_value = "known body"
+    controls[2].window_text.return_value = "다음 문서를 처리하겠습니까?"
     window.children.return_value = controls
-    assert handler.get_quick_dialog_text(window) == "known body"
+    assert handler.get_quick_dialog_text(window) == "다음 문서를 처리하겠습니까?"
     controls[3].window_text.assert_not_called()
 
 
