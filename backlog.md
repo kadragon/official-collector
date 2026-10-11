@@ -83,13 +83,16 @@
 - [ ] PoC win32-hybrid RPA backend for confirm dialogs (baseline ⏱️ logs first, then win32/BM_CLICK on 확인창 only, keep UIA for TreeView/List1)
 - [ ] Speed up task-card selection: replace coords mouse.click + fixed sleeps in `_perform_task_card_selection` with control click / keyboard accelerators
 - [ ] Unify confirm-dialog text reads to single quick pass (`get_quick_dialog_text` + early pattern match, extend `handle_approval_result` fast-path to reception flow)
-- [ ] Split remaining oversized RPA modules on next touch (dialog_handler.py 564 lines)
 
 ## Someday
 
 - [ ] Revisit rich.live.Live for real-time batch progress if batch workflow needs it
 
 ## Review Backlog
+
+### PR #110 — Remaining workflow module splits (2026-10-11)
+
+- [ ] [debt] Split remaining oversized workflow modules on next touch (approval_line_handler.py 721, document_processor.py 596, official_service.py 673 lines) (source: code-review) — src/services/approval_line_handler.py:1
 
 - [x] [P1] Wire main.py reception flow to org-chart approval-line application: configured/selected department for manual picks, unique live resolution for stored names
 - [ ] [P2] Match staged ListView rows on (department, name): List1 carries no department column, so cross-department homonyms resolve by name only
@@ -104,7 +107,7 @@
 ### PR #107 — fix/now review (2026-10-07)
 
 - [ ] [debt] Extract Main.run() stage branches into handlers; complexity rose 17→20 branches / 72→81 stmts (introduced on fix/now) (source: review) — src/main.py:93
-- [ ] [constraint] Narrow remaining broad excepts outside PR #106/#107 scope (approval_line_handler 15, dialog_handler 19, document_processor 5, window_manager 5 incl. bare :123, main.py deletion helpers) (source: review) — src/services/window_manager.py:123
+- [ ] [constraint] Narrow remaining broad excepts outside PR #106/#107 scope (approval_line_handler 15, dialog_handler 1, confirm_dialog_reader 18, document_processor 5, window_manager 5 incl. bare :123, main.py deletion helpers) (source: review) — src/services/window_manager.py:123
 - [ ] [debt] Narrow broad raise in confirm-button fallback (source: review) — src/services/button_controller.py:209
 - [x] [plan] Reconcile approval-decision-memory spec with queue: restore Approval store / Reception fallback / Assigned reuse above; spec tracked at docs/design/approval-decision-memory.md
 
