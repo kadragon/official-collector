@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [done] Bind final processing to original document, verify reception success and retain failed learning for retry (2026-10-11)
 - [fix] Resolve stored reception handlers across departments; constrain manual org-chart picks only and reset per document (2026-10-08)
 
 - [feat] Final-handler consent, DB card suggestions and client unit-card capture; verify information save/final approval before learning (2026-10-08)

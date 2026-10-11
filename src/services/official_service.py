@@ -1,4 +1,4 @@
-# Trace: backlog.md - Approval decision memory / Reception fallback / Assigned reuse
+# Trace: backlog.md - Classification safety and learning retries
 """
 공문 처리기를 제어하는 모듈.
 pywinauto를 활용하여 전자결재 및 접수 창과 상호작용합니다.
@@ -431,7 +431,7 @@ class OfficialCollector:
         return cast(List[str], names)
 
     @log_execution_time(logger, "접수 버튼 처리")
-    def reception(self, shared: Optional[str] = None) -> None:
+    def reception(self, shared: Optional[str] = None) -> bool:
         """
         접수 버튼을 클릭하여 문서를 접수합니다.
 
@@ -448,7 +448,7 @@ class OfficialCollector:
         """
         if not self.dlg:
             logger.error("대상 창이 연결되어 있지 않습니다.")
-            return
+            return False
         # Parameter validation and normalization
         has_circulation = shared and shared.strip() and shared.strip() != "공람없음"
         logger.debug(
@@ -459,22 +459,28 @@ class OfficialCollector:
             logger.info("접수 버튼 클릭")
             self.dlg["접수"].click()
             # 4) '문서를 접수하시겠습니까?' 확인 대화상자 처리
-            self.dialog_handler.handle_reception_confirmation(self._wait_for_condition)
+            if not self.dialog_handler.handle_reception_confirmation(
+                self._wait_for_condition
+            ):
+                return False
             # 5) 공람지정 완료 확인 처리 (공람대상자가 있는 경우)
             if has_circulation:
                 logger.info(
                     "공람대상자가 있어 공람지정 완료 확인 처리를 진행합니다: %s", shared
                 )
-                self.dialog_handler.handle_circulation_completion(
+                if not self.dialog_handler.handle_circulation_completion(
                     self._wait_for_condition
-                )
+                ):
+                    return False
             else:
                 logger.debug("공람대상자가 없어 공람지정 완료 확인을 건너뜁니다")
             # 6) 후속 처리 분기 (종료 또는 다음 문서)
-            self.dialog_handler.handle_reception_result(
-                self._wait_for_condition, self.button_controller.click_confirm_button
-            )
+            if not self.dialog_handler.handle_reception_result(
+                self._wait_for_condition
+            ):
+                return False
             logger.info("접수 처리 완료")
+            return True
         except (
             PyWinAutoTimeoutError,
             ElementNotFoundError,

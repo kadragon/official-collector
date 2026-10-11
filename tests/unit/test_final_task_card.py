@@ -88,7 +88,10 @@ def test_final_document_learning_requires_verified_completion(completed):
     app.task_card_handler = Mock()
     app.task_card_handler.capture.return_value = "Actual"
     app.document_processor = make_processor()
-    assert app._process_approval_document("2026 final") is completed
+    assert (
+        app._process_approval_document("2026 final", "전자결재: 2026 final")
+        is completed
+    )
     app.collector.approve_reviewed_document.assert_called_once_with(
         "전자결재: 2026 final"
     )

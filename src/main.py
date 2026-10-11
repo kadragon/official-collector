@@ -1,6 +1,6 @@
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
-# Trace: backlog.md - Approval decision memory / Stored reception handler resolution
+# Trace: backlog.md - Classification safety and learning retries
 
 import itertools
 import sys
@@ -170,6 +170,10 @@ class Main:
                 self._flush_all_pending_updates()
                 break
 
+            if not self._is_current_document(title):
+                self._flush_all_pending_updates()
+                break
+
             if stage == 1:
                 if self._handle_reception_document(title):
                     success_count += 1
@@ -200,7 +204,7 @@ class Main:
                 print_document_info(processed_title, "전자결재 문서")
                 logger.info("전자결재 문서 처리 시작: %s", processed_title)
 
-                success = self._process_approval_document(processed_title)
+                success = self._process_approval_document(processed_title, title)
                 if success:
                     success_count += 1
                     print_info("문서 분류가 완료되었습니다. 다음 문서를 준비합니다...")
@@ -235,7 +239,8 @@ class Main:
                 return False
             if shared is not None and shared != "공람없음":
                 self.collector.add_share(str(shared))
-            self.collector.reception(shared)
+            if not self.collector.reception(shared):
+                return False
             completed = True
             print_success(f"접수 처리 완료: {approval} / {shared}")
             logger.info("Reception completed: %s -> %s / %s", title, approval, shared)
@@ -243,6 +248,14 @@ class Main:
         finally:
             if not completed:
                 self.document_processor.discard_reception_update(title)
+
+    def _is_current_document(self, title: str) -> bool:
+        """Keep mutations bound to the title captured before classification."""
+        current = self.collector.get_official_title()
+        if current != title:
+            logger.warning("Document changed: expected=%s, current=%s", title, current)
+            return False
+        return True
 
     def _classify_document(self, title: str) -> Optional[int]:
         """Check handler identity before routing any electronic document to task cards."""
@@ -358,9 +371,17 @@ class Main:
                 f"대기 중인 업데이트를 처리합니다... (접수: {reception_count}개, 카드: {card_count}개)"
             )
             self.document_processor.flush_pending_updates()
-            print_success("모든 업데이트가 완료되었습니다.")
+            remaining_receptions, remaining_cards = (
+                self.document_processor.get_pending_updates_count()
+            )
+            if remaining_receptions or remaining_cards:
+                print_warning("저장 실패 항목을 유지합니다. 재시도가 필요합니다.")
+            else:
+                print_success("모든 업데이트가 완료되었습니다.")
 
-    def _process_approval_document(self, processed_title: str) -> bool:
+    def _process_approval_document(
+        self, processed_title: str, original_title: str
+    ) -> bool:
         """
         전자결재 문서를 처리합니다.
 
@@ -375,13 +396,21 @@ class Main:
             bool: 처리 성공 여부
         """
         try:
-            original_title = self.collector.get_official_title()
+            if not self._is_current_document(original_title):
+                return False
+
+            def capture_card(suggestion: Optional[str]) -> Optional[str]:
+                if not self._is_current_document(original_title):
+                    return None
+                return cast(
+                    Optional[str],
+                    self.task_card_handler.capture(self.collector, suggestion),
+                )
+
             # 문서카드 매칭 (3단계 프로세스)
             card_name = self.document_processor.process_task_card_matching(
                 processed_title,
-                manual_selection=lambda suggestion: self.task_card_handler.capture(
-                    self.collector, suggestion
-                ),
+                manual_selection=capture_card,
             )
             logger.info(
                 "과제 카드 매칭 결과: %s", card_name if card_name else "매칭 실패"

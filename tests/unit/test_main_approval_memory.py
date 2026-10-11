@@ -250,7 +250,14 @@ def test_review_run_processes_two_documents_with_separate_consent(monkeypatch):
     ]
     app.collector.handle_document_flow_dialog.return_value = True
     first, second = "전자결재: [a] [b] first", "전자결재: [a] [b] second"
-    app.collector.get_official_title.side_effect = [first, first, second, second]
+    app.collector.get_official_title.side_effect = [
+        first,
+        first,
+        first,
+        second,
+        second,
+        second,
+    ]
     app.collector.read_approval_role_members.return_value = [("업무담당자", "Other")]
     app.collector.approve_reviewed_document.return_value = True
     app.document_processor.get_pending_updates_count.return_value = (0, 0)

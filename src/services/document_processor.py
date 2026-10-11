@@ -6,7 +6,7 @@
 문서 처리 로직을 중앙화하고 코드 중복을 제거했습니다.
 """
 
-# Trace: backlog.md - Approval decision memory / Reception fallback / Assigned reuse
+# Trace: backlog.md - Classification safety and learning retries
 
 from typing import List, Tuple, Optional, Any, Union, cast, Callable
 from config import VectorConfig
@@ -496,22 +496,30 @@ class DocumentProcessor:
 
         # 접수 문서 배치 업데이트 (임베딩 재사용)
         success_count = 0
+        failed_receptions = []
         for update in deduplicated_receptions:
             try:
                 # 임베딩이 있으면 재사용, 없으면 기존 메서드 사용
                 if update.get("embedding") is not None:
-                    self.supabase_service.upsert_reception_with_embedding(
+                    saved = self.supabase_service.upsert_reception_with_embedding(
                         update["title"],
                         update["approval"],
                         update["shared"],
                         update["embedding"],
                     )
                 else:
-                    self.supabase_service.upsert_reception_embedding(
+                    saved = self.supabase_service.upsert_reception_embedding(
                         update["title"], update["approval"], update["shared"]
                     )
-                success_count += 1
+                if saved:
+                    success_count += 1
+                else:
+                    failed_receptions.append(update)
+                    logger.warning(
+                        "Reception memory save rejected: %s", update["title"]
+                    )
             except Exception as e:
+                failed_receptions.append(update)
                 logger.error(
                     "접수 문서 배치 업데이트 실패: %s - %s", update["title"], str(e)
                 )
@@ -522,30 +530,40 @@ class DocumentProcessor:
 
         # 과제 카드 배치 업데이트 (임베딩 재사용)
         success_count = 0
+        failed_cards = []
         for update in deduplicated_cards:
             try:
                 # 임베딩이 있으면 재사용, 없으면 기존 메서드 사용
                 if update.get("embedding") is not None:
-                    self.supabase_service.upsert_card_with_embedding(
+                    saved = self.supabase_service.upsert_card_with_embedding(
                         update["title"], update["card_name"], update["embedding"]
                     )
                 else:
-                    self.supabase_service.upsert_card_embedding(
+                    saved = self.supabase_service.upsert_card_embedding(
                         update["title"], update["card_name"]
                     )
-                success_count += 1
+                if saved:
+                    success_count += 1
+                else:
+                    failed_cards.append(update)
+                    logger.warning("Card memory save rejected: %s", update["title"])
             except Exception as e:
+                failed_cards.append(update)
                 logger.error(
                     "과제 카드 배치 업데이트 실패: %s - %s", update["title"], str(e)
                 )
 
         logger.info("과제 카드 배치 업데이트 완료: %d/%d", success_count, card_count)
 
-        # 큐 초기화
-        self.pending_reception_updates.clear()
-        self.pending_card_updates.clear()
+        # Retain only failed latest mappings for the next flush in this process.
+        self.pending_reception_updates = failed_receptions
+        self.pending_card_updates = failed_cards
 
-        logger.info("배치 업데이트 완료 - 모든 대기 중인 업데이트가 처리되었습니다.")
+        logger.info(
+            "Memory flush finished; retained failures: %d receptions, %d cards",
+            len(failed_receptions),
+            len(failed_cards),
+        )
 
     def _deduplicate_updates(
         self, updates: list[dict[str, Any]], key: str

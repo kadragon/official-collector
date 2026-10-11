@@ -3,7 +3,7 @@ Dialog handler module for official document automation.
 Handles dialog analysis, text extraction, and flow state management.
 """
 
-# Trace: Now sprint - classify_stage splitter, env centralization, wait helpers, threshold docs
+# Trace: backlog.md - Classification safety and learning retries
 
 import time
 import io
@@ -364,7 +364,7 @@ class DialogHandler:
     @log_execution_time(logger)
     def handle_reception_confirmation(
         self, wait_for_condition_callback: Callable
-    ) -> None:
+    ) -> bool:
         """
         '문서를 접수하시겠습니까?' 확인 대화상자를 처리합니다.
 
@@ -397,13 +397,14 @@ class DialogHandler:
             )
             confirm_button.click()
             logger.debug("접수 확인 완료")
-        else:
-            logger.warning("접수 확인 대화상자가 나타나지 않음")
+            return True
+        logger.warning("접수 확인 대화상자가 나타나지 않음")
+        return False
 
     @log_execution_time(logger)
     def handle_circulation_completion(
         self, wait_for_condition_callback: Callable
-    ) -> None:
+    ) -> bool:
         """
         '공람지정을 완료하였습니다.' 확인 대화상자를 처리합니다.
 
@@ -431,19 +432,17 @@ class DialogHandler:
             )
             confirm_button.click()
             logger.debug("공람지정 완료 확인 완료")
-        else:
-            logger.debug("공람지정 완료 대화상자가 나타나지 않음")
+            return True
+        logger.debug("공람지정 완료 대화상자가 나타나지 않음")
+        return False
 
     @log_execution_time(logger)
-    def handle_reception_result(
-        self, wait_for_condition_callback: Callable, handle_confirm_callback: Callable
-    ) -> None:
+    def handle_reception_result(self, wait_for_condition_callback: Callable) -> bool:
         """
         접수 후 결과 처리 (종료 또는 다음 문서).
 
         Args:
             wait_for_condition_callback: 조건 대기 콜백 함수
-            handle_confirm_callback: 확인 대화상자 처리 콜백 함수
         """
         result_dialog_appeared = wait_for_condition_callback(
             lambda: self.dlg.child_window(title="확인", control_type="Window").exists(),
@@ -459,11 +458,13 @@ class DialogHandler:
             elif action == DialogAction.CONTINUE:
                 logger.info("다음 문서 처리 확인 - 계속 진행")
             else:
-                logger.info("일반적인 확인 대화상자 - 기본 처리")
+                logger.warning("Unverified reception result: %s", dialog_text)
+                return False
 
-            handle_confirm_callback()
-        else:
-            logger.info("접수 결과 대화상자가 나타나지 않음 - 처리 완료")
+            # Leave the known next/exit prompt for the main loop's load guard.
+            return True
+        logger.warning("Reception result unavailable")
+        return False
 
     @log_execution_time(logger)
     def handle_approval_confirmation(
