@@ -115,7 +115,9 @@ def test_flow_falls_back_to_detailed_body_and_preserves_unknown_state():
     window.texts.return_value = ["확인"]
     window.children.return_value = []
     assert handler.check_document_flow_state() == DocumentFlowState.UNKNOWN
-    window.children.return_value = [
-        Mock(window_text=Mock(return_value="종료하시겠습니까?"))
-    ]
+    window.children.side_effect = lambda **criteria: (
+        [] if criteria else [Mock(window_text=Mock(return_value="종료하시겠습니까?"))]
+    )
+    handler.get_detailed_dialog_text = Mock(wraps=handler.get_detailed_dialog_text)
     assert handler.check_document_flow_state() == DocumentFlowState.EXIT
+    handler.get_detailed_dialog_text.assert_called_once_with()
