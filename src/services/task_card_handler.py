@@ -1,7 +1,7 @@
-# Trace: backlog.md - Final handler task-card completion
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 """Capture user selection from the complete client unit-task-card chooser."""
 
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from pywinauto import Desktop
 from config import UIConfig, TimeoutConfig
 from ui.rich_console import RichConsole
@@ -16,9 +16,27 @@ console = RichConsole()
 class TaskCardHandler:
     """Read back the chosen card; never infer it from the recommendation."""
 
+    def capture_requested(
+        self, collector: Any, recommendation: Optional[str]
+    ) -> Optional[str]:
+        """Reject a differing requested card before saving document information."""
+        if not recommendation or not recommendation.strip():
+            logger.warning("Requested task-card name is empty")
+            return None
+        return cast(
+            Optional[str],
+            self.capture(collector, recommendation, required_card=recommendation),
+        )
+
     @log_execution_time(logger)
     @handle_pywinauto_error("Final task-card capture", logger, default_return=None)
-    def capture(self, collector: Any, recommendation: Optional[str]) -> Optional[str]:
+    def capture(
+        self,
+        collector: Any,
+        recommendation: Optional[str],
+        *,
+        required_card: Optional[str] = None,
+    ) -> Optional[str]:
         original_title = collector.dlg.window_text()
         if not collector.window_manager.ensure_payment_info_window():
             return None
@@ -64,6 +82,13 @@ class TaskCardHandler:
         )
         if not selected:
             logger.warning("Selected task-card field is empty")
+            return None
+        if required_card is not None and selected != required_card.strip():
+            logger.warning(
+                "Task-card mismatch before document-info save: requested=%s, selected=%s",
+                required_card,
+                selected,
+            )
             return None
         window = info.wrapper_object()
         info.child_window(control_id=1, class_name="Button", visible_only=True).click()

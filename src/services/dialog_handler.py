@@ -3,12 +3,14 @@ Dialog handler module for official document automation.
 Coordinates reception, approval, and flow state using confirmation-window readers.
 """
 
-# Trace: Split remaining oversized RPA modules on next touch
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 
+import _ctypes
 from typing import Any, Callable
-from pywinauto.findwindows import ElementNotFoundError
+from pywinauto.findwindows import ElementNotFoundError, ElementAmbiguousError
+from pywinauto.uia_defines import NoPatternInterfaceError
 
-from config import TimeoutConfig
+from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger
 from utils.performance_logger import log_execution_time
 from utils.wait_helpers import wait_for_ui_settle
@@ -107,101 +109,174 @@ class DialogHandler(ConfirmDialogReader):
             return DocumentFlowState.EXIT
 
     @log_execution_time(logger)
+    def _confirm_known_reception_body(
+        self, expected: str, timeout: float, wait_for_condition: Callable
+    ) -> bool:
+        """Read the complete body and click only its original matching wrapper."""
+        observed_text = ""
+        matching_dialog = None
+        try:
+            scope = self.dlg.wrapper_object()
+        except (
+            ElementNotFoundError,
+            ElementAmbiguousError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            _ctypes.COMError,
+            IndexError,
+            ValueError,
+            NoPatternInterfaceError,
+        ) as error:
+            logger.warning("Reception window unavailable: %s", error)
+            return False
+
+        def ready() -> bool:
+            nonlocal observed_text, matching_dialog
+            try:
+                dialogs = scope.descendants(
+                    title=UIConfig.CONFIRM_BUTTON, control_type="Window"
+                )
+                if len(dialogs) != 1:
+                    return False
+                candidate = dialogs[0]
+                observed_text = self.get_quick_dialog_text(candidate)
+                if not observed_text.strip():
+                    observed_text = self.get_detailed_dialog_text(candidate)
+                if observed_text.strip() != expected:
+                    return False
+                matching_dialog = candidate
+                return True
+            except (
+                ElementNotFoundError,
+                ElementAmbiguousError,
+                AttributeError,
+                RuntimeError,
+                OSError,
+                _ctypes.COMError,
+                IndexError,
+                ValueError,
+                NoPatternInterfaceError,
+            ) as error:
+                logger.debug("Reception confirmation read failed: %s", error)
+                return False
+
+        if (
+            not wait_for_condition(
+                ready, timeout=timeout, interval=TimeoutConfig.CONDITION_WAIT_INTERVAL
+            )
+            or matching_dialog is None
+        ):
+            logger.warning(
+                "Reception confirmation unverified: observed=%r", observed_text
+            )
+            return False
+        try:
+            buttons = [
+                button
+                for button in matching_dialog.descendants(
+                    title=UIConfig.CONFIRM_BUTTON, control_type="Button"
+                )
+                if button.is_visible() and button.is_enabled()
+            ]
+            if len(buttons) != 1:
+                logger.warning("Reception confirmation button is missing or ambiguous")
+                return False
+            buttons[0].click()
+        except (
+            ElementNotFoundError,
+            ElementAmbiguousError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            _ctypes.COMError,
+            IndexError,
+            ValueError,
+            NoPatternInterfaceError,
+        ) as error:
+            logger.warning("Reception confirmation click failed: %s", error)
+            return False
+        logger.info("Reception confirmation clicked: %s", observed_text)
+        return True
+
+    @log_execution_time(logger)
     def handle_reception_confirmation(
         self, wait_for_condition_callback: Callable
     ) -> bool:
-        """
-        '문서를 접수하시겠습니까?' 확인 대화상자를 처리합니다.
-
-        Args:
-            wait_for_condition_callback: 조건 대기 콜백 함수
-        """
-        # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
-        reception_dialog_appeared = wait_for_condition_callback(
-            lambda: (
-                self.dlg.child_window(title="확인", control_type="Window") is not None
-                and self.dlg.child_window(title="확인", control_type="Window").exists()
-                and self.dlg.child_window(
-                    title="문서를 접수하시겠습니까?", class_name="Static"
-                )
-                is not None
-                and self.dlg.child_window(
-                    title="문서를 접수하시겠습니까?", class_name="Static"
-                ).exists()
-            ),
-            timeout=TimeoutConfig.RECEPTION_CONFIRMATION,
-            interval=TimeoutConfig.CONDITION_WAIT_INTERVAL,
-        )
-
-        if reception_dialog_appeared:
-            logger.info("접수 확인 대화상자 감지 - 확인 버튼 클릭")
-            # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
-            confirm_dialog = self.dlg.child_window(title="확인", control_type="Window")
-            confirm_button = confirm_dialog.child_window(
-                title="확인", class_name="Button"
+        """Confirm only the known reception question, using the body fast pass."""
+        return bool(
+            self._confirm_known_reception_body(
+                UIConfig.RECEPTION_CONFIRM_MESSAGE,
+                TimeoutConfig.RECEPTION_CONFIRMATION,
+                wait_for_condition_callback,
             )
-            confirm_button.click()
-            logger.debug("접수 확인 완료")
-            return True
-        logger.warning("접수 확인 대화상자가 나타나지 않음")
-        return False
+        )
 
     @log_execution_time(logger)
     def handle_circulation_completion(
         self, wait_for_condition_callback: Callable
     ) -> bool:
-        """
-        '공람지정을 완료하였습니다.' 확인 대화상자를 처리합니다.
-
-        Args:
-            wait_for_condition_callback: 조건 대기 콜백 함수
-        """
-        # 더 정확한 대화상자 식별: 메시지 텍스트로 직접 확인
-        circulation_dialog_appeared = wait_for_condition_callback(
-            lambda: (
-                self.dlg.child_window(title="확인", control_type="Window").exists()
-                and self.dlg.child_window(
-                    title="공람지정을 완료하였습니다.", class_name="Static"
-                ).exists()
-            ),
-            timeout=TimeoutConfig.CIRCULATION_COMPLETION,
-            interval=TimeoutConfig.CONDITION_WAIT_INTERVAL,
-        )
-
-        if circulation_dialog_appeared:
-            logger.info("공람지정 완료 대화상자 감지 - 확인 버튼 클릭")
-            # 정확한 메시지가 확인되었으므로 즉시 확인 버튼 클릭
-            confirm_dialog = self.dlg.child_window(title="확인", control_type="Window")
-            confirm_button = confirm_dialog.child_window(
-                title="확인", class_name="Button"
+        """Acknowledge only the known circulation completion body."""
+        return bool(
+            self._confirm_known_reception_body(
+                UIConfig.CIRCULATION_COMPLETION_MESSAGE,
+                TimeoutConfig.CIRCULATION_COMPLETION,
+                wait_for_condition_callback,
             )
-            confirm_button.click()
-            logger.debug("공람지정 완료 확인 완료")
-            return True
-        logger.debug("공람지정 완료 대화상자가 나타나지 않음")
-        return False
+        )
 
     @log_execution_time(logger)
     def handle_reception_result(self, wait_for_condition_callback: Callable) -> bool:
-        """
-        접수 후 결과 처리 (종료 또는 다음 문서).
-
-        Args:
-            wait_for_condition_callback: 조건 대기 콜백 함수
-        """
+        """Observe a complete known next/exit body without dismissing its load guard."""
         observed_text = ""
+        try:
+            scope = self.dlg.wrapper_object()
+        except (
+            ElementNotFoundError,
+            ElementAmbiguousError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            _ctypes.COMError,
+            IndexError,
+            ValueError,
+            NoPatternInterfaceError,
+        ) as error:
+            logger.warning("Reception result scope unavailable: %s", error)
+            return False
 
         def result_ready() -> bool:
             nonlocal observed_text
-            if not self.dlg.child_window(title="확인", control_type="Window").exists():
+            try:
+                dialogs = scope.descendants(
+                    title=UIConfig.CONFIRM_BUTTON, control_type="Window"
+                )
+                if len(dialogs) != 1:
+                    return False
+                window = dialogs[0]
+                observed_text = self.get_quick_dialog_text(window)
+                if (
+                    not observed_text.strip()
+                    or observed_text.strip() == UIConfig.CONFIRM_BUTTON
+                ):
+                    observed_text = self.get_detailed_dialog_text(window)
+                return (
+                    " ".join(observed_text.split())
+                    in UIConfig.RECEPTION_RESULT_MESSAGES
+                )
+            except (
+                ElementNotFoundError,
+                ElementAmbiguousError,
+                AttributeError,
+                RuntimeError,
+                OSError,
+                _ctypes.COMError,
+                IndexError,
+                ValueError,
+                NoPatternInterfaceError,
+            ) as error:
+                logger.debug("Reception result read failed: %s", error)
                 return False
-            observed_text = self.get_confirm_dialog_text()
-            if not observed_text.strip() or observed_text.strip() == "확인":
-                observed_text = self.get_detailed_dialog_text()
-            return (
-                "다음 문서를 처리하겠습니까" in observed_text
-                or "종료하시겠습니까" in observed_text
-            )
 
         if not wait_for_condition_callback(
             result_ready,
@@ -211,7 +286,6 @@ class DialogHandler(ConfirmDialogReader):
             logger.warning("Reception result unverified: observed=%r", observed_text)
             return False
         logger.info("Verified reception result: %s", observed_text)
-        # Leave the next/exit prompt for the main loop's load guard.
         return True
 
     @log_execution_time(logger)
@@ -321,38 +395,33 @@ class DialogHandler(ConfirmDialogReader):
         return True
 
     @log_execution_time(logger)
-    def handle_approval_result(self, click_confirm_callback: Callable) -> None:
-        """
-        결재 결과를 처리합니다 (완료 또는 다음 문서) - 초고속 최적화 버전.
-
-        Args:
-            click_confirm_callback: 확인 버튼 클릭 콜백 함수
-        """
-        logger.info("결재 결과 대화상자 대기 시작 - handle_approval_result() 호출됨")
+    def handle_approval_result(self, click_confirm_callback: Callable) -> bool:
+        """Confirm only a complete known body and report whether it was handled."""
         wait_for_ui_settle(TimeoutConfig.MINIMAL_DELAY)
-
-        # 초고속 대화상자 찾기
-        confirm_dialog = self.find_confirm_dialog()
-
-        if not confirm_dialog:
-            logger.info("대화상자 없이도 다음 처리 계속 진행")
-            return
-
-        # 빠른 텍스트 패턴 매칭 (분석 생략하고 즉시 처리)
-        dialog_text = self.get_quick_dialog_text(confirm_dialog)
-        logger.info("결재 확인 대화상자 텍스트: '%s'", dialog_text)
-
-        # 즉시 패턴 매칭으로 빠른 처리
-        if (
-            "다음 문서를 처리하겠습니까" in dialog_text
-            or "결재문서가 완료되었습니다" in dialog_text
-        ):
-            logger.info("다음 문서 처리 대화상자 감지")
-            click_confirm_callback(confirm_dialog)
-        elif "종료하시겠습니까" in dialog_text:
-            logger.info("종료 확인 대화상자 감지 - 프로세스 종료")
-            click_confirm_callback(confirm_dialog)
-        else:
-            # 복잡한 분석 대신 기본 처리
-            logger.info("기본 확인 처리")
-            click_confirm_callback(confirm_dialog)
+        try:
+            scope = self.dlg.wrapper_object()
+            dialogs = scope.descendants(
+                title=UIConfig.CONFIRM_BUTTON, control_type="Window"
+            )
+            if len(dialogs) != 1:
+                logger.warning("Approval result dialog missing or ambiguous")
+                return False
+            dialog = dialogs[0]
+            text = self.get_quick_dialog_text(dialog)
+            if " ".join(text.split()) not in UIConfig.APPROVAL_RESULT_MESSAGES:
+                logger.warning("Approval result body unverified: %r", text)
+                return False
+            return click_confirm_callback(dialog) is not False
+        except (
+            ElementNotFoundError,
+            ElementAmbiguousError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            _ctypes.COMError,
+            IndexError,
+            ValueError,
+            NoPatternInterfaceError,
+        ) as error:
+            logger.warning("Approval result handling failed: %s", error)
+            return False

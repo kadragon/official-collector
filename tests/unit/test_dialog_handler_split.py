@@ -1,4 +1,4 @@
-# Trace: Split remaining oversized RPA modules on next touch
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 """Characterize dialog readers at the existing public handler boundary."""
 
 from unittest.mock import Mock
@@ -79,18 +79,26 @@ def test_detailed_debug_capture_restores_stdout_on_failure():
 def test_quick_text_preserves_caption_first_short_circuit():
     handler, window = make_handler()
     window.window_text.return_value = " 確認 "
+    window.descendants.return_value = []
     assert handler.get_quick_dialog_text(window) == "確認"
-    window.children.assert_not_called()
+    window.descendants.assert_called_once_with()
 
 
-def test_quick_text_reads_only_first_three_static_controls_when_caption_empty():
+def test_quick_text_reads_all_body_fields_when_caption_empty():
     handler, window = make_handler()
     window.window_text.return_value = ""
     controls = [Mock(window_text=Mock(return_value="tiny")) for _ in range(4)]
-    controls[2].window_text.return_value = "known body"
-    window.children.return_value = controls
-    assert handler.get_quick_dialog_text(window) == "known body"
-    controls[3].window_text.assert_not_called()
+    controls[2].window_text.return_value = "다음 문서를 처리하겠습니까?"
+    window.descendants.return_value = controls
+    for control in controls:
+        control.element_info.control_type = "Text"
+        control.element_info.class_name = "Static"
+    assert (
+        handler.get_quick_dialog_text(window)
+        == "tiny tiny 다음 문서를 처리하겠습니까? tiny"
+    )
+    for control in controls:
+        control.window_text.assert_called_once_with()
 
 
 def test_analysis_keeps_static_body_and_caption_order():

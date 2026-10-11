@@ -1,16 +1,18 @@
 """Confirmation-window discovery and text extraction, independent of workflows."""
 
-# Trace: Split remaining oversized RPA modules on next touch
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 
 import io
 import sys
 import time
+import _ctypes
 from typing import Any, Callable
 
 from pywinauto import Desktop
-from pywinauto.findwindows import ElementNotFoundError
+from pywinauto.findwindows import ElementNotFoundError, ElementAmbiguousError
+from pywinauto.uia_defines import NoPatternInterfaceError
 
-from config import TimeoutConfig
+from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger
 from utils.wait_helpers import wait_for_poll_interval
 
@@ -137,38 +139,37 @@ class ConfirmDialogReader:
             return ""
 
     def get_quick_dialog_text(self, confirm_dialog: Any) -> str:
-        """
-        대화상자 텍스트를 빠르게 가져오는 최적화된 함수.
-
-        Args:
-            confirm_dialog: 대화상자 객체
-
-        Returns:
-            str: 대화상자 텍스트
-        """
+        """Read all body fields once; a known clause must not hide a warning."""
         try:
-            # 가장 빠른 방법: window_text() 직접 사용
-            text = confirm_dialog.window_text()
-            if text and text.strip():
-                return str(text.strip())
-
-            # 백업: Static 컨트롤에서 빠르게 텍스트 수집
-            try:
-                static_controls = confirm_dialog.children(class_name="Static")
-                for control in static_controls[:3]:  # 최대 3개만 확인
-                    try:
-                        control_text = control.window_text().strip()
-                        if control_text and len(control_text) > 5:  # 의미있는 텍스트만
-                            return str(control_text)
-                    except Exception as exc:
-                        logger.debug("Static control quick text read failed: %s", exc)
-                        continue
-            except Exception as exc:
-                logger.debug("Static control enumeration failed: %s", exc)
-
-            return ""
-        except Exception as e:
-            logger.debug("빠른 텍스트 가져오기 실패: %s", e)
+            caption = str(confirm_dialog.window_text() or "").strip()
+            parts = [caption] if caption and caption != UIConfig.CONFIRM_BUTTON else []
+            for control in confirm_dialog.descendants():
+                info = control.element_info
+                if (
+                    info.control_type not in ("Text", "Edit")
+                    and info.class_name != "Static"
+                ):
+                    continue
+                body = str(control.window_text() or "").strip()
+                if body and body != UIConfig.CONFIRM_BUTTON:
+                    parts.append(body)
+            return " ".join(parts)
+        except (
+            ElementNotFoundError,
+            ElementAmbiguousError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            _ctypes.COMError,
+            IndexError,
+            ValueError,
+            NoPatternInterfaceError,
+        ) as error:
+            logger.debug(
+                "Complete confirmation body read failed (target title=%r): %s",
+                UIConfig.CONFIRM_BUTTON,
+                error,
+            )
             return ""
 
     def get_confirm_dialog_text(self) -> str:
@@ -215,13 +216,16 @@ class ConfirmDialogReader:
             logger.debug("확인 대화상자 텍스트 가져오기 실패: %s", e)
             return ""
 
-    def get_detailed_dialog_text(self) -> str:
+    def get_detailed_dialog_text(self, confirm_window: Any = None) -> str:
         """
         확인 대화상자의 상세 텍스트를 다양한 방법으로 수집합니다.
 
         Returns:
             str: 대화상자의 상세 텍스트 내용
         """
+        if confirm_window is not None:
+            # Retry the complete read on the same wrapper, never a title lookup.
+            return self.get_quick_dialog_text(confirm_window)
         try:
             confirm_window = self.dlg.child_window(title="확인", control_type="Window")
             if not confirm_window.exists():

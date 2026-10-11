@@ -1,6 +1,6 @@
 """공문 자동 분류 및 처리를 위한 메인 모듈."""
 
-# Trace: backlog.md - Classification safety and learning retries
+# Trace: backlog.md - Task-card selection and confirmation fast pass
 
 import itertools
 import sys
@@ -64,8 +64,10 @@ class Main:
         self.approval_name_list: List[str] = config.reception_list
         self.share_name_list: List[str] = config.share_list
 
-        self.collector = OfficialCollector()
         self.task_card_handler = TaskCardHandler()
+        self.collector = OfficialCollector(
+            task_card_capture=self.task_card_handler.capture_requested
+        )
         self.reception_department = ""
 
         # 서비스 생성 (의존성 주입 패턴, VECTOR_BACKEND에 따라 백엔드 선택)

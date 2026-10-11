@@ -154,56 +154,73 @@ class TestMaximumTimeoutOptimization:
         )
 
 
-class TestPostActionWaitTimeOptimization:
-    """Test suite for post-action wait time reduction (0.3s/0.5s → 0.1s)."""
+# Trace: backlog.md - Task-card selection and confirmation fast pass
+class TestVerifiedTaskCardSelection:
+    """Legacy entry points must use verified selection before approval."""
+
+    def make_collector(self):
+        collector = OfficialCollector.__new__(OfficialCollector)
+        collector.dlg = Mock()
+        collector.dlg.texts.return_value = ["전자결재: original"]
+        collector.window_manager = Mock()
+        collector.button_controller = Mock()
+        collector.dialog_handler = Mock()
+        collector.task_card_capture = Mock(return_value="Suggested card")
+        collector.approve_reviewed_document = Mock(return_value=True)
+        return collector
 
     @patch("services.official_service.wait_for_ui_settle")
     @patch("services.official_service.keyboard")
-    @patch("services.official_service.mouse")
     @patch("services.official_service.pyperclip")
-    def test_task_card_selection_uses_reduced_sleep(
-        self, mock_pyperclip, mock_mouse, mock_keyboard, mock_settle
+    def test_task_card_selection_uses_verified_capture_without_fixed_waits(
+        self, clipboard, keyboard, settle
     ):
-        """
-        Test that _perform_task_card_selection uses 0.1s settle waits instead of 0.3s.
+        collector = self.make_collector()
+        with patch("pywinauto.mouse.click") as click:
+            assert collector._perform_task_card_selection("Suggested card") is True
+        collector.task_card_capture.assert_called_once_with(collector, "Suggested card")
+        click.assert_not_called()
+        keyboard.send_keys.assert_not_called()
+        clipboard.copy.assert_not_called()
+        settle.assert_not_called()
 
-        This test verifies that the post-keyboard-input pauses have been
-        reduced from 300ms to 100ms for faster task card selection. Pauses go
-        through the named wait_for_ui_settle helper (no bare time.sleep).
-        """
-        # Given: An OfficialCollector instance (mock the connection)
-        with patch("services.official_service.WindowManager.connect_to_window"):
-            collector = OfficialCollector()
+    @pytest.mark.parametrize("selected", [None, "", "   ", "Different card"])
+    def test_task_card_capture_failure_never_approves(self, selected):
+        collector = self.make_collector()
+        collector.task_card_capture.return_value = selected
+        assert collector.document_sort("Suggested card") is False
+        collector.approve_reviewed_document.assert_not_called()
+        collector.button_controller.click_approval_button.assert_not_called()
 
-        # Given: Mock window objects
-        mock_info_window = Mock()
-        mock_dialog = Mock()
-        mock_dialog.rectangle.return_value = Mock(right=100, top=50)
+    def test_task_card_missing_capture_never_approves(self):
+        collector = self.make_collector()
+        collector.task_card_capture = None
+        assert collector.document_sort("Suggested card") is False
+        collector.approve_reviewed_document.assert_not_called()
+        collector.button_controller.click_approval_button.assert_not_called()
 
-        # Mock _wait_for_window to return our mocks
-        with patch.object(
-            collector.window_manager,
-            "wait_for_window",
-            side_effect=[mock_info_window, mock_dialog],
-        ):
-            # When: We perform task card selection
-            collector._perform_task_card_selection("test_card")
+    def test_task_card_capture_uses_existing_guarded_approval(self):
+        collector = self.make_collector()
+        assert collector.document_sort("Suggested card") is True
+        collector.approve_reviewed_document.assert_called_once_with(
+            "전자결재: original"
+        )
+        collector.button_controller.click_approval_button.assert_not_called()
 
-        # Then: wait_for_ui_settle should be called with 0.1 (not 0.3)
-        sleep_calls = [
-            call[0][0]
-            for call in mock_settle.call_args_list
-            if call[0][0] in [0.1, 0.3]
+    def test_task_card_capture_document_change_never_approves(self):
+        collector = self.make_collector()
+        collector.dlg.texts.side_effect = [
+            ["전자결재: original"],
+            ["전자결재: changed"],
         ]
+        assert collector.document_sort("Suggested card") is False
+        collector.approve_reviewed_document.assert_not_called()
 
-        # We expect 2 settle calls in this method (after two ENTER keys)
-        assert len(sleep_calls) == 2, f"Expected 2 settle calls, got {len(sleep_calls)}"
-
-        for sleep_time in sleep_calls:
-            assert sleep_time == 0.1, (
-                f"Expected 0.1s settle (optimized), got {sleep_time}s. "
-                "Settle time should be reduced from 0.3s to 0.1s"
-            )
+    def test_task_card_capture_is_injected_without_constructing_a_sibling(self):
+        capture = Mock()
+        with patch("services.official_service.WindowManager.connect_to_window"):
+            collector = OfficialCollector(task_card_capture=capture)
+        assert collector.task_card_capture is capture
 
 
 if __name__ == "__main__":
