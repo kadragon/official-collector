@@ -180,7 +180,7 @@ class Main:
                     wait_for_document_turnaround()
                     clear_screen()
                 else:
-                    print_warning("접수 없이 문서 처리를 마칩니다")
+                    print_warning("접수 완료를 확인하지 못해 처리를 중단합니다")
                     self._flush_all_pending_updates()
                     break
             elif stage == 2:
@@ -254,6 +254,7 @@ class Main:
         current = self.collector.get_official_title()
         if current != title:
             logger.warning("Document changed: expected=%s, current=%s", title, current)
+            print_warning("문서가 바뀌어 처리를 중단합니다")
             return False
         return True
 

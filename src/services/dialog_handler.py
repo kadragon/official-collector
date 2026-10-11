@@ -444,27 +444,30 @@ class DialogHandler:
         Args:
             wait_for_condition_callback: 조건 대기 콜백 함수
         """
-        result_dialog_appeared = wait_for_condition_callback(
-            lambda: self.dlg.child_window(title="확인", control_type="Window").exists(),
-            timeout=TimeoutConfig.APPROVAL_RESULT,
-        )
-        if result_dialog_appeared:
-            dialog_text = self.get_confirm_dialog_text()
-            logger.info("접수 결과 대화상자 텍스트: '%s'", dialog_text)
+        observed_text = ""
 
-            action = self.dialog_classifier.classify_dialog_action(dialog_text)
-            if action == DialogAction.EXIT:
-                logger.info("종료 확인 - 접수 처리 종료")
-            elif action == DialogAction.CONTINUE:
-                logger.info("다음 문서 처리 확인 - 계속 진행")
-            else:
-                logger.warning("Unverified reception result: %s", dialog_text)
+        def result_ready() -> bool:
+            nonlocal observed_text
+            if not self.dlg.child_window(title="확인", control_type="Window").exists():
                 return False
+            observed_text = self.get_confirm_dialog_text()
+            if not observed_text.strip() or observed_text.strip() == "확인":
+                observed_text = self.get_detailed_dialog_text()
+            return (
+                "다음 문서를 처리하겠습니까" in observed_text
+                or "종료하시겠습니까" in observed_text
+            )
 
-            # Leave the known next/exit prompt for the main loop's load guard.
-            return True
-        logger.warning("Reception result unavailable")
-        return False
+        if not wait_for_condition_callback(
+            result_ready,
+            timeout=TimeoutConfig.REVIEW_RESULT_WAIT,
+            interval=TimeoutConfig.CONDITION_WAIT_INTERVAL,
+        ):
+            logger.warning("Reception result unverified: observed=%r", observed_text)
+            return False
+        logger.info("Verified reception result: %s", observed_text)
+        # Leave the next/exit prompt for the main loop's load guard.
+        return True
 
     @log_execution_time(logger)
     def handle_approval_confirmation(

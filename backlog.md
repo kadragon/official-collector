@@ -107,3 +107,8 @@
 - [ ] [constraint] Narrow remaining broad excepts outside PR #106/#107 scope (approval_line_handler 15, dialog_handler 19, document_processor 5, window_manager 5 incl. bare :123, main.py deletion helpers) (source: review) — src/services/window_manager.py:123
 - [ ] [debt] Narrow broad raise in confirm-button fallback (source: review) — src/services/button_controller.py:209
 - [x] [plan] Reconcile approval-decision-memory spec with queue: restore Approval store / Reception fallback / Assigned reuse above; spec tracked at docs/design/approval-decision-memory.md
+
+### PR #109 — classification safety review (2026-10-11)
+
+- [ ] [debt] Add a bounded end-of-run learning retry or restart-persistent queue; Main.run ends after its final flush, so retained failures cannot survive process exit (source: code-review) — src/services/document_processor.py:559
+- [ ] [constraint] Capture a verified document identifier/load signal before supporting same-title queue entries or distinguishing same-title manual switches; raw-title guards intentionally stop unchanged-title continuation (source: code-review) — src/services/official_service.py:307

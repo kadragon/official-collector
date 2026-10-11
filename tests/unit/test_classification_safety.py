@@ -66,7 +66,10 @@ def test_unknown_reception_result_is_never_confirmed(action):
     handler = DialogHandler(Mock(), Mock())
     handler.get_confirm_dialog_text = Mock(return_value="unverified")
     handler.dialog_classifier.classify_dialog_action.return_value = action
-    assert handler.handle_reception_result(Mock(return_value=True)) is False
+    assert (
+        handler.handle_reception_result(lambda predicate, **kwargs: predicate())
+        is False
+    )
     handler.dlg.child_window.return_value.child_window.return_value.click.assert_not_called()
 
 
@@ -75,11 +78,19 @@ def test_reception_success_leaves_known_prompt_for_main_loop(action):
     collector = OfficialCollector.__new__(OfficialCollector)
     collector.dlg = MagicMock()
     collector.dialog_handler = DialogHandler(collector.dlg, Mock())
-    collector.dialog_handler.get_confirm_dialog_text = Mock(return_value="known")
+    collector.dialog_handler.get_confirm_dialog_text = Mock(
+        return_value=(
+            "다음 문서를 처리하겠습니까?"
+            if action == DialogAction.CONTINUE
+            else "종료하시겠습니까?"
+        )
+    )
     collector.dialog_handler.dialog_classifier.classify_dialog_action.return_value = (
         action
     )
-    collector._wait_for_condition = Mock(return_value=True)
+    collector._wait_for_condition = Mock(
+        side_effect=lambda predicate, **kwargs: predicate()
+    )
     assert collector.reception(None) is True
     # Reception confirmation is clicked once; next/exit stays for load verification.
     assert (
@@ -141,3 +152,48 @@ def test_flush_reports_success_only_when_no_failed_mappings_remain(
     app.document_processor.flush_pending_updates.assert_called_once_with()
     assert success.call_count == (0 if any(remaining) else 1)
     assert warning.call_count == (1 if any(remaining) else 0)
+
+
+@pytest.mark.parametrize(
+    "previous", ["문서를 접수하시겠습니까?", "공람지정을 완료하였습니다."]
+)
+def test_reception_waits_past_previous_dialog_for_verified_result(previous):
+    from config import TimeoutConfig
+    from dialogs.dialog_classifier import DialogClassifier
+
+    handler = DialogHandler(Mock(), DialogClassifier())
+    handler.dlg.child_window.return_value.exists.return_value = True
+    handler.get_confirm_dialog_text = Mock(
+        side_effect=[previous, "다음 문서를 처리하겠습니까?"]
+    )
+    polls = []
+
+    def wait(predicate, timeout, **kwargs):
+        assert timeout == TimeoutConfig.REVIEW_RESULT_WAIT
+        polls.append(predicate())
+        polls.append(predicate())
+        return polls[-1]
+
+    assert handler.handle_reception_result(wait)
+    assert polls == [False, True]
+    handler.dlg.child_window.return_value.child_window.return_value.click.assert_not_called()
+
+
+def test_reception_result_uses_detailed_text_when_body_is_unreadable():
+    from dialogs.dialog_classifier import DialogClassifier
+
+    handler = DialogHandler(Mock(), DialogClassifier())
+    handler.dlg.child_window.return_value.exists.return_value = True
+    handler.get_confirm_dialog_text = Mock(return_value="확인")
+    handler.get_detailed_dialog_text = Mock(return_value="종료하시겠습니까?")
+    assert handler.handle_reception_result(lambda predicate, **kwargs: predicate())
+    handler.get_detailed_dialog_text.assert_called_once_with()
+
+
+def test_reception_circulation_completion_is_not_a_final_result():
+    from dialogs.dialog_classifier import DialogClassifier
+
+    handler = DialogHandler(Mock(), DialogClassifier())
+    handler.dlg.child_window.return_value.exists.return_value = True
+    handler.get_confirm_dialog_text = Mock(return_value="공람지정을 완료하였습니다.")
+    assert not handler.handle_reception_result(lambda predicate, **kwargs: predicate())
