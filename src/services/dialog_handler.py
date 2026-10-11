@@ -5,10 +5,11 @@ Coordinates reception, approval, and flow state using confirmation-window reader
 
 # Trace: backlog.md - Task-card selection and confirmation fast pass
 
+import _ctypes
 from typing import Any, Callable
-from pywinauto.findwindows import ElementNotFoundError
+from pywinauto.findwindows import ElementNotFoundError, ElementAmbiguousError
 
-from config import TimeoutConfig
+from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger
 from utils.performance_logger import log_execution_time
 from utils.wait_helpers import wait_for_ui_settle
@@ -106,28 +107,96 @@ class DialogHandler(ConfirmDialogReader):
             logger.warning("예상치 못한 오류: %s", e)
             return DocumentFlowState.EXIT
 
+    @log_execution_time(logger)
     def _confirm_known_reception_body(
         self, expected: str, timeout: float, wait_for_condition: Callable
     ) -> bool:
-        """Observe once per poll and click only the retained matching dialog."""
-        dialog = self.dlg.child_window(title="확인", control_type="Window")
+        """Resolve matching windows without lazy title lookups, then retain the HWND."""
         observed_text = ""
+        matching_dialog = None
+        try:
+            scope = self.dlg.wrapper_object()
+        except (
+            ElementNotFoundError,
+            ElementAmbiguousError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            _ctypes.COMError,
+            IndexError,
+        ) as error:
+            logger.warning("Reception window unavailable: %s", error)
+            return False
 
         def ready() -> bool:
-            nonlocal observed_text
-            if not dialog.exists():
+            nonlocal observed_text, matching_dialog
+            try:
+                dialogs = scope.descendants(
+                    title=UIConfig.CONFIRM_BUTTON, control_type="Window"
+                )
+                if len(dialogs) != 1:
+                    return False
+                candidate = dialogs[0]
+                observed_text = self.get_quick_dialog_text(
+                    candidate, patterns=(expected,)
+                )
+                if not observed_text.strip():
+                    # Preserve the old exact Static lookup for nested/non-Text bodies.
+                    controls = candidate.descendants(
+                        title=expected, class_name="Static"
+                    )
+                    if len(controls) != 1:
+                        return False
+                    observed_text = str(controls[0].window_text() or "").strip()
+                if observed_text.strip() != expected:
+                    return False
+                matching_dialog = candidate
+                return True
+            except (
+                ElementNotFoundError,
+                ElementAmbiguousError,
+                AttributeError,
+                RuntimeError,
+                OSError,
+                _ctypes.COMError,
+                IndexError,
+            ) as error:
+                logger.debug("Reception confirmation read failed: %s", error)
                 return False
-            observed_text = self.get_quick_dialog_text(dialog)
-            return expected in observed_text
 
-        if not wait_for_condition(
-            ready, timeout=timeout, interval=TimeoutConfig.CONDITION_WAIT_INTERVAL
+        if (
+            not wait_for_condition(
+                ready, timeout=timeout, interval=TimeoutConfig.CONDITION_WAIT_INTERVAL
+            )
+            or matching_dialog is None
         ):
             logger.warning(
                 "Reception confirmation unverified: observed=%r", observed_text
             )
             return False
-        dialog.child_window(title="확인", class_name="Button").click()
+        try:
+            buttons = [
+                button
+                for button in matching_dialog.descendants(
+                    title=UIConfig.CONFIRM_BUTTON, control_type="Button"
+                )
+                if button.is_visible() and button.is_enabled()
+            ]
+            if len(buttons) != 1:
+                logger.warning("Reception confirmation button is missing or ambiguous")
+                return False
+            buttons[0].click()
+        except (
+            ElementNotFoundError,
+            ElementAmbiguousError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            _ctypes.COMError,
+            IndexError,
+        ) as error:
+            logger.warning("Reception confirmation click failed: %s", error)
+            return False
         logger.info("Reception confirmation clicked: %s", observed_text)
         return True
 
@@ -136,10 +205,12 @@ class DialogHandler(ConfirmDialogReader):
         self, wait_for_condition_callback: Callable
     ) -> bool:
         """Confirm only the known reception question, using the body fast pass."""
-        return self._confirm_known_reception_body(
-            "문서를 접수하시겠습니까?",
-            TimeoutConfig.RECEPTION_CONFIRMATION,
-            wait_for_condition_callback,
+        return bool(
+            self._confirm_known_reception_body(
+                "문서를 접수하시겠습니까?",
+                TimeoutConfig.RECEPTION_CONFIRMATION,
+                wait_for_condition_callback,
+            )
         )
 
     @log_execution_time(logger)
@@ -147,10 +218,12 @@ class DialogHandler(ConfirmDialogReader):
         self, wait_for_condition_callback: Callable
     ) -> bool:
         """Acknowledge only the known circulation completion body."""
-        return self._confirm_known_reception_body(
-            "공람지정을 완료하였습니다.",
-            TimeoutConfig.CIRCULATION_COMPLETION,
-            wait_for_condition_callback,
+        return bool(
+            self._confirm_known_reception_body(
+                "공람지정을 완료하였습니다.",
+                TimeoutConfig.CIRCULATION_COMPLETION,
+                wait_for_condition_callback,
+            )
         )
 
     @log_execution_time(logger)
@@ -168,7 +241,9 @@ class DialogHandler(ConfirmDialogReader):
             nonlocal observed_text
             if not dialog.exists():
                 return False
-            observed_text = self.get_quick_dialog_text(dialog)
+            observed_text = self.get_quick_dialog_text(
+                dialog, patterns=UIConfig.RECEPTION_RESULT_PATTERNS
+            )
             if not observed_text.strip() or observed_text.strip() == "확인":
                 observed_text = self.get_detailed_dialog_text()
             return (

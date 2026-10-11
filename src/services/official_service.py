@@ -511,22 +511,24 @@ class OfficialCollector:
         logger.error("대상 창이 연결되어 있지 않습니다.")
         return ""
 
-    def document_sort(self, document_group_name: str) -> None:
+    def document_sort(self, document_group_name: str) -> bool:
         """Reuse verified capture and guarded approval for the legacy entry point."""
         if not self.dlg:
             logger.error("Target document window is not connected")
-            return
+            return False
         original_title = self.get_official_title()
         if not original_title:
             logger.warning("Task-card document identity is unavailable")
-            return
+            return False
         if not self._perform_task_card_selection(document_group_name):
-            return
+            return False
         if self.get_official_title() != original_title:
             logger.warning("Task-card document changed during selection")
-            return
+            return False
         if not self.approve_reviewed_document(original_title):
             logger.warning("Task-card document approval is unverified")
+            return False
+        return True
 
     @log_execution_time(logger)
     def _perform_task_card_selection(self, document_group_name: str) -> bool:
@@ -537,6 +539,13 @@ class OfficialCollector:
         selected = self.task_card_capture(self, document_group_name)
         if not selected or not selected.strip():
             logger.warning("Task-card selection cancelled or unverified")
+            return False
+        if selected.strip() != document_group_name.strip():
+            logger.warning(
+                "Task-card selection differs from the requested card: requested=%s, selected=%s",
+                document_group_name,
+                selected,
+            )
             return False
         logger.info("Verified task-card selection: %s", selected)
         return True

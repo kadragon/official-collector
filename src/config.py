@@ -160,6 +160,10 @@ class UIConfig:
         "종료하시겠습니까",
         "결재문서가 완료되었습니다",
     )
+    RECEPTION_RESULT_PATTERNS = (
+        "다음 문서를 처리하겠습니까",
+        "종료하시겠습니까",
+    )
     APPROVAL_LINE_SAVED_MESSAGE = "결재선 변경을 완료했습니다."
     TASK_CARD_SELECT_ID = 6451
     TASK_CARD_FIELD_ID = 1994

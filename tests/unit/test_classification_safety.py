@@ -88,6 +88,9 @@ def test_reception_success_leaves_known_prompt_for_main_loop(action):
             ),
         ]
     )
+    window = collector.dlg.child_window.return_value
+    collector.dlg.wrapper_object.return_value.descendants.return_value = [window]
+    window.descendants.return_value = [window.child_window.return_value]
     collector.dialog_handler.dialog_classifier.classify_dialog_action.return_value = (
         action
     )

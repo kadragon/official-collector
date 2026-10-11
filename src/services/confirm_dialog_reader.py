@@ -9,7 +9,7 @@ import _ctypes
 from typing import Any, Callable
 
 from pywinauto import Desktop
-from pywinauto.findwindows import ElementNotFoundError
+from pywinauto.findwindows import ElementNotFoundError, ElementAmbiguousError
 
 from config import TimeoutConfig, UIConfig
 from utils.error_handler import setup_logger
@@ -137,7 +137,11 @@ class ConfirmDialogReader:
             logger.warning("대화상자 내용 분석 실패: %s", e)
             return ""
 
-    def get_quick_dialog_text(self, confirm_dialog: Any) -> str:
+    def get_quick_dialog_text(
+        self,
+        confirm_dialog: Any,
+        patterns: tuple[str, ...] = UIConfig.CONFIRM_BODY_PATTERNS,
+    ) -> str:
         """Read a body once, skipping the caption and stopping on known messages."""
         try:
             text = str(confirm_dialog.window_text() or "").strip()
@@ -150,26 +154,28 @@ class ConfirmDialogReader:
                     body = str(control.window_text() or "").strip()
                 except (
                     ElementNotFoundError,
+                    ElementAmbiguousError,
                     AttributeError,
                     RuntimeError,
                     OSError,
                     _ctypes.COMError,
+                    IndexError,
                 ) as error:
                     logger.debug("Confirmation child read failed: %s", error)
                     continue
                 if body and body != UIConfig.CONFIRM_BUTTON and body not in parts:
                     parts.append(body)
-                    if any(
-                        pattern in body for pattern in UIConfig.CONFIRM_BODY_PATTERNS
-                    ):
+                    if any(pattern in body for pattern in patterns):
                         return body
             return " ".join(parts)
         except (
             ElementNotFoundError,
+            ElementAmbiguousError,
             AttributeError,
             RuntimeError,
             OSError,
             _ctypes.COMError,
+            IndexError,
         ) as error:
             logger.debug("Quick confirmation body read failed: %s", error)
             return ""

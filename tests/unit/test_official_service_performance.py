@@ -165,7 +165,7 @@ class TestVerifiedTaskCardSelection:
         collector.window_manager = Mock()
         collector.button_controller = Mock()
         collector.dialog_handler = Mock()
-        collector.task_card_capture = Mock(return_value="Actual card")
+        collector.task_card_capture = Mock(return_value="Suggested card")
         collector.approve_reviewed_document = Mock(return_value=True)
         return collector
 
@@ -184,24 +184,24 @@ class TestVerifiedTaskCardSelection:
         clipboard.copy.assert_not_called()
         settle.assert_not_called()
 
-    @pytest.mark.parametrize("selected", [None, "", "   "])
+    @pytest.mark.parametrize("selected", [None, "", "   ", "Different card"])
     def test_task_card_capture_failure_never_approves(self, selected):
         collector = self.make_collector()
         collector.task_card_capture.return_value = selected
-        collector.document_sort("Suggested card")
+        assert collector.document_sort("Suggested card") is False
         collector.approve_reviewed_document.assert_not_called()
         collector.button_controller.click_approval_button.assert_not_called()
 
     def test_task_card_missing_capture_never_approves(self):
         collector = self.make_collector()
         collector.task_card_capture = None
-        collector.document_sort("Suggested card")
+        assert collector.document_sort("Suggested card") is False
         collector.approve_reviewed_document.assert_not_called()
         collector.button_controller.click_approval_button.assert_not_called()
 
     def test_task_card_capture_uses_existing_guarded_approval(self):
         collector = self.make_collector()
-        collector.document_sort("Suggested card")
+        assert collector.document_sort("Suggested card") is True
         collector.approve_reviewed_document.assert_called_once_with(
             "전자결재: original"
         )
@@ -213,7 +213,7 @@ class TestVerifiedTaskCardSelection:
             ["전자결재: original"],
             ["전자결재: changed"],
         ]
-        collector.document_sort("Suggested card")
+        assert collector.document_sort("Suggested card") is False
         collector.approve_reviewed_document.assert_not_called()
 
     def test_task_card_capture_is_injected_without_constructing_a_sibling(self):
