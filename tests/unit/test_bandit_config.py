@@ -32,20 +32,8 @@ class TestBanditConfig:
 
 
 class TestBanditWorkflow:
-    """Verify bandit.yml workflow excluded_paths has no redundant test patterns."""
+    """Verify the workflow scans the production source tree."""
 
-    def test_workflow_excluded_paths_no_redundant_test_patterns(self):
-        """excluded_paths should not duplicate test exclusions already in .bandit."""
+    def test_workflow_scans_only_production_source(self):
         workflow_path = PROJECT_ROOT / ".github" / "workflows" / "bandit.yml"
-        text = workflow_path.read_text()
-
-        match = re.search(r"excluded_paths:\s*(.+)", text)
-        assert match is not None, "excluded_paths not found in bandit.yml"
-        excluded_paths = match.group(1).strip()
-
-        paths = [p.strip() for p in excluded_paths.split(",") if p.strip()]
-        test_patterns = [p for p in paths if p.startswith("tests")]
-        assert test_patterns == [], (
-            f"Redundant test patterns in excluded_paths: {test_patterns}. "
-            "Test exclusion is handled by .bandit INI config."
-        )
+        assert re.search(r"^\s+path: src\s*$", workflow_path.read_text(), re.MULTILINE)

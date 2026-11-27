@@ -116,6 +116,7 @@ def test_native_text_input_preserves_composed_korean(monkeypatch):
         timed_input.msvcrt, "getwch", lambda: pytest.fail("raw key input")
     )
     assert timed_input.get_timed_text_input("name", timeout=60.0) == "강동욱"
+    assert run.call_args.args[0][:3] == [timed_input.sys.executable, "-I", "-c"]
     assert run.call_args.kwargs["timeout"] == 60.0
     assert run.call_args.kwargs["stdin"] is timed_input.sys.stdin
 

@@ -7,12 +7,12 @@ Rules agents get wrong that the linter does not own. Tooling-owned style (black,
 Every code change cites its backlog item. New/edited source files carry:
 
 ```python
-# Trace: <backlog.md item or sprint title>
+# Trace: <issue reference or sprint title>
 ```
 
 Old `spec_id`/`task_id` headers remain as history; replace with the one-liner on touch, never add new `SPEC-*`/`TASK-*` IDs.
 
-Commits reference the backlog item or sprint title as well. Spec ambiguity is never guessed — file a `backlog.md` entry instead.
+Commits reference the issue or sprint title as well. File a queue issue for unresolved spec ambiguity.
 
 ## Git Conventions
 

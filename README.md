@@ -11,10 +11,11 @@ Supabase (pgvector) and OpenAI embeddings power intelligent handler/task-card ma
 - **Performance**: `utils/performance_logger.py` instruments OpenAI, Supabase, and RPA hotspots.
 
 ## Work Queue & Knowledge Map
-- `backlog.md` - work queue (pick the top `## Now` item; `tasks.md` exists only during an active sprint).
+- [GitHub Issues](https://github.com/kadragon/official-collector/issues) - work queue (`tasks.md` exists only during an active sprint).
+- `backlog.md` - historical verification notes.
 - `CHANGELOG.md` - one line per completed item (detail lives in git history).
 - `docs/` - durable knowledge (`runbook.md`, `architecture.md`, `conventions.md`, `workflows.md`).
-Follow the loop: read `docs/` -> pick a `backlog.md` item -> add/update tests -> implement -> refactor -> tick `backlog.md` -> append a `CHANGELOG.md` line.
+Follow the loop: read `docs/` -> pick an issue -> add/update tests -> implement -> refactor -> link the issue in the PR -> append a `CHANGELOG.md` line.
 
 ## Setup
 
@@ -45,7 +46,7 @@ uv run pylint src/
 - Supabase migration history is recorded in `CHANGELOG.md`.
 
 ## Need To Know
-- Always load `docs/` and `backlog.md` before coding; every commit must reference the backlog item or sprint title.
+- Read the owning docs and issue before coding. Reference the issue or sprint title in each commit.
 - Interactive prompts during DocumentProcessor fallback must include timeouts to keep RPA flows safe.
-- When ambiguity exists in specs, add a backlog entry instead of guessing.
+- When ambiguity exists in specs, file a queue issue instead of guessing.
 - Production safety: set `ENVIRONMENT=production` to block destructive operations; the `--delete` workflow requires explicit opt-in there.

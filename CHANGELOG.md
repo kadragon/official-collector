@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [fix] Isolate the bounded console reader and document Bandit B404/B603 review. Scan production source to exclude B101 test assertions.
 - [done] Reuse verified task-card capture and unify confirmation body fast pass (2026-10-11) → docs/runbook.md
 - [done] Split dialog discovery and text extraction from workflow orchestration (2026-10-11) → docs/architecture.md
 - [fix] Bind final processing to original document, verify reception success and retain failed learning for retry (2026-10-11)
