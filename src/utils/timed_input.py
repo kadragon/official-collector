@@ -1,9 +1,11 @@
-# Trace: backlog.md - Approval decision memory / Console focus before operator input
+# Trace: Bandit B404/B603 review for the bounded console reader
 """Windows console prompts with a deadline and no background stdin threads."""
 
 import msvcrt
 import json
-import subprocess
+
+# The only child invocation runs a fixed Python reader without a shell.
+import subprocess  # nosec B404
 import sys
 import time
 from typing import List, Optional
@@ -26,9 +28,11 @@ def get_timed_text_input(prompt: str, *, timeout: float) -> Optional[str]:
     activate_cmd_window()
     console.console.print(prompt, end=": ", markup=False)
     try:
-        result = subprocess.run(
+        # Operator input reaches stdin, never the isolated interpreter's argv.
+        result = subprocess.run(  # nosec B603
             [
                 sys.executable,
+                "-I",
                 "-c",
                 "import json,sys; print(json.dumps(sys.stdin.readline().rstrip('\\r\\n')))",
             ],
